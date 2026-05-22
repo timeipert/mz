@@ -1,0 +1,25 @@
+@use "../common";
+
+:host {
+  @include common.block;
+
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  justify-items: center;
+  align-items: center;
+  grid-gap: 1rem;
+  overflow-x: auto;
+}
+
+.option {
+  text-align: center;
+  background-color: #0d5d80;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 0.3rem;
+  cursor: pointer;
+
+  &:hover {
+    color: gold;
+  }
+}

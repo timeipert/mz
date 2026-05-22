@@ -1,0 +1,35 @@
+<div class="section" [style.width]="'35px'" [class.read-only]="readOnly">
+	<div #notesDiv class="notes" (keydown)="keyDown($event)" tabindex="-1" (focusin)="setDivFocus(true)" (focusout)="setDivFocus(false)">
+		<svg [attr.width]="'35px'">
+			<g (click)="clicked()" [attr.transform]="readOnly ? 'translate(0, -30)' : 'translate(0, 0)'">
+                          <line x1=0 x2=9999 y1=40 y2=40 stroke=black/>
+                          <line x1=0 x2=9999 y1=50 y2=50 stroke=black/>
+                          <line x1=0 x2=9999 y1=60 y2=60 stroke=black/>
+                          <line x1=0 x2=9999 y1=70 y2=70 stroke=black/>
+                          <line x1=0 x2=9999 y1=80 y2=80 stroke=black/>
+                          <text x=5 [style.font]="'bold 20px sans-serif'" [attr.stroke]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.fill]="hasCurrentFocus()? '#5bf186' : '#000000'" [attr.y]="getY() + 6">{{this.model.shape}}</text>
+			</g>
+		</svg>
+	</div>
+	<div tabindex="-1" class="noteText"     contenteditable="true"></div>
+	<div tabindex="-1" class="syllableText" contenteditable="true"></div>
+</div>
+
+<ng-template #commentModal let-modal>
+	<div class="modal-header">
+		<h4 class="modal-title" id="modal-basic-title">Clef Comments</h4>
+		<button type="button" class="close" aria-label="Close" (click)="modal.dismiss('Cross click')">
+			<span aria-hidden="true">&times;</span>
+		</button>
+	</div>
+	<div class="modal-body">
+		<div *ngIf="getActiveComments().length > 0">
+			<ul>
+				<li *ngFor="let comment of getActiveComments()">{{comment.text}}<img (click)="requestDeleteComment(comment)" src="assets/icons/delete.svg"/></li>
+			</ul>
+		</div>
+		<div *ngIf="getActiveComments().length == 0">
+			No comments for this clef.
+		</div>
+	</div>
+</ng-template>

@@ -1,0 +1,24 @@
+<div #mainDiv (keydown)="keyDown($event)" (focusin)="setDivFocus(true)" (focusout)="setDivFocus(false)" (click)="onClick()" class="section" [style.width]="20 + 'px'" [class.read-only]="readOnly" tabindex="-1">
+	<div class="notes">
+		<svg [attr.width]="20 + 'px'">
+			<g [attr.transform]="readOnly ? 'translate(0, -30)' : 'translate(0, 0)'">
+        <line x1=0 x2=9999 y1=40 y2=40 stroke=black/>
+        <line x1=0 x2=9999 y1=50 y2=50 stroke=black/>
+        <line x1=0 x2=9999 y1=60 y2=60 stroke=black/>
+        <line x1=0 x2=9999 y1=70 y2=70 stroke=black/>
+        <line x1=0 x2=9999 y1=80 y2=80 stroke=black/>
+        <g [attr.transform]="'translate(' + (20/2) + ', 0)'">
+          <rect x=0 y=85 width=2 height=20 [attr.fill]="model.focus && hasFocus? 'lightgreen': 'black'" />
+        </g>
+        <g [attr.transform]="'translate(' + (20/2) + ', 0)'">
+          <rect  *ngIf="!readOnly && isCommentStart()" [attr.x]="-5" [attr.y]="30" fill="black" width="2px"  height="60px" fill="#A5A5A5" />
+          <rect  *ngIf="!readOnly && isCommentStart()" [attr.x]="-5" [attr.y]="30" fill="black" width="10px" height="2px" fill="#A5A5A5" />    
+          <rect  *ngIf="!readOnly && isCommentEnd()"   [attr.x]="5"  [attr.y]="30" fill="black" width="2px"  height="60px" fill="#A5A5A5" />
+          <rect  *ngIf="!readOnly && isCommentEnd()"   [attr.x]="-5"  [attr.y]="30" fill="black" width="10px" height="2px" fill="#A5A5A5" />
+        </g>
+			</g>
+		</svg>
+	</div>
+	<div class="noteText"     contenteditable="true"></div>
+	<div class="syllableText" contenteditable="true"></div>
+</div>

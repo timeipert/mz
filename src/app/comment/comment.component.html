@@ -1,0 +1,64 @@
+<div class="modal-header">
+  <h4 class="modal-title" id="modal-basic-title">Comments</h4>
+  <button type="button" class="close" aria-label="Close" (click)="activeModal.close('Cross click')">
+    <span aria-hidden="true">&times;</span>
+  </button>
+</div>
+<div class="modal-body">
+  <app-comment-info />
+  <div *ngFor="let comment of activeComments(); index as i" class="note-comment">
+    <label>Comment<img (click)="deleteComment(comment)" src="assets/icons/delete.svg" style="cursor: pointer; margin-left: 10px;" /></label>
+
+    <ul class="nav nav-pills mb-3 mt-2" style="font-size: 0.9rem;">
+      <li class="nav-item">
+        <a class="nav-link" [class.active]="comment.commentType === 'text'" (click)="setCommentType(comment, 'text')" style="cursor: pointer;">Text</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" [class.active]="comment.commentType === 'lines'" (click)="setCommentType(comment, 'lines')" style="cursor: pointer;">Staff Line</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" [class.active]="comment.commentType === 'tree'" (click)="setCommentType(comment, 'tree')" style="cursor: pointer;">Grid</a>
+      </li>
+    </ul>
+
+    <div *ngIf="comment.commentType === 'text'" class="mb-3">
+      <textarea [(ngModel)]="comment.text"></textarea>
+    </div>
+
+    <div class="mb-3">
+      <label for="emendation" class="me-2">Emendation</label>
+      <input type="checkbox" [(ngModel)]="comment.emendation" id="emendation" name="emendation" />
+    </div>
+
+    <div *ngIf="comment.commentType === 'lines' && comment.lines">
+      <label>Lemma</label>
+      <div class="original">
+        <app-zeile-section [documentType]="'Gesang'" [readOnly]="false" [data]="getOriginal(i)" [comments]="[]"
+          [zipper]="[0]"></app-zeile-section>
+        <div class="hider"></div>
+      </div>
+      <label>Reading</label>
+      <div *ngFor="let line of comment.lines; index as j" class="line-comment">
+        <app-zeile-section #sub [documentType]="documentType" [readOnly]="false" (onEvent)="handleEvent($event, i, j)"
+          *ngIf="line.kind === 'ZeileContainer'" [data]="line" [comments]="[]" [zipper]="[0]"></app-zeile-section>
+        <app-paratext-section #sub [documentType]="documentType" [readOnly]="false"
+          (onEvent)="handleEvent($event, i, j)" *ngIf="line.kind === 'ParatextContainer'" [data]="line" [comments]="[]"
+          [zipper]="[0]"></app-paratext-section>
+      </div>
+    </div>
+
+    <div *ngIf="comment.commentType === 'tree'">
+      <app-comment-tree *ngIf="comment.tree" [tree]="comment.tree" (treeEvent)="handleCommentTreeEvent($event, comment)"
+        [originalCreator]="originalCreator(comment)" />
+    </div>
+  </div>
+  <div *ngIf="comments.length > 0">
+    <button type="button" class="btn btn-primary" (click)="onSave()">
+      Apply
+    </button>
+  </div>
+  <div *ngIf="comments.length === 0">
+    No comments for this note.
+    <button type="button" class="btn btn-primary" (click)="onExit()">Ok</button>
+  </div>
+</div>

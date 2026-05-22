@@ -1,0 +1,43 @@
+.section {
+    display: inline-block;
+    vertical-align: bottom;
+}
+
+svg {
+    height: 120px;
+    width: 100%;
+}
+
+.noteText,
+.syllableText {
+    white-space: nowrap;
+    text-align: center;
+    border: 1px solid #e5e7eb;
+    border-radius: 3px;
+    margin: 2px 3px;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 15px;
+    visibility: hidden;
+    line-height: 24px;
+    height: 24px;
+    background: #f9fafb;
+}
+
+svg .note {
+    cursor: pointer;
+}
+
+.read-only {
+    .noteText {
+        display: none !important;
+    }
+
+    .syllableText {
+        border: none !important;
+        background: transparent;
+    }
+
+    svg {
+        height: 90px;
+    }
+}

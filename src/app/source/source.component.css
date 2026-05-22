@@ -1,0 +1,37 @@
+button {
+    margin: 5px;
+}
+
+.doc-open-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #4f46e5;
+    text-decoration: none;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(99,102,241,.3);
+    background: rgba(99,102,241,.05);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+.doc-open-link:hover {
+    background: rgba(99,102,241,.12);
+    border-color: rgba(99,102,241,.55);
+    color: #3730a3;
+}
+
+.disabled-input{
+    display: block;
+    width: 100%;
+    height: calc(2.25rem + 2px);
+    padding: .375rem .75rem;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #495057;
+    background-color: #fff;
+    background-clip: padding-box;
+    border: none;
+}

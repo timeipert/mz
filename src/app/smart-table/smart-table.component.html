@@ -1,0 +1,25 @@
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th *ngFor="let header of headers" (click)="sortBy(header)">
+        {{header.name}}
+        <img *ngIf="sortFieldName === header.name && !sortDescending" src="assets/icons/sort-up.svg"  />
+        <img *ngIf="sortFieldName === header.name &&  sortDescending" src="assets/icons/sort-down.svg"/>
+        <img *ngIf="sortFieldName !== header.name"                    src="assets/icons/sort-none.svg"/>
+      </th>
+      <th *ngIf="canDelete"></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let row of rows">
+      <td class="td-smart-row" (click)="rowClicked(row.dataObject)" *ngFor="let cell of row.cells">
+        <span *ngIf="cell.kind === 'text' && cell.text">{{cell.text}}</span>
+        <span *ngIf="cell.kind === 'text' && !cell.text" class="cell-empty">–</span>
+        <a *ngIf="cell.kind === 'link'" [href]="cell.href">{{cell.text}}</a>
+      </td>
+      <td *ngIf="canDelete">
+        <img class="delete-icon" src="assets/icons/delete.svg" (click)="requestDelete(row.dataObject); $event.stopPropagation();"/>
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,139 @@
+<div class="sticky-top shadow-sm">
+    <nav class="navbar navbar-expand-sm navbar-light bg-white px-4 border-bottom">
+        <a class="navbar-brand d-flex align-items-center gap-2" [routerLink]="['/']" style="text-decoration: none;">
+            <div class="d-flex align-items-baseline" style="font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.35rem; letter-spacing: -0.5px;">
+                <span style="color: #fff;">Monodi</span>
+                <span style="color: #34d399; font-size: 1.5rem; line-height: 1; margin-left: 1px;">+</span>
+            </div>
+            <span class="badge rounded-pill bg-light text-secondary border px-2 py-1" style="font-size: 0.65rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">zero</span>
+        </a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['sources']">Sources</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['search']">Search</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav ms-auto align-items-center">
+                <li class="nav-item me-3" *ngIf="github.isConnected">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-success d-flex align-items-center gap-1" (click)="sync('pull')" [disabled]="isSyncing" title="Pull from GitHub">
+                            <i class="bi bi-cloud-arrow-down" *ngIf="!isSyncing"></i>
+                            <span class="spinner-border spinner-border-sm" *ngIf="isSyncing"></span>
+                            Pull
+                        </button>
+                        <button class="btn btn-success d-flex align-items-center gap-1" (click)="sync('push')" [disabled]="isSyncing" title="Push to GitHub">
+                            <i class="bi bi-cloud-arrow-up" *ngIf="!isSyncing"></i>
+                            <span class="spinner-border spinner-border-sm" *ngIf="isSyncing"></span>
+                            Push
+                        </button>
+                    </div>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['settings']">
+                        <i class="bi bi-gear-fill me-1"></i>Settings
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+    <div *ngIf="tools && tools.tools.length > 0" class="monodi-tool-bar bg-light border-bottom px-3 py-2 d-flex align-items-center shadow-sm">
+        <!-- Left: Back to Source button -->
+        <button *ngIf="tools.tools[0]?.icon === 'to-source'"
+                class="btn btn-sm btn-back-source d-flex align-items-center gap-1 me-3"
+                (click)="tools.tools[0].callback!()">
+            <i class="bi bi-arrow-left-short fs-5"></i> Back to Source
+        </button>
+        <button *ngIf="toolHasParent" class="btn btn-sm btn-outline-secondary d-flex align-items-center me-2" (click)="toolsBack()" title="Back">
+            <i class="bi bi-arrow-left"></i>
+        </button>
+        <!-- Right: remaining tool icons -->
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <ng-container *ngFor="let tool of tools.tools">
+                <ng-container *ngIf="tool.icon !== 'to-source'">
+                    <ng-container *ngIf="tool.icon; else other">
+                        <button class="btn btn-toolbar-icon" (click)="tool.callback()" [attr.title]="tool.title">
+                            <img [attr.src]="'assets/icons/' + tool.icon + '.svg'" class="toolbar-icon" />
+                        </button>
+                    </ng-container>
+                    <ng-template #other>
+                        <span class="badge bg-secondary text-white">{{tool.title}}</span>
+                    </ng-template>
+                </ng-container>
+            </ng-container>
+        </div>
+    </div>
+</div>
+<div class="main-content">
+    <router-outlet></router-outlet>
+</div>
+
+<!-- Merge Collision Dialog -->
+<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showMergeDialog">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content shadow-lg">
+      <div class="modal-header bg-warning text-dark border-0">
+        <h5 class="modal-title fw-bold">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>Merge Conflicts Detected
+        </h5>
+      </div>
+      <div class="modal-body bg-light p-4">
+        <p class="mb-4 text-muted">The remote repository contains changes that conflict with your local edits. Please select which version to keep for each file.</p>
+        
+        <div class="card shadow-sm border-0 mb-3" *ngFor="let conflict of conflicts; let i = index">
+          <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+            <h6 class="mb-0 fw-bold text-primary">{{ conflict.type }}: <span class="text-dark">{{ conflict.name }}</span></h6>
+            <small class="text-muted font-monospace" style="font-size: 0.75rem;">{{ conflict.id }}</small>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <!-- Local Option -->
+              <div class="col-md-6">
+                <div class="position-relative">
+                  <input type="radio" class="btn-check" [name]="'conflict-' + i" [id]="'local-' + i" [(ngModel)]="conflict.resolution" value="local">
+                  <label class="btn btn-outline-secondary w-100 text-start p-3 h-100" [for]="'local-' + i">
+                    <div class="d-flex align-items-center mb-2">
+                      <i class="bi bi-laptop me-2 fs-5"></i>
+                      <strong class="d-block">Keep Local Version</strong>
+                    </div>
+                    <small class="d-block text-muted text-truncate">Preserve your unpushed browser edits.</small>
+                  </label>
+                </div>
+              </div>
+              
+              <!-- Remote Option -->
+              <div class="col-md-6">
+                <div class="position-relative">
+                  <input type="radio" class="btn-check" [name]="'conflict-' + i" [id]="'remote-' + i" [(ngModel)]="conflict.resolution" value="remote">
+                  <label class="btn btn-outline-success w-100 text-start p-3 h-100" [for]="'remote-' + i">
+                    <div class="d-flex align-items-center mb-2">
+                      <i class="bi bi-github me-2 fs-5"></i>
+                      <strong class="d-block">Take Remote Version</strong>
+                    </div>
+                    <small class="d-block text-muted text-truncate">Overwrite with GitHub's version.</small>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer border-0 bg-white">
+        <button type="button" class="btn btn-primary px-4 fw-medium" (click)="resolveConflicts()">
+          Resolve & Apply <i class="bi bi-check2-circle ms-1"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<canvas id="canvas"></canvas>
+<app-drag-map></app-drag-map>

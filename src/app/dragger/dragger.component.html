@@ -1,0 +1,26 @@
+<div class="dragger-row">
+  <div #middle
+    [class.depth-0]="zipper.length === 0"
+    [class.depth-1]="zipper.length === 1"
+    [class.depth-2]="zipper.length === 2"
+    [class.depth-3]="zipper.length === 3"
+    [class.depth-4]="zipper.length === 4"
+    class="middle" draggable="true"
+    (dragstart)="dragstart($event)"
+    (dragend)="dragend($event)"
+    (dragenter)="dragenter($event)"
+    (dragleave)="dragleave($event)"
+    (drop)="drop($event)"
+    [class.valid-drop-zone]="isValidDrop"
+    [class.is-drop-target]="isDragTarget"
+    [class.is-drag-origin]="isDraggingSelf">
+    <div ngbDropdown placement="right" class="dropdown dropright" *ngIf="actions.length > 0">
+      <div ngbDropdownToggle class="my-dropdown"> </div>
+      <div ngbDropdownMenu>
+        <span class="dropdown-item" (click)="actionRequested.emit(action)" *ngFor="let action of actions">{{action}}</span>
+      </div>
+    </div>
+  </div>
+  <div class="final-padding">
+  </div>
+</div>

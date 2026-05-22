@@ -1,0 +1,177 @@
+canvas {
+    display: none;
+}
+
+svg {
+    width: 0;
+}
+
+/* ── Main Navbar ─────────────────────────────────────
+   Dark slate, matches the hero section palette.
+   Keeps the app feeling professional and cohesive.
+─────────────────────────────────────────────────── */
+.navbar {
+    background-color: #1a1a2e !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Brand wordmark */
+.brand-wordmark {
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    color: #fff !important;
+    text-decoration: none;
+    font-family: 'Inter', sans-serif;
+}
+.brand-zero {
+    font-weight: 300;
+    color: #a5b4fc;
+    margin-left: 3px;
+    letter-spacing: 0;
+}
+
+/* Nav links */
+.navbar .nav-link {
+    color: rgba(255, 255, 255, 0.65) !important;
+    font-weight: 500;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+}
+.navbar .nav-link:hover {
+    color: #fff !important;
+    background: rgba(255, 255, 255, 0.07);
+}
+.navbar .nav-link.active,
+.navbar .nav-link.active.text-accent {
+    color: #a5b4fc !important;
+    background: rgba(129, 140, 248, 0.12);
+}
+
+/* Settings gear link — same treatment */
+.navbar .nav-link i.bi-gear-fill {
+    opacity: 0.8;
+}
+
+/* GitHub Pull/Push buttons — tinted to look right on dark bg */
+.navbar .btn-outline-success {
+    border-color: rgba(52, 211, 153, 0.5);
+    color: #34d399;
+    background: transparent;
+}
+.navbar .btn-outline-success:hover {
+    background: rgba(52, 211, 153, 0.12);
+    border-color: #34d399;
+    color: #34d399;
+}
+.navbar .btn-success {
+    background: rgba(52, 211, 153, 0.18);
+    border-color: rgba(52, 211, 153, 0.4);
+    color: #34d399;
+}
+.navbar .btn-success:hover {
+    background: rgba(52, 211, 153, 0.28);
+    color: #34d399;
+}
+
+/* Hamburger toggler on mobile */
+.navbar .navbar-toggler {
+    border-color: rgba(255,255,255,0.25);
+}
+.navbar .navbar-toggler-icon {
+    filter: invert(1) brightness(2);
+}
+
+/* ── Toolbar strip (note editor toolbar) ─────────────
+   One tone lighter than the navbar — a warm dark strip.
+─────────────────────────────────────────────────── */
+.monodi-tool-bar {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 14px;
+}
+
+/* Icon buttons */
+.btn-toolbar-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 7px;
+    border: 1px solid #d1d5db;
+    background: #fff;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.btn-toolbar-icon:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.toolbar-icon {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+
+/* Back button */
+.monodi-tool-bar .btn-outline-secondary {
+    color: #374151;
+    border-color: #d1d5db;
+    background: #fff;
+    height: 36px;
+}
+.monodi-tool-bar .btn-outline-secondary:hover {
+    color: #111827;
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+/* Toolbar badge labels */
+.monodi-tool-bar .badge {
+    background: #e5e7eb !important;
+    color: #374151 !important;
+    font-size: 0.78rem !important;
+    padding: 0.4em 0.75em !important;
+}
+
+/* Back to Source button — sits in the light toolbar on the left */
+.btn-back-source {
+    color: #374151;
+    background: transparent;
+    border: 1px solid #d1d5db;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 4px 10px;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.btn-back-source:hover {
+    color: #111827;
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.source-sigle {
+    white-space: nowrap;
+    font-size: 1.25rem;
+}
+
+@media print {
+    .monodi-tool-bar {
+        display: none;
+    }
+
+    app-route {
+        overflow: hidden;
+        height: unset;
+    }
+}

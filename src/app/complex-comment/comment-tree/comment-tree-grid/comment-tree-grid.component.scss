@@ -1,0 +1,54 @@
+@use "../common";
+
+:host {
+  @include common.block;
+
+  display: grid;
+  grid-gap: 1rem;
+}
+
+.add-row {
+  grid-column: 1 / -2;
+  grid-row: -2 / span 1;
+  text-align: center;
+  background-color: #89bdd3;
+  cursor: pointer;
+  height: 1.5rem;
+}
+
+.add-col {
+  grid-column: -2 / span 1;
+  grid-row: 1 / -2;
+  display: grid;
+  align-content: center;
+  text-align: center;
+  background-color: #89bdd3;
+  cursor: pointer;
+  width: 1.5rem;
+}
+
+.grid-entry {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.del-row, .del-col {
+  background-color: #89bdd3;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  visibility: hidden;
+  user-select: none;
+}
+
+.first-row .del-col, .first-col .del-row {
+  visibility: visible;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  width: unset;
+  height: unset;
+}

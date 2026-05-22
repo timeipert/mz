@@ -1,0 +1,31 @@
+:host {
+  position: absolute;
+  transform: translate(-1rem, -1rem);
+
+  &:focus-within {
+    background-color: white;
+    border: 1px solid #ccc;
+    svg .center {
+      display: none;
+    }
+    .action {
+      display: block;
+    }
+  }
+}
+
+svg {
+  display: block;
+}
+
+.action {
+  display: none;
+  margin: 0.5rem;
+  cursor: pointer;
+  text-decoration: underline;
+  user-select: none;
+}
+
+.action.active {
+  font-weight: bold;
+}

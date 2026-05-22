@@ -1,0 +1,199 @@
+<div class="container">
+  <div class="row mt-5" *ngIf="!source">
+    <div class="col">
+      The source is loading. If it does not load within a few seconds, someone has probably deleted the source.
+    </div>
+  </div>
+  <div class="mt-4" *ngIf="source">
+    <ng-container *ngIf="settings">
+      <datalist id="list-quellensigle"><option *ngFor="let s of settings.quellensigle" [value]="s"></option></datalist>
+      <datalist id="list-herkunftsregion"><option *ngFor="let s of settings.herkunftsregion" [value]="s"></option></datalist>
+      <datalist id="list-herkunftsort"><option *ngFor="let s of settings.herkunftsort" [value]="s"></option></datalist>
+      <datalist id="list-herkunftsinstitution"><option *ngFor="let s of settings.herkunftsinstitution" [value]="s"></option></datalist>
+      <datalist id="list-ordenstradition"><option *ngFor="let s of settings.ordenstradition" [value]="s"></option></datalist>
+      <datalist id="list-quellentyp"><option *ngFor="let s of settings.quellentyp" [value]="s"></option></datalist>
+      <datalist id="list-bibliotheksort"><option *ngFor="let s of settings.bibliotheksort" [value]="s"></option></datalist>
+      <datalist id="list-bibliothek"><option *ngFor="let s of settings.bibliothek" [value]="s"></option></datalist>
+      <datalist id="list-bibliothekssignatur"><option *ngFor="let s of settings.bibliothekssignatur" [value]="s"></option></datalist>
+      
+      <datalist *ngFor="let cf of settings.customSourceFields" [id]="'list-' + cf.key">
+        <option *ngFor="let s of settings.customLists?.[cf.key] || []" [value]="s"></option>
+      </datalist>
+    </ng-container>
+    <div class="row mb-4">
+      <div class="col d-flex align-items-center justify-content-between">
+        <h2 class="mb-0">
+          <span class="text-muted fs-4">Source:</span> 
+          {{source.quellensigle || 'New Source'}}
+        </h2>
+        <span class="text-muted small" *ngIf="isSaving"><i class="bi bi-arrow-repeat spin me-1"></i> Saving...</span>
+      </div>
+    </div>
+    <div class="row g-4">
+      <!-- Left Sidebar: Metadata -->
+      <div class="col-lg-4 col-md-5">
+        <div class="border rounded-3 p-3 bg-light position-sticky" style="top: 80px; max-height: calc(100vh - 100px); overflow-y: auto;">
+          <h5 class="fw-semibold mb-3 border-bottom pb-2"><i class="bi bi-info-circle me-2"></i>Metadata</h5>
+          <div class="row g-2">
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Source Siglum</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-quellensigle" [(ngModel)]="source.quellensigle" (blur)="save()" placeholder="e.g. D-Mbs Clm 1234"/>
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('quellensigle', source.quellensigle)" title="Add to global options"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Dating</label>
+              <input class="form-control form-control-sm" [(ngModel)]="source.datierung" (blur)="save()" placeholder="e.g. 12th cent."/>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Region of Origin</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-herkunftsregion" [(ngModel)]="source.herkunftsregion" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('herkunftsregion', source.herkunftsregion)" title="Add to global options"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Place of Origin</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-herkunftsort" [(ngModel)]="source.herkunftsort" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('herkunftsort', source.herkunftsort)" title="Add to global options"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Institution of Origin</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-herkunftsinstitution" [(ngModel)]="source.herkunftsinstitution" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('herkunftsinstitution', source.herkunftsinstitution)" title="Add to global options"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Order Tradition</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-ordenstradition" [(ngModel)]="source.ordenstradition" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('ordenstradition', source.ordenstradition)" title="Add to global options"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Source Type</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-quellentyp" [(ngModel)]="source.quellentyp" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('quellentyp', source.quellentyp)" title="Add to global options"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Library Location</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-bibliotheksort" [(ngModel)]="source.bibliotheksort" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('bibliotheksort', source.bibliotheksort)" title="Add to global options"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Library</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-bibliothek" [(ngModel)]="source.bibliothek" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('bibliothek', source.bibliothek)" title="Add to global options"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Library Signature</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" list="list-bibliothekssignatur" [(ngModel)]="source.bibliothekssignatur" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('bibliothekssignatur', source.bibliothekssignatur)" title="Add to global options"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+
+            <!-- Custom Fields -->
+            <div class="col-12" *ngFor="let cf of settings?.customSourceFields">
+              <label class="form-label text-muted small mb-1">{{cf.label}}</label>
+              <div class="input-group input-group-sm">
+                <input class="form-control form-control-sm" [attr.list]="'list-' + cf.key" [(ngModel)]="source.custom![cf.key]" (blur)="save()" />
+                <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettingsCustom(cf.key, source.custom![cf.key])" title="Add to global options"><i class="bi bi-plus"></i></button>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label text-muted small mb-1">Comment</label>
+              <textarea class="form-control form-control-sm" [(ngModel)]="source.kommentar" (blur)="save()" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Content -->
+      <div class="col-lg-8 col-md-7">
+        <div class="border rounded-3 p-3 bg-white">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0 fw-semibold">Documents for Source</h5>
+            <div class="d-flex gap-2 align-items-center position-relative">
+              <!-- Column picker toggle -->
+              <div class="position-relative">
+                <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                        (click)="showDocColPicker = !showDocColPicker">
+                  <i class="bi bi-layout-three-columns"></i> Columns
+                </button>
+                <!-- Floating column picker panel -->
+                <div *ngIf="showDocColPicker"
+                     class="shadow-lg border rounded-3 bg-white"
+                     style="position:absolute; top:2.2rem; right:0; z-index:200; min-width:230px; padding:1rem;">
+                  <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="fw-semibold" style="font-size:.9rem;">Visible columns</span>
+                    <button class="btn-close btn-sm" (click)="showDocColPicker = false"></button>
+                  </div>
+                  <div class="d-flex flex-column gap-2">
+                    <div *ngFor="let col of docCols" class="form-check form-switch mb-0">
+                      <input class="form-check-input" type="checkbox" [id]="'dcol-' + col.key"
+                             [(ngModel)]="col.visible" (change)="saveDocCols()" />
+                      <label class="form-check-label" [for]="'dcol-' + col.key"
+                             style="font-size:.85rem;">{{col.label}}</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button *ngIf="source.id" class="btn btn-primary btn-sm" [routerLink]="['/document', source.id]">
+                <i class="bi bi-plus-lg me-1"></i> New Document
+              </button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
+              <thead class="table-light">
+                <tr>
+                  <th *ngFor="let col of visibleDocCols; let first = first"
+                      [class.ps-3]="first">{{col.label}}</th>
+                  <th class="pe-3 text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngIf="documents.length === 0">
+                  <td [attr.colspan]="visibleDocCols.length + 1" class="text-center py-4 text-muted">No documents available yet.</td>
+                </tr>
+                <tr *ngFor="let d of documents">
+                  <td *ngFor="let col of visibleDocCols; let first = first"
+                      [class.ps-3]="first"
+                      [class.fw-medium]="first"
+                      [class.text-dark]="first">
+                    <span *ngIf="col.key === 'gattung1' || col.key === 'gattung2'"
+                          class="badge bg-light text-dark border">{{$any(d)[col.key]}}</span>
+                    <span *ngIf="col.key !== 'gattung1' && col.key !== 'gattung2'">{{$any(d)[col.key]}}</span>
+                  </td>
+                  <td class="pe-3 text-end">
+                    <div class="d-flex justify-content-end gap-2 align-items-center">
+                      <a class="doc-open-link" [routerLink]="['/document', d.quelle_id, d.id]">
+                        Open <i class="bi bi-arrow-right-short"></i>
+                      </a>
+                      <button class="btn btn-sm btn-outline-danger border-0" (click)="deleteDocument(d)" title="Delete">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

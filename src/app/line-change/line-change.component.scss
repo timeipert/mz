@@ -1,0 +1,31 @@
+.section {
+    display: inline-block;
+}
+
+svg {
+    height: 120px;
+    width: 100%;
+}
+
+.noteText, .syllableText {
+    white-space: nowrap;
+    text-align: left;
+    border: 1px dashed gray;
+    margin: 5px;
+    font-family: "Times New Roman", Times, serif;
+    font-size: 16px;
+    visibility: hidden;
+    line-height: 25px;
+    height: 25px;
+}
+
+svg .note {
+    cursor: pointer;
+}
+
+.read-only {
+    .noteText { display: none; }
+    .syllableText { border: none; }
+    svg { height: 90px; }
+}
+

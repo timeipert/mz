@@ -1,0 +1,2 @@
+<textarea *ngIf="!readOnly" [ngModel]="data.content" (ngModelChange)="updateText($event)"></textarea>
+<span *ngIf="readOnly" class="text">{{data.content}}</span>

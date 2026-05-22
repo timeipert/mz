@@ -1,0 +1,1154 @@
+import { flatMap, assertNever } from '../../utils';
+import { v4 as UUID } from "uuid";
+import * as LDP from 'lodash/fp';
+import * as _ from 'lodash';
+
+export enum ContainerKind {
+  FormteilContainer = "FormteilContainer",
+  MiscContainer = "MiscContainer",
+  ParatextContainer = "ParatextContainer",
+  RootContainer = "RootContainer",
+  ZeileContainer = "ZeileContainer",
+}
+
+export type Container = FormteilContainer | MiscContainer | ParatextContainer | RootContainer | ZeileContainer;
+
+export interface FormteilContainer {
+  "kind": ContainerKind.FormteilContainer;
+  uuid: string;
+  children: FormteilChildren[];
+  data: FormteilData[];
+}
+
+export interface MiscContainer {
+  "kind": ContainerKind.MiscContainer;
+  uuid: string;
+  children: MiscChildren[];
+}
+
+export interface ParatextContainer {
+  "kind": ContainerKind.ParatextContainer;
+  uuid: string;
+  text: string;
+  retro: boolean;
+  paratextType: ParatextType;
+  comment?: ParatextComment | undefined;
+}
+
+export interface RootContainer {
+  "kind": ContainerKind.RootContainer;
+  uuid: string;
+  children: RootChildren[];
+  comments: Comment[];
+  documentType: DocumentType;
+  version?: number | undefined;
+  globalComment?: CommentTree;
+}
+
+export interface ZeileContainer {
+  "kind": ContainerKind.ZeileContainer;
+  uuid: string;
+  children: LinePart[];
+}
+
+export type RootChildren = FormteilContainer | MiscContainer;
+
+export type FormteilChildren = ZeileContainer | ParatextContainer | FormteilContainer;
+
+export type MiscChildren = ZeileContainer | ParatextContainer;
+
+export enum ParatextType {
+  Aufführung = "Aufführung",
+  Feier = "Feier",
+  Festtag = "Festtag",
+  Formteil = "Formteil",
+  Gesang = "Gesang",
+  Melodiename = "Melodiename",
+  Zuschreibung = "Zuschreibung",
+}
+
+export enum DocumentType {
+  Level1 = "Level1",
+  Level2 = "Level2",
+  Level3 = "Level3",
+}
+
+export interface FormteilData {
+  name: FormteilDataName;
+  data: string;
+}
+
+export enum FormteilDataName {
+  LemmatisiertesTextInitium = "LemmatisiertesTextInitium",
+  Signatur = "Signatur",
+  Status = "Status",
+  Verweis = "Verweis",
+}
+
+export interface Comment {
+  startUUID: string;
+  endUUID: string;
+  commentType?: 'text' | 'lines' | 'tree';
+  text: string;
+  emendation?: boolean;
+  lines?: FormteilChildren[];
+  tree?: CommentTree;
+}
+
+export interface ParatextComment {
+  emendation: boolean;
+  comment: string;
+  alternativeText: string;
+  tree?: CommentTree;
+}
+
+export enum NoteType {
+  Ascending = "Ascending",
+  Descending = "Descending",
+  Flat = "Flat",
+  Liquescent = "Liquescent",
+  Natural = "Natural",
+  Normal = "Normal",
+  Oriscus = "Oriscus",
+  Quilisma = "Quilisma",
+  Sharp = "Sharp",
+  Strophicus = "Strophicus",
+}
+
+export enum BaseNote {
+  A = "A",
+  B = "B",
+  C = "C",
+  D = "D",
+  E = "E",
+  F = "F",
+  G = "G",
+}
+
+export interface Note {
+  uuid: string;
+  noteType: NoteType;
+  base: BaseNote;
+  liquescent: boolean;
+  octave: number;
+  focus: boolean;
+}
+
+export interface Spaced {
+  spaced: NonSpaced[];
+}
+
+export interface NonSpaced {
+  nonSpaced: Grouped[];
+}
+
+export interface Grouped {
+  grouped: Note[];
+}
+
+export enum LinePartKind {
+  Box = "Box",
+  Clef = "Clef",
+  FolioChange = "FolioChange",
+  LineChange = "LineChange",
+  Syllable = "Syllable",
+}
+
+export enum CommentPartKind {
+  Note = "Note",
+  Syllable = "Syllable",
+  LineChange = "LineChange",
+  FolioChange = "FolioChange"
+}
+
+export type LinePart = Box | Clef | FolioChange | LineChange | Syllable;
+
+export interface Box {
+  "kind": LinePartKind.Box;
+  uuid: string;
+  focus: boolean;
+}
+
+export interface Clef {
+  "kind": LinePartKind.Clef;
+  uuid: string;
+  focus: boolean;
+  base: BaseNote;
+  octave: number;
+  shape: string;
+}
+
+export interface FolioChange {
+  "kind": LinePartKind.FolioChange;
+  uuid: string;
+  focus: boolean;
+  text: string;
+}
+
+export interface LineChange {
+  "kind": LinePartKind.LineChange;
+  uuid: string;
+  focus: boolean;
+}
+
+export interface Syllable {
+  "kind": LinePartKind.Syllable;
+  uuid: string;
+  text: string;
+  notes: Spaced;
+  syllableType: SyllableType;
+}
+
+export enum SyllableType {
+  EditorialEllipsis = "EditorialEllipsis",
+  Normal = "Normal",
+  SourceEllipsis = "SourceEllipsis",
+  WithoutNotes = "WithoutNotes",
+}
+
+export function isOfFormteilContainer(x: any): boolean {
+  return x['kind'] === ContainerKind.FormteilContainer && typeof (x['uuid']) === 'string' && x['children'].filter((x: any) => { return isOfFormteilChildren(x); }).length === x['children'].length && x['data'].filter((x: any) => { return isOfFormteilData(x); }).length === x['data'].length;
+}
+
+export function isOfMiscContainer(x: any): boolean {
+  return x['kind'] === ContainerKind.MiscContainer && typeof (x['uuid']) === 'string' && x['children'].filter((x: any) => { return isOfMiscChildren(x); }).length === x['children'].length;
+}
+
+export function isOfParatextContainer(x: any): boolean {
+  return x['kind'] === ContainerKind.ParatextContainer && typeof (x['uuid']) === 'string' && typeof (x['text']) === 'string' && typeof (x['retro']) === 'boolean' && isOfParatextType(x['paratextType']) && (x['comment'] === undefined || isOfParatextComment(x['comment']));
+}
+
+export function isOfRootContainer(x: any): boolean {
+  return x['kind'] === ContainerKind.RootContainer && typeof (x['uuid']) === 'string' && x['children'].filter((x: any) => { return isOfRootChildren(x); }).length === x['children'].length && x['comments'].filter((x: any) => { return isOfComment(x); }).length === x['comments'].length && isOfDocumentType(x['documentType']) && (x['version'] === undefined || typeof (x['version']) === 'number');
+}
+
+export function isOfZeileContainer(x: any): boolean {
+  return x['kind'] === ContainerKind.ZeileContainer && typeof (x['uuid']) === 'string' && x['children'].filter((x: any) => { return isOfLinePart(x); }).length === x['children'].length;
+}
+
+export function isOfContainer(x: any): boolean {
+  return isOfFormteilContainer(x) || isOfMiscContainer(x) || isOfParatextContainer(x) || isOfRootContainer(x) || isOfZeileContainer(x);
+}
+
+export function isOfRootChildren(x: any): boolean {
+  return isOfFormteilContainer(x) || isOfMiscContainer(x);
+}
+
+export function isOfFormteilChildren(x: any): boolean {
+  return isOfZeileContainer(x) || isOfParatextContainer(x) || isOfFormteilContainer(x);
+}
+
+export function isOfMiscChildren(x: any): boolean {
+  return isOfZeileContainer(x) || isOfParatextContainer(x);
+}
+
+export function isOfParatextType(x: any): boolean {
+  return x === 'Aufführung' || x === 'Feier' || x === 'Festtag' || x === 'Formteil' || x === 'Gesang';
+}
+
+export function isOfDocumentType(x: any): boolean {
+  return x === 'Level1' || x === 'Level2' || x === 'Level3';
+}
+
+export function isOfFormteilData(x: any): boolean {
+  return isOfFormteilDataName(x['name']) && typeof (x['data']) === 'string';
+}
+
+export function isOfFormteilDataName(x: any): boolean {
+  return x === 'LemmatisiertesTextInitium' || x === 'Signatur' || x === 'Status' || x === 'Verweis';
+}
+
+export function isOfComment(x: any): boolean {
+  return typeof (x['startUUID']) === 'string' && typeof (x['endUUID']) === 'string' && typeof (x['text']) === 'string' && (x['emendation'] === undefined || typeof (x['emendation']) === 'boolean') && (x['line'] === undefined || isOfZeileContainer(x['line']));
+}
+
+export function isOfParatextComment(x: any): boolean {
+  return typeof (x['emendation']) === 'boolean' && typeof (x['comment']) === 'string' && typeof (x['alternativeText']) === 'string';
+}
+
+export function isOfNoteType(x: any): boolean {
+  return x === 'Ascending' || x === 'Descending' || x === 'Flat' || x === 'Liquescent' || x === 'Natural' || x === 'Normal' || x === 'Oriscus' || x === 'Quilisma' || x === 'Sharp' || x === 'Strophicus';
+}
+
+export function isOfBaseNote(x: any): boolean {
+  return x === 'A' || x === 'B' || x === 'C' || x === 'D' || x === 'E' || x === 'F' || x === 'G';
+}
+
+export function isOfNote(x: any): boolean {
+  return typeof (x['uuid']) === 'string' && isOfNoteType(x['noteType']) && isOfBaseNote(x['base']) && typeof (x['liquescent']) === 'boolean' && typeof (x['octave']) === 'number' && typeof (x['focus']) === 'boolean';
+}
+
+export function isOfSpaced(x: any): boolean {
+  return x['spaced'].filter((x: any) => { return isOfNonSpaced(x); }).length === x['spaced'].length;
+}
+
+export function isOfNonSpaced(x: any): boolean {
+  return x['nonSpaced'].filter((x: any) => { return isOfGrouped(x); }).length === x['nonSpaced'].length;
+}
+
+export function isOfGrouped(x: any): boolean {
+  return x['grouped'].filter((x: any) => { return isOfNote(x); }).length === x['grouped'].length;
+}
+
+export function isOfClef(x: any): boolean {
+  return x['kind'] === LinePartKind.Clef && typeof (x['uuid']) === 'string' && typeof (x['focus']) === 'boolean' && isOfBaseNote(x['base']) && typeof (x['octave']) === 'number' && typeof (x['shape']) === 'string';
+}
+
+export function isOfFolioChange(x: any): boolean {
+  return x['kind'] === LinePartKind.FolioChange && typeof (x['uuid']) === 'string' && typeof (x['focus']) === 'boolean' && typeof (x['text']) === 'string';
+}
+
+export function isOfLineChange(x: any): boolean {
+  return x['kind'] === LinePartKind.LineChange && typeof (x['uuid']) === 'string' && typeof (x['focus']) === 'boolean';
+}
+
+export function isOfSyllable(x: any): boolean {
+  return x['kind'] === LinePartKind.Syllable && typeof (x['uuid']) === 'string' && typeof (x['text']) === 'string' && isOfSpaced(x['notes']) && isOfSyllableType(x['syllableType']);
+}
+
+export function isOfLinePart(x: any): boolean {
+  return isOfClef(x) || isOfFolioChange(x) || isOfLineChange(x) || isOfSyllable(x);
+}
+
+export function isOfSyllableType(x: any): boolean {
+  return x === 'EditorialEllipsis' || x === 'Normal' || x === 'SourceEllipsis' || x === 'WithoutNotes';
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+type BaseNoteIndexes = {
+  [BN in keyof typeof BaseNote]: number
+}
+
+export const baseNoteIndexes: BaseNoteIndexes = {
+  C: 0,
+  D: 1,
+  E: 2,
+  F: 3,
+  G: 4,
+  A: 5,
+  B: 6,
+}
+
+export const baseNotes: Array<BaseNote> = (() => {
+  const tmp: BaseNote[] = [];
+
+  for (let note in BaseNote) {
+    tmp.push(note as BaseNote);
+  }
+  return tmp.sort((a, b) => baseNoteIndexes[a] - baseNoteIndexes[b])
+})()
+
+export function nextNotePart(octave: number, baseNote: BaseNote): [number, BaseNote] {
+  let index = baseNotes.indexOf(baseNote);
+
+  if (index === baseNotes.length - 1) {
+    octave++;
+  }
+
+  let base = baseNotes[(index + 1) % baseNotes.length];
+
+  return [octave, base]
+}
+
+export function nextNote(note: Note): Note {
+  const [octave, base] = nextNotePart(note.octave, note.base);
+
+  return {
+    uuid: note.uuid,
+    base: base,
+    noteType: note.noteType,
+    liquescent: note.liquescent,
+    octave: octave,
+    focus: note.focus
+  }
+}
+
+export function previousNotePart(octave: number, baseNote: BaseNote): [number, BaseNote] {
+  const index = baseNotes.indexOf(baseNote);
+
+  if (index === 0) {
+    octave--;
+  }
+
+  let base = baseNotes[(index - 1 + baseNotes.length) % baseNotes.length];
+
+  return [octave, base];
+}
+
+export function previousNote(note: Note): Note {
+  const [octave, base] = previousNotePart(note.octave, note.base);
+
+  return {
+    uuid: note.uuid,
+    base: base,
+    noteType: note.noteType,
+    liquescent: note.liquescent,
+    octave: octave,
+    focus: note.focus
+  }
+}
+
+export function comparePositions(octaveA: number, noteA: BaseNote, octaveB: number, noteB: BaseNote): number {
+  return (octaveA * 7 + baseNoteIndexes[noteA]) - (octaveB * 7 + baseNoteIndexes[noteB]);
+}
+
+export function emptyRootContainer(): RootContainer {
+  return {
+    comments: [],
+    uuid: UUID(),
+    kind: ContainerKind.RootContainer,
+    children: [],
+    documentType: DocumentType.Level1
+  };
+}
+
+export function emptyFormteilContainer(d: DocumentType, zipper: number[]): FormteilContainer {
+  return {
+    uuid: UUID(),
+    kind: ContainerKind.FormteilContainer,
+    children: [],
+    data: [
+      {
+        name: FormteilDataName.Signatur,
+        data: ""
+      }
+    ]
+  };
+}
+
+export function emptyParatextContainer(): ParatextContainer {
+  return {
+    uuid: UUID(),
+    kind: ContainerKind.ParatextContainer,
+    text: "",
+    retro: false,
+    paratextType: ParatextType.Formteil,
+  };
+}
+
+export function emptyZeileContainer(): ZeileContainer {
+  return {
+    uuid: UUID(),
+    kind: ContainerKind.ZeileContainer,
+    children: [emptySyllable()]
+  };
+}
+
+export function emptySyllable(): Syllable {
+  return {
+    uuid: UUID(),
+    kind: LinePartKind.Syllable,
+    text: "",
+    syllableType: SyllableType.Normal,
+    notes: {
+      spaced: [{
+        nonSpaced: [{
+          grouped: [{
+            uuid: UUID(),
+            base: BaseNote.A,
+            liquescent: false,
+            noteType: NoteType.Normal,
+            octave: 4,
+            focus: false
+          }]
+        }]
+      }]
+    }
+  };
+}
+
+export function trueEmptySyllable(): Syllable {
+  return {
+    uuid: UUID(),
+    kind: LinePartKind.Syllable,
+    text: "",
+    syllableType: SyllableType.Normal,
+    notes: {
+      spaced: [{
+        nonSpaced: [{
+          grouped: []
+        }]
+      }]
+    }
+  };
+}
+
+export function copyNote(n: Note): Note {
+  return {
+    uuid: UUID(),
+    base: n.base,
+    liquescent: n.liquescent,
+    noteType: n.noteType,
+    octave: n.octave,
+    focus: false
+  };
+
+}
+
+
+export function emptyLineChange(): LineChange {
+  return {
+    uuid: UUID(),
+    kind: LinePartKind.LineChange,
+    focus: false,
+  };
+}
+
+export function emptyFolioChange(): FolioChange {
+  return {
+    uuid: UUID(),
+    kind: LinePartKind.FolioChange,
+    focus: false,
+    text: "",
+  };
+}
+
+export function emptyBox(): Box {
+  return {
+    uuid: UUID(),
+    kind: LinePartKind.Box,
+    focus: false,
+  };
+}
+
+export function emptyClef(): Clef {
+  return {
+    uuid: UUID(),
+    kind: LinePartKind.Clef,
+    focus: false,
+    base: BaseNote.A,
+    octave: 4,
+    shape: "F"
+  };
+}
+
+export function allNotes(s: Spaced): Note[] {
+  return flatMap(s.spaced, a => flatMap(a.nonSpaced, b => b.grouped));
+}
+
+export function focusLast(s: Spaced): void {
+  allNotes(s).forEach((n, i, c) => n.focus = i === c.length - 1);
+}
+
+export function focusFirst(s: Spaced): void {
+  allNotes(s).forEach((n, i, c) => n.focus = i === 0);
+}
+
+export function focusOne(s: Spaced, note: Note): void {
+  for (let n of allNotes(s)) {
+    n.focus = n.uuid === note.uuid;
+  }
+}
+
+export function getFocusedPath(s: Spaced): [Spaced, NonSpaced, Grouped, Note] | undefined {
+  for (const ns of s.spaced) {
+    for (const gr of ns.nonSpaced) {
+      for (const n of gr.grouped) {
+        if (n.focus) {
+          return [s, ns, gr, n];
+        }
+      }
+    }
+  }
+
+  return undefined;
+}
+
+export function getFocused(s: Spaced): Note | undefined {
+  return allNotes(s).find(n => n.focus);
+}
+
+export function getLeftOf(s: Spaced, reference: Note): Note | undefined {
+  return allNotes(s).find((_, i, c) => i < c.length - 1 && c[i + 1] === reference);
+}
+
+export function getRightOf(s: Spaced, reference: Note): Note | undefined {
+  return allNotes(s).find((_, i, c) => i > 0 && c[i - 1] === reference);
+}
+
+export function copyUuids(s1: Spaced, s2: Spaced): UUIDInfo {
+  const n1 = allNotes(s1);
+  const n2 = allNotes(s2);
+  const lostUuids: string[] = [];
+
+  for (let i = 0; i < n1.length; i++) {
+    if (i < n2.length) {
+      n2[i].uuid = n1[i].uuid;
+    } else {
+      lostUuids.push(n1[i].uuid);
+    }
+  }
+
+  const fallback: string | undefined = n2.length > 0 ? n2[n2.length - 1].uuid : undefined;
+
+  return {
+    lostUUIDs: lostUuids,
+    fallbackUUID: fallback,
+  };
+}
+
+export interface UUIDInfo {
+  lostUUIDs: string[];
+  fallbackUUID: string | undefined;
+}
+
+export function splitGroup(g: Grouped, n: Note): [Grouped, Grouped, Grouped] {
+  const notesBefore = g.grouped.slice(0, g.grouped.indexOf(n) + 1);
+  const notesAfter = g.grouped.slice(g.grouped.indexOf(n) + 1);
+
+  return [
+    { grouped: notesBefore },
+    { grouped: [n] },
+    { grouped: notesAfter },
+  ];
+}
+
+export function splitNonSpaced(ns: NonSpaced, g: Grouped): [NonSpaced, NonSpaced, NonSpaced] {
+  const groupsBefore = ns.nonSpaced.slice(0, ns.nonSpaced.indexOf(g) + 1);
+  const groupsAfter = ns.nonSpaced.slice(ns.nonSpaced.indexOf(g) + 1);
+
+  return [
+    { nonSpaced: groupsBefore },
+    { nonSpaced: [g] },
+    { nonSpaced: groupsAfter },
+  ];
+}
+
+export function resolve(c: Container, zipper: number[]): Container | undefined {
+  const children = getContainerChildren(c);
+
+  if (zipper.length === 0) {
+    return c;
+  } else {
+    if (children[zipper[0]] !== undefined) {
+      return resolve(children[zipper[0]], zipper.slice(1));
+    }
+  }
+}
+
+export function getContainerChildren(c: Container): Container[] {
+  switch (c.kind) {
+    case ContainerKind.RootContainer: return c.children;
+    case ContainerKind.FormteilContainer: return c.children;
+    case ContainerKind.ParatextContainer: return [];
+    case ContainerKind.ZeileContainer: return [];
+    case ContainerKind.MiscContainer: return c.children;
+    default: return assertNever(c);
+  }
+}
+
+export function move(root: RootContainer, movedZ: number[], afterZ: number[]): string | undefined {
+  const moved = resolve(root, movedZ);
+  const after = resolve(root, afterZ);
+  if (!moved || !after) {
+    return "Die angegeben Pfade konnten nicht zu Container gehören";
+  }
+
+  const movedDepth = movedZ.length;
+  const afterDepth = afterZ.length;
+
+  if (after === moved) { return "Etwas kann nicht zu sich selbst verschoben werden"; }
+
+  switch (after.kind) {
+    case ContainerKind.RootContainer: switch (moved.kind) {
+      case ContainerKind.RootContainer: return "Die Editionseinheit kann nicht verschoben werden.";
+      case ContainerKind.FormteilContainer: if (movedDepth === 1) {
+        root.children.splice(root.children.indexOf(moved), 1);
+        root.children.unshift(moved); return undefined;
+      } else {
+        return "Diese Operation würde die Hierarchiestufen verletzen. Bitte legen Sie Container von Hand an und ziehen Sie das Objekt dann in den passenden Container.";
+      }
+      case ContainerKind.ParatextContainer: return "Ein Paratext kann nur in einen Formteil gezogen werden.";
+      case ContainerKind.ZeileContainer: return "Eine Zeile kann nur in einen Formteil gezogen werden.";
+      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      default: return assertNever(moved);
+    }
+    case ContainerKind.FormteilContainer: switch (moved.kind) {
+      case ContainerKind.RootContainer: return "Die Editionseinheit kann nicht verschoben werden.";
+      case ContainerKind.FormteilContainer: {
+        if (afterDepth === movedDepth - 1) {
+          remove(root, moved);
+          after.children.unshift(moved);
+          return undefined;
+        } else if (afterDepth === movedDepth) {
+          remove(root, moved);
+          const parent = parentOf(root, after);
+          const children = getContainerChildren(parent!);
+          const afterIndex = children.indexOf(after);
+          children.splice(afterIndex + 1, 0, moved);
+          return undefined;
+        } else {
+          return "Diese Operation würde die Hierarchiestufen verletzen. Bitte legen Sie Container von Hand an und ziehen Sie das Objekt dann in den passenden Container.";
+        }
+      }
+      case ContainerKind.ParatextContainer: remove(root, moved); after.children.unshift(moved); return undefined;
+      case ContainerKind.ZeileContainer: {
+        if (structure[root.documentType][afterZ.length - 1].canHaveLines) {
+          remove(root, moved);
+          after.children.unshift(moved);
+          return undefined;
+        } else {
+          return "In Editionseinheiten diesen Typs können keine Notenzeilen auf diese Ebene verschoben werden. Bitte legen Sie weitere Zwischencontainer an und legen Sie die Zeilen dort ab.";
+        }
+      }
+      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      default: return assertNever(moved);
+    }
+    case ContainerKind.ZeileContainer: switch (moved.kind) {
+      case ContainerKind.RootContainer: return "Die Editionseinheit kann nicht verschoben werden.";
+      case ContainerKind.FormteilContainer: return "Ein Formteil kann nicht hinter einer Zeile eingefügt werden.";
+      case ContainerKind.ParatextContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
+      case ContainerKind.ZeileContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
+      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      default: return assertNever(moved);
+    }
+    case ContainerKind.ParatextContainer: switch (moved.kind) {
+      case ContainerKind.RootContainer: return "Die Editionseinheit kann nicht verschoben werden.";
+      case ContainerKind.FormteilContainer: return "Ein Formteil kann nicht hinter einem Paratext eingefügt werden.";
+      case ContainerKind.ParatextContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
+      case ContainerKind.ZeileContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
+      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      default: return assertNever(moved);
+    }
+    case ContainerKind.MiscContainer: switch (moved.kind) {
+      case ContainerKind.RootContainer: return "Die Editionseinheit kann nicht verschoben werden.";
+      case ContainerKind.FormteilContainer: return "Der Misc-Container kann keine Formteile enthalten";
+      case ContainerKind.ParatextContainer: remove(root, moved); after.children.unshift(moved); return undefined;
+      case ContainerKind.ZeileContainer: {
+        remove(root, moved);
+        after.children.unshift(moved);
+        return undefined;
+      }
+      case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
+      default: return assertNever(moved);
+    }
+    default: assertNever(after);
+  }
+}
+
+export function parentOf(root: Container, child: Container): Container | undefined {
+  const children = getContainerChildren(root);
+  if (children.find(c => c === child)) {
+    return root;
+  } else {
+    for (const subContainer of children) {
+      const result = parentOf(subContainer, child);
+      if (result !== undefined) {
+        return result;
+      }
+    }
+  }
+}
+
+export function remove(from: Container, toRemove: Container): void {
+  const children = getContainerChildren(from);
+  const childIndex = children.indexOf(toRemove);
+  if (childIndex != -1) {
+    children.splice(childIndex, 1);
+  } else {
+    for (const child of children) {
+      remove(child, toRemove);
+    }
+  }
+}
+
+export function noteTypeFromString(s: string): NoteType | undefined {
+  const index: { [key: string]: NoteType } = {
+    "-": NoteType.Normal,
+    "a": NoteType.Ascending,
+    "d": NoteType.Descending,
+    "o": NoteType.Oriscus,
+    "q": NoteType.Quilisma,
+    ",": NoteType.Strophicus,
+    "f": NoteType.Flat,
+    "n": NoteType.Natural,
+    "s": NoteType.Sharp,
+  };
+
+  return index[s];
+}
+
+export function noteTypeToString(n: NoteType): string {
+  const index: { [key: string]: string } = {
+    'Normal': "-",
+    'Ascending': "a",
+    'Descending': "d",
+    'Oriscus': "o",
+    'Quilisma': "q",
+    'Strophicus': ",",
+    'Flat': 'f',
+    'Natural': 'n',
+    'Sharp': 's',
+  };
+
+  return index[n];
+}
+
+export function removeFocus(c: RootContainer): void {
+  for (let formteilContainer of c.children) {
+    for (let sub of formteilContainer.children) {
+      switch (sub.kind) {
+        case ContainerKind.ParatextContainer: break;
+        case ContainerKind.ZeileContainer: {
+          for (const part of sub.children) {
+            removeFocusFromLinePart(part);
+          }
+        }
+      }
+    }
+  }
+}
+
+export function removeFocusFromLinePart(lp: LinePart) {
+  switch (lp.kind) {
+    case LinePartKind.FolioChange: lp.focus = false; break;
+    case LinePartKind.LineChange: lp.focus = false; break;
+    case LinePartKind.Syllable: removeFocusFromSyllable(lp); break;
+    case LinePartKind.Clef: lp.focus = false; break;
+    case LinePartKind.Box: lp.focus = false; break;
+    default: assertNever(lp);
+  }
+}
+
+export function removeFocusFromSyllable(s: Syllable) {
+  allNotes(s.notes).forEach(n => { n.focus = false });
+}
+
+export function removeStaleComments(r: RootContainer): void {
+  let allUUIDs: string[] = getAllCommentableUUIDs(r);
+  r.comments = r.comments.filter(c => allUUIDs.find(u => c.startUUID === u) && allUUIDs.find(u => c.endUUID === u));
+}
+
+export function getAllCommentableUUIDs(c: Container): string[] {
+  switch (c.kind) {
+    case ContainerKind.RootContainer:
+    case ContainerKind.FormteilContainer:
+    case ContainerKind.MiscContainer: return LDP.flatMap(getAllCommentableUUIDs)(c.children);
+    case ContainerKind.ParatextContainer: return [];
+    case ContainerKind.ZeileContainer: return LDP.flatMap(getCommentableUUIDsOfLinePart)(c.children);
+    default: return assertNever(c);
+  }
+}
+
+export function getCommentableUUIDsOfLinePart(lp: LinePart): string[] {
+  switch (lp.kind) {
+    case LinePartKind.FolioChange: return [lp.uuid];
+    case LinePartKind.LineChange: return [lp.uuid];
+    case LinePartKind.Syllable: {
+      let t: string[] = allNotes(lp.notes).map(n => n.uuid);
+      t.unshift(lp.uuid);
+      return t;
+    }
+    case LinePartKind.Clef: return [lp.uuid];
+    case LinePartKind.Box: return [];
+    default: return assertNever(lp);
+  }
+}
+
+export function getSyllables(c: Container): Syllable[] {
+  const forChildren = LDP.flatMap(getSyllables);
+  switch (c.kind) {
+    case ContainerKind.RootContainer: return forChildren(c.children);
+    case ContainerKind.FormteilContainer: return forChildren(c.children);
+    case ContainerKind.ParatextContainer: return [];
+    case ContainerKind.ZeileContainer: return flatMap(c.children, lp => (lp.kind === LinePartKind.Syllable ? [lp] : []));
+    case ContainerKind.MiscContainer: return forChildren(c.children);
+    default: return assertNever(c);
+  }
+}
+
+export function linePartContainsComments(lp: LinePart, cs: Comment[]): boolean {
+  let allUUIDs: string[] = getCommentableUUIDsOfLinePart(lp);
+
+  return !!flatMap(cs, c => [c.startUUID, c.endUUID]).find(uuid => allUUIDs.indexOf(uuid) !== -1);
+}
+
+export type StructureHead = {
+  [kind in DocumentType]: FormteilDescription[]
+}
+
+export interface FormteilDescription {
+  canHaveLines: Boolean;
+  name: string;
+}
+
+export const structure: StructureHead = {
+  Level1: [
+    {
+      canHaveLines: true,
+      name: "L1"
+    }
+  ],
+  Level2: [
+    {
+      canHaveLines: false,
+      name: "L1",
+    },
+    {
+      canHaveLines: true,
+      name: "L2"
+    }
+  ],
+  Level3: [
+    {
+      canHaveLines: false,
+      name: "L1",
+    },
+    {
+      canHaveLines: false,
+      name: "L2",
+    },
+    {
+      canHaveLines: true,
+      name: "L3",
+    }
+  ]
+}
+
+export function print(c: Container, indent: string): void {
+  switch (c.kind) {
+    case ContainerKind.RootContainer:
+      console.log(indent + "root");
+      for (let child of c.children) {
+        print(child, indent + "  ");
+      }
+      break;
+    case ContainerKind.FormteilContainer:
+      console.log(indent + "formteil");
+      for (let child of c.children) {
+        print(child, indent + "  ");
+      }
+      break;
+    case ContainerKind.ParatextContainer: console.log(indent + "para"); break;
+    case ContainerKind.ZeileContainer: console.log(indent + "zeile"); break;
+  }
+}
+
+export function getUUID(x: Container | Note | LinePart): string {
+  return x.uuid;
+}
+
+//modifies in place
+export function unsafeGenerateNewUUIDs(c: Container): void {
+  c.uuid = UUID();
+
+  switch (c.kind) {
+    case ContainerKind.RootContainer: c.children.forEach(unsafeGenerateNewUUIDs); break;
+    case ContainerKind.FormteilContainer: c.children.forEach(unsafeGenerateNewUUIDs); break;
+    case ContainerKind.ParatextContainer: break;
+    case ContainerKind.MiscContainer: c.children.forEach(unsafeGenerateNewUUIDs); break;
+    case ContainerKind.ZeileContainer: c.children.forEach(unsafeGenerateNewUUIDsForLinePart); break;
+    default: assertNever(c);
+  }
+}
+
+//modifies in place
+export function unsafeGenerateNewUUIDsForLinePart(l: LinePart): void {
+  l.uuid = UUID();
+
+  switch (l.kind) {
+    case LinePartKind.FolioChange: break;
+    case LinePartKind.LineChange: break;
+    case LinePartKind.Clef: break;
+    case LinePartKind.Syllable: allNotes(l.notes).forEach(n => n.uuid = UUID()); break;
+    case LinePartKind.Box: break;
+    default: assertNever(l);
+  }
+}
+
+export function extractComment(r: RootContainer, c: Comment): ZeileContainer {
+  const line = emptyZeileContainer();
+  const isNotAnchor = (lp: LinePart) => lp.uuid !== c.endUUID && lp.uuid !== c.startUUID && !linePartContainsComments(lp, [c])
+  line.children = _.dropRightWhile(_.dropWhile(getAllLineParts(r), isNotAnchor), isNotAnchor);
+  return line;
+}
+
+export function getAllLineParts(r: Container): LinePart[] {
+  switch (r.kind) {
+    case ContainerKind.FormteilContainer: return _.flatMap(r.children, getAllLineParts);
+    case ContainerKind.MiscContainer: return _.flatMap(r.children, getAllLineParts);
+    case ContainerKind.ParatextContainer: return [];
+    case ContainerKind.RootContainer: return _.flatMap(r.children, getAllLineParts);
+    case ContainerKind.ZeileContainer: return r.children;
+    default: return assertNever(r);
+  }
+}
+
+export const emptyCommentTree = (): CommentTree => {
+  return {
+    kind: "CommentTreeUndecided",
+    id: UUID(),
+  }
+};
+
+export type Justification = {
+  kind: "Left";
+} | {
+  kind: "Right";
+} | {
+  kind: "Center";
+}
+
+export type CommentTreeLeafContentText = {
+  kind: "Text";
+  content: string;
+}
+
+export type CommentTreeLeafContentNotes = {
+  kind: "Notes";
+  content: ZeileContainer;
+  context?: boolean;
+}
+
+export type CommentTreeLeafBracket = {
+  kind: "Bracket";
+}
+
+export type CommentTreeLeafContent = CommentTreeLeafContentText | CommentTreeLeafContentNotes | CommentTreeLeafBracket;
+
+export type CommentTreeUndecided = {
+  kind: "CommentTreeUndecided";
+  id: string;
+}
+
+export type CommentTreeLeaf = {
+  kind: "CommentTreeLeaf";
+  id: string;
+  content: CommentTreeLeafContent;
+  justification?: Justification;
+}
+
+export type CommentTreeGrid = {
+  kind: "CommentTreeGrid";
+  id: string;
+  items: CommentTree[][];
+  justification?: Justification;
+};
+
+export type CommentTree = CommentTreeLeaf | CommentTreeGrid | CommentTreeUndecided;
+
+export type CommentTreePath = [number, number][];
+
+export type CommentTreeIntent = {
+  kind: "AddRow";
+} | {
+  kind: "AddColumn";
+} | {
+  kind: "BecomeGrid";
+} | {
+  kind: "BecomeLeaf";
+  content: CommentTreeLeafContent;
+} | {
+  kind: "UpdateContent";
+  content: CommentTreeLeafContent;
+} | {
+  kind: "Delete";
+} | {
+  kind: "DeleteRow";
+  index: number;
+} | {
+  kind: "DeleteColumn";
+  index: number;
+} | {
+  kind: "SetJustification";
+  justification?: Justification;
+} | {
+  kind: "SetContext";
+  context: boolean;
+}
+
+export type CommentTreeEvent = {
+  source: CommentTreePath;
+  intent: CommentTreeIntent;
+}
+
+export const applyCommentTreeEvent = (commentTree: CommentTree, event: CommentTreeEvent): CommentTree => {
+  const go = (node: CommentTree, path: CommentTreePath, setter: (tg: CommentTree | null) => CommentTree): CommentTree => {
+    const [head, ...tail] = path;
+    if (head === undefined) {
+      switch (event.intent.kind) {
+        case "AddRow":
+          if (node.kind !== "CommentTreeGrid") throw new Error(`Cannot apply event ${JSON.stringify(event)} to non-grid node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
+          return setter({ ...node, items: [...node.items, Array(node.items[0].length).fill({ kind: "CommentTreeUndecided", id: UUID() })] });
+        case "AddColumn":
+          if (node.kind !== "CommentTreeGrid") throw new Error(`Cannot apply event ${JSON.stringify(event)} to non-grid node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
+          return setter({ ...node, items: node.items.map(row => [...row, { kind: "CommentTreeUndecided", id: UUID() }]) });
+        case "BecomeGrid": return setter({ kind: "CommentTreeGrid", id: UUID(), items: [[{ kind: "CommentTreeUndecided", id: UUID() }]] });
+        case "BecomeLeaf": return setter({ kind: "CommentTreeLeaf", id: UUID(), content: event.intent.content });
+        case "UpdateContent":
+          if (node.kind !== "CommentTreeLeaf") throw new Error(`Cannot apply event ${JSON.stringify(event)} to non-leaf node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
+          return setter({ ...node, content: event.intent.content });
+        case "Delete":
+          console.log("deleting");
+          return setter(null);
+        case "DeleteRow": {
+          const index = event.intent.index;
+          if (node.kind !== "CommentTreeGrid") throw new Error(`Cannot apply event ${JSON.stringify(event)} to non-grid node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
+          return setter({ ...node, items: node.items.filter((_, i) => i !== index) });
+        }
+        case "DeleteColumn": {
+          const index = event.intent.index;
+          if (node.kind !== "CommentTreeGrid") throw new Error(`Cannot apply event ${JSON.stringify(event)} to non-grid node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
+          return setter({ ...node, items: node.items.map(row => row.filter((_, i) => i !== index)) });
+        }
+        case "SetJustification":
+          switch (node.kind) {
+            case 'CommentTreeGrid': return setter({ ...node, justification: event.intent.justification });
+            case 'CommentTreeLeaf': return setter({ ...node, justification: event.intent.justification });
+            case 'CommentTreeUndecided': throw new Error(`Cannot apply event ${JSON.stringify(event)} to undecided node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
+            default: assertNever(node);
+          }
+        case "SetContext":
+          if (node.kind !== "CommentTreeLeaf") throw new Error(`Cannot apply event ${JSON.stringify(event)} to non-leaf node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
+          else if (node.content.kind !== "Notes") throw new Error(`Cannot apply event ${JSON.stringify(event)} to non-notes node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
+          else return setter({ ...node, content: { ...node.content, context: event.intent.context } });
+        default: assertNever(event.intent);
+      }
+    } else {
+      switch (node.kind) {
+        case "CommentTreeUndecided": throw new Error(`Cannot apply event ${JSON.stringify(event)} to undecided node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
+        case "CommentTreeLeaf": throw new Error(`Cannot apply event ${JSON.stringify(event)} to leaf node ${JSON.stringify(node)} at path ${JSON.stringify(path)}`);
+        case "CommentTreeGrid":
+          const [y, x] = head;
+          if (node.items.length <= y) throw new Error(`Cannot apply event ${JSON.stringify(event)} to grid node ${JSON.stringify(node)} at path ${JSON.stringify(path)}: y=${y} out of bounds`);
+          if (node.items[y].length <= x) throw new Error(`Cannot apply event ${JSON.stringify(event)} to grid node ${JSON.stringify(node)} at path ${JSON.stringify(path)}: x=${x} out of bounds`);
+          const newItems = [...node.items];
+          const newGrid: CommentTreeGrid = {
+            kind: "CommentTreeGrid",
+            id: node.id,
+            items: newItems,
+          }
+          newItems[y] = [...node.items[y]];
+          const newSetter = (tg: CommentTree | null): CommentTree => {
+            if (tg === null) {
+              newItems[y][x] = { kind: "CommentTreeUndecided", id: UUID() };
+            } else {
+              newItems[y][x] = tg;
+            }
+            return setter(newGrid);
+          };
+
+          return go(node.items[y][x], tail, newSetter);
+      }
+    }
+  }
+
+  return go(commentTree, event.source, (tg) => tg ?? { kind: "CommentTreeUndecided", id: UUID() });
+}

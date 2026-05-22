@@ -1,0 +1,31 @@
+th {
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+th:hover {
+    color: #89bdd3;
+}
+
+th:last-child {
+    cursor: default;
+}
+
+.delete-icon {
+    cursor: pointer;
+}
+
+.td-smart-row {
+    cursor: pointer;
+}
+
+tbody tr:hover {
+    background-color: #cfe6f0;
+}
+
+.cell-empty {
+    color: #9ca3af;
+    font-size: 0.9em;
+    user-select: none;
+}

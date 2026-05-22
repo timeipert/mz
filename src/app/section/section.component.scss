@@ -1,0 +1,265 @@
+/* ── App container ───────────────────────────────── */
+.app-container {
+    min-height: 30px;
+}
+
+/* ── Content row: dragger + body ─────────────────── */
+.content-row {
+    display: flex;
+    align-items: flex-start;
+    margin-top: 4px;
+    gap: 0;
+}
+
+.after-dragger {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+}
+
+/* ── Type identifier header ──────────────────────── */
+.type-identifier {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 3px 0 3px 4px;
+}
+
+.type-identifier-name {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.55px;
+    text-transform: uppercase;
+    color: #6b7280;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 2px 7px;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+/* FormteilContainer section — divider + accent badge */
+.formteil-section {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.formteil-section .type-identifier-name {
+    font-size: 0.7rem;
+    color: #4338ca;
+    background: rgba(99,102,241,0.07);
+    border-color: rgba(99,102,241,0.22);
+}
+
+/* ── Children — indent with guide line ───────────── */
+.children {
+    margin-left: 7px;
+}
+
+.child {
+    padding-left: 14px;
+    border-left: 1.5px solid #e9ecef;
+    margin-top: 1px;
+}
+
+/* ── Inline control areas ────────────────────────── */
+.para-line,
+.root-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 2px 0;
+
+    * {
+        margin-top: 2px;
+        margin-bottom: 2px;
+        margin-right: 2px;
+    }
+}
+
+.formteil-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
+
+    > div {
+        margin: 2px 4px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .deleteData {
+        cursor: pointer;
+        font-size: 1rem;
+        line-height: 1;
+        color: #d1d5db;
+        padding: 0 2px;
+        border: none;
+        background: transparent;
+        border-radius: 3px;
+        align-self: center;
+        transition: color 0.12s, background 0.12s;
+
+        &:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.08);
+        }
+    }
+}
+
+.formteil-line-detail {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 6px;
+
+    * {
+        font-size: 0.82em;
+    }
+}
+
+.formteil-para-detail {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 4px;
+
+    * {
+        font-size: 0.82em;
+    }
+}
+
+/* ── Comment button in paratext ─────────────────── */
+.para-comment-button img {
+    cursor: pointer;
+    width: 15px;
+    height: 15px;
+    opacity: 0.38;
+    transition: opacity 0.15s;
+
+    &:hover {
+        opacity: 0.9;
+    }
+}
+
+/* ── Form controls ───────────────────────────────── */
+textarea,
+.after-dragger {
+    width: 100%;
+}
+
+.form-control {
+    margin: 2px;
+    font-size: 0.85rem;
+    border-color: #e5e7eb;
+    border-radius: 6px;
+    padding: 4px 8px;
+
+    &:focus {
+        border-color: #a5b4fc;
+        box-shadow: 0 0 0 3px rgba(165, 180, 252, 0.18);
+    }
+}
+
+/* Paratext textarea */
+.after-dragger textarea.form-control {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 0.95rem;
+    border: 1px dashed #d1d5db;
+    background: #fafafa;
+    border-radius: 6px;
+    padding: 6px 10px;
+    resize: vertical;
+    min-height: 36px;
+
+    &:focus {
+        border-style: solid;
+        border-color: #a5b4fc;
+        background: #fff;
+        outline: none;
+    }
+}
+
+/* ── Dropdowns ───────────────────────────────────── */
+.dropdown-item {
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.dropdown,
+.dropdown-toggle {
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+}
+
+.dropdown-toggle::after {
+    content: none !important;
+}
+
+/* ── Segment type chips ──────────────────────────── */
+span.segment-type {
+    cursor: pointer;
+    border: 1px solid #bfdbfe;
+    border-radius: 5px;
+    padding: 2px 6px;
+    font-size: 0.82em;
+    transition: background 0.12s;
+
+    &:hover {
+        background-color: #dbeafe;
+    }
+}
+
+.segment-type {
+    font-weight: 600;
+}
+
+/* ── Drag insertion indicator ────────────────────── */
+:host-context(body.is-dragging) .app-container.insertion-point {
+    position: relative;
+    padding-bottom: 20px;
+}
+
+:host-context(body.is-dragging) .app-container.insertion-point::after {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(99, 102, 241, 0.8);
+    border-radius: 1px;
+    pointer-events: none;
+}
+
+/* ── Read-only mode ──────────────────────────────── */
+.read-only {
+    .type-identifier {
+        display: none;
+    }
+
+    .app-container {
+        min-height: 0px;
+    }
+
+    .formteil-section {
+        border: unset;
+    }
+}
+
+/* ── Print ───────────────────────────────────────── */
+@media print {
+    .child {
+        padding-left: 20px !important;
+        margin-left: 10px !important;
+        border-left: 1px solid #ddd !important;
+        margin-bottom: 5px !important;
+    }
+}

@@ -1,0 +1,254 @@
+<div class="container mt-4 mb-5">
+  <h2 class="page-title mb-4">Search</h2>
+
+  <!-- Datalists for global settings -->
+  <ng-container *ngIf="settings">
+    <datalist id="list-herkunftsregion"><option *ngFor="let s of settings.herkunftsregion" [value]="s"></option></datalist>
+    <datalist id="list-herkunftsort"><option *ngFor="let s of settings.herkunftsort" [value]="s"></option></datalist>
+    <datalist id="list-herkunftsinstitution"><option *ngFor="let s of settings.herkunftsinstitution" [value]="s"></option></datalist>
+    <datalist id="list-ordenstradition"><option *ngFor="let s of settings.ordenstradition" [value]="s"></option></datalist>
+    <datalist id="list-quellentyp"><option *ngFor="let s of settings.quellentyp" [value]="s"></option></datalist>
+    <datalist id="list-bibliotheksort"><option *ngFor="let s of settings.bibliotheksort" [value]="s"></option></datalist>
+    <datalist id="list-bibliothek"><option *ngFor="let s of settings.bibliothek" [value]="s"></option></datalist>
+    <datalist id="list-bibliothekssignatur"><option *ngFor="let s of settings.bibliothekssignatur" [value]="s"></option></datalist>
+    <datalist id="list-gattung1"><option *ngFor="let s of settings.gattung1" [value]="s"></option></datalist>
+    <datalist id="list-gattung2"><option *ngFor="let s of settings.gattung2" [value]="s"></option></datalist>
+    <datalist id="list-festtag"><option *ngFor="let s of settings.festtag" [value]="s"></option></datalist>
+    <datalist id="list-feier"><option *ngFor="let s of settings.feier" [value]="s"></option></datalist>
+  </ng-container>
+
+  <ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+      <a class="nav-link cursor-pointer" [class.active]="activeTab === 'sources'" (click)="activeTab = 'sources'">Source Search</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link cursor-pointer" [class.active]="activeTab === 'documents'" (click)="activeTab = 'documents'">Document Search</a>
+    </li>
+  </ul>
+
+  <!-- SOURCES TAB -->
+  <div *ngIf="activeTab === 'sources'">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Source Siglum</label>
+            <input class="form-control" [(ngModel)]="sourceQuery.quellensigle" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Dating</label>
+            <input class="form-control" [(ngModel)]="sourceQuery.datierung" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Region of Origin</label>
+            <div class="input-group">
+              <input class="form-control" list="list-herkunftsregion" [(ngModel)]="sourceQuery.herkunftsregion" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('herkunftsregion', sourceQuery.herkunftsregion)" title="Add to global options"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Place of Origin</label>
+            <div class="input-group">
+              <input class="form-control" list="list-herkunftsort" [(ngModel)]="sourceQuery.herkunftsort" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('herkunftsort', sourceQuery.herkunftsort)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Institution of Origin</label>
+            <div class="input-group">
+              <input class="form-control" list="list-herkunftsinstitution" [(ngModel)]="sourceQuery.herkunftsinstitution" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('herkunftsinstitution', sourceQuery.herkunftsinstitution)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Order Tradition</label>
+            <div class="input-group">
+              <input class="form-control" list="list-ordenstradition" [(ngModel)]="sourceQuery.ordenstradition" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('ordenstradition', sourceQuery.ordenstradition)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Source Type</label>
+            <div class="input-group">
+              <input class="form-control" list="list-quellentyp" [(ngModel)]="sourceQuery.quellentyp" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('quellentyp', sourceQuery.quellentyp)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Library Location</label>
+            <div class="input-group">
+              <input class="form-control" list="list-bibliotheksort" [(ngModel)]="sourceQuery.bibliotheksort" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('bibliotheksort', sourceQuery.bibliotheksort)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Library</label>
+            <div class="input-group">
+              <input class="form-control" list="list-bibliothek" [(ngModel)]="sourceQuery.bibliothek" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('bibliothek', sourceQuery.bibliothek)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Library Signature</label>
+            <div class="input-group">
+              <input class="form-control" list="list-bibliothekssignatur" [(ngModel)]="sourceQuery.bibliothekssignatur" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('bibliothekssignatur', sourceQuery.bibliothekssignatur)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-12 mt-4 text-end">
+            <button class="btn btn-primary" (click)="searchSources()"><i class="bi bi-search me-1"></i> Search Sources</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Source Results -->
+    <div class="card shadow-sm" *ngIf="sourceResults.length > 0">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+        <span class="fw-semibold" style="font-size:.9rem;">{{sourceResults.length}} result(s)</span>
+        <div class="position-relative">
+          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                  (click)="showSrcColPicker = !showSrcColPicker">
+            <i class="bi bi-layout-three-columns"></i> Columns
+          </button>
+          <div *ngIf="showSrcColPicker"
+               class="shadow-lg border rounded-3 bg-white"
+               style="position:absolute; top:2.2rem; right:0; z-index:200; min-width:230px; padding:1rem;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span class="fw-semibold" style="font-size:.9rem;">Visible columns</span>
+              <button class="btn-close btn-sm" (click)="showSrcColPicker = false"></button>
+            </div>
+            <div class="d-flex flex-column gap-2">
+              <div *ngFor="let col of srcResultCols" class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" [id]="'src-res-' + col.key"
+                       [(ngModel)]="col.visible" (change)="saveSrcCols()" />
+                <label class="form-check-label" [for]="'src-res-' + col.key"
+                       style="font-size:.85rem;">{{col.label}}</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th *ngFor="let col of visibleSrcCols; let first = first"
+                  [class.ps-3]="first">{{col.label}}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let s of sourceResults" (click)="goToSource(s.id!)" class="cursor-pointer">
+              <td *ngFor="let col of visibleSrcCols; let first = first"
+                  [class.ps-3]="first"
+                  [class.fw-medium]="first"
+                  [class.text-accent]="first">{{$any(s)[col.key]}}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- DOCUMENTS TAB -->
+  <div *ngIf="activeTab === 'documents'">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Document ID</label>
+            <input class="form-control" [(ngModel)]="documentQuery.dokumenten_id" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Text Incipit</label>
+            <input class="form-control" [(ngModel)]="documentQuery.textinitium" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Genre 1</label>
+            <div class="input-group">
+              <input class="form-control" list="list-gattung1" [(ngModel)]="documentQuery.gattung1" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('gattung1', documentQuery.gattung1)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Genre 2</label>
+            <div class="input-group">
+              <input class="form-control" list="list-gattung2" [(ngModel)]="documentQuery.gattung2" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('gattung2', documentQuery.gattung2)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Feast Day</label>
+            <div class="input-group">
+              <input class="form-control" list="list-festtag" [(ngModel)]="documentQuery.festtag" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('festtag', documentQuery.festtag)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label text-muted small mb-1">Feast</label>
+            <div class="input-group">
+              <input class="form-control" list="list-feier" [(ngModel)]="documentQuery.feier" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('feier', documentQuery.feier)"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+          
+          <div class="col-12 mt-4 text-end">
+            <button class="btn btn-primary" (click)="searchDocuments()"><i class="bi bi-search me-1"></i> Search Documents</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Document Results -->
+    <div class="card shadow-sm" *ngIf="documentResults.length > 0">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+        <span class="fw-semibold" style="font-size:.9rem;">{{documentResults.length}} result(s)</span>
+        <div class="position-relative">
+          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                  (click)="showDocColPicker = !showDocColPicker">
+            <i class="bi bi-layout-three-columns"></i> Columns
+          </button>
+          <div *ngIf="showDocColPicker"
+               class="shadow-lg border rounded-3 bg-white"
+               style="position:absolute; top:2.2rem; right:0; z-index:200; min-width:230px; padding:1rem;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span class="fw-semibold" style="font-size:.9rem;">Visible columns</span>
+              <button class="btn-close btn-sm" (click)="showDocColPicker = false"></button>
+            </div>
+            <div class="d-flex flex-column gap-2">
+              <div *ngFor="let col of docResultCols" class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" [id]="'doc-res-' + col.key"
+                       [(ngModel)]="col.visible" (change)="saveDocCols()" />
+                <label class="form-check-label" [for]="'doc-res-' + col.key"
+                       style="font-size:.85rem;">{{col.label}}</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th *ngFor="let col of visibleDocCols; let first = first"
+                  [class.ps-3]="first">{{col.label}}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let d of documentResults" (click)="goToDocument(d.quelle_id, d.id)" class="cursor-pointer">
+              <td *ngFor="let col of visibleDocCols; let first = first"
+                  [class.ps-3]="first"
+                  [class.fw-medium]="first"
+                  [class.text-accent]="first">{{$any(d)[col.key]}}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+<style>
+.cursor-pointer { cursor: pointer; }
+</style>

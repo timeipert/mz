@@ -1,0 +1,6 @@
+<app-comment-tree-undecided *ngIf="tree.kind == 'CommentTreeUndecided'" [path]="[]" (treeEvent)="treeEvent.emit($event)"
+  [data]="tree" [originalCreator]="originalCreator" [readOnly]="readOnly" />
+<app-comment-tree-leaf *ngIf="tree.kind == 'CommentTreeLeaf'" [path]="[]" (treeEvent)="treeEvent.emit($event)"
+  [data]="tree" [readOnly]="readOnly" />
+<app-comment-tree-grid *ngIf="tree.kind == 'CommentTreeGrid'" [path]="[]" (treeEvent)="treeEvent.emit($event)"
+  [data]="tree" [originalCreator]="originalCreator" [readOnly]="readOnly" />

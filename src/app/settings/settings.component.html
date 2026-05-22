@@ -1,0 +1,845 @@
+<div class="container-fluid py-4" style="max-width: 1600px;">
+  <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+    <h2 class="page-title">Settings</h2>
+    <span class="text-muted">Configure metadata, sync, and print formatting</span>
+  </div>
+
+  <div *ngIf="settings" class="row g-4">
+    <!-- Left Column: Tab Pills & Content -->
+    <div [class]="activeTab === 'pdf' ? 'col-lg-7 col-xl-8' : 'col-12'">
+      <!-- Tabs navigation -->
+      <ul class="nav nav-pills mb-4 bg-light p-1 rounded-3 border" style="font-size: 0.95rem;">
+        <li class="nav-item">
+          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
+                  [class.active]="activeTab === 'metadata'"
+                  (click)="activeTab = 'metadata'" type="button">
+            <i class="bi bi-card-list me-2"></i>Metadata Schemas
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
+                  [class.active]="activeTab === 'github'"
+                  (click)="activeTab = 'github'" type="button">
+            <i class="bi bi-github me-2"></i>GitHub Sync
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
+                  [class.active]="activeTab === 'pdf'"
+                  (click)="activeTab = 'pdf'" type="button">
+            <i class="bi bi-file-pdf me-2"></i>PDF Export & Layout
+          </button>
+        </li>
+      </ul>
+
+      <!-- Active Tab Content -->
+      <div class="tab-content">
+        <!-- 1. Metadata Schema Tab -->
+        <div class="tab-pane fade show active" *ngIf="activeTab === 'metadata'">
+          <div class="row g-3">
+            <!-- Master Column -->
+            <div class="col-md-5">
+              <div class="bg-white rounded-3 shadow-sm border border-light overflow-hidden">
+                <!-- Source Fields -->
+                <div class="bg-light px-3 py-2 border-bottom">
+                  <h6 class="mb-0 text-muted fw-semibold" style="font-size: 0.85rem; text-transform: uppercase;">Source Metadata</h6>
+                </div>
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item list-group-item-action cursor-pointer d-flex justify-content-between align-items-center" 
+                      *ngFor="let field of allSourceFields"
+                      [class.active]="selectedField?.key === field.key"
+                      (click)="selectField(field)">
+                    <span>{{field.label}} <span *ngIf="field.isCustom" class="badge bg-secondary ms-1" style="font-size: 0.6rem;">Custom</span></span>
+                    <i class="bi bi-chevron-right text-muted" *ngIf="selectedField?.key !== field.key"></i>
+                  </li>
+                </ul>
+
+                <!-- Document Fields -->
+                <div class="bg-light px-3 py-2 border-bottom border-top">
+                  <h6 class="mb-0 text-muted fw-semibold" style="font-size: 0.85rem; text-transform: uppercase;">Document Metadata</h6>
+                </div>
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item list-group-item-action cursor-pointer d-flex justify-content-between align-items-center" 
+                      *ngFor="let field of allDocumentFields"
+                      [class.active]="selectedField?.key === field.key"
+                      (click)="selectField(field)">
+                    <span>{{field.label}} <span *ngIf="field.isCustom" class="badge bg-secondary ms-1" style="font-size: 0.6rem;">Custom</span></span>
+                    <i class="bi bi-chevron-right text-muted" *ngIf="selectedField?.key !== field.key"></i>
+                  </li>
+                </ul>
+
+                <!-- Add Custom Field Form -->
+                <div class="p-3 bg-light border-top">
+                  <h6 class="fw-semibold mb-2" style="font-size: 0.9rem;"><i class="bi bi-plus-circle me-1"></i>New Custom Field</h6>
+                  <div class="mb-2">
+                    <select class="form-select form-select-sm mb-2" [(ngModel)]="newCustomFieldType">
+                      <option value="source">For Sources</option>
+                      <option value="document">For Documents</option>
+                    </select>
+                    <div class="input-group input-group-sm">
+                      <input type="text" class="form-control" placeholder="Field name (e.g. Composer)" [(ngModel)]="newCustomFieldLabel" (keyup.enter)="addCustomField()">
+                      <button class="btn btn-primary" type="button" (click)="addCustomField()">Add</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Detail Column -->
+            <div class="col-md-7">
+              <div *ngIf="!selectedField" class="bg-white rounded-3 shadow-sm border border-light p-5 text-center text-muted d-flex flex-column justify-content-center h-100" style="min-height: 400px;">
+                <i class="bi bi-card-list fs-1 mb-3 text-light"></i>
+                <h5 class="fw-semibold">Select a Metadata Field</h5>
+                <p class="mb-0">Choose a metadata schema from the left to configure its predefined dropdown options.</p>
+              </div>
+
+              <div *ngIf="selectedField" class="bg-white rounded-3 shadow-sm border border-light p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+                  <div>
+                    <h4 class="mb-1 text-primary">{{selectedField.label}}</h4>
+                    <span class="badge bg-secondary" *ngIf="selectedField.isCustom">Custom Field ({{selectedField.key}})</span>
+                    <span class="badge bg-light text-muted border" *ngIf="!selectedField.isCustom">Standard Schema Field</span>
+                  </div>
+                </div>
+
+                <h6 class="fw-semibold mb-3">Predefined Options</h6>
+                <div class="d-flex flex-wrap gap-2 mb-4">
+                  <span *ngFor="let val of getList(selectedField)" class="badge bg-light text-dark border d-flex align-items-center px-3 py-2" style="font-size: 0.85rem; font-weight: 500;">
+                    {{val}}
+                    <i class="bi bi-x fs-5 text-muted ms-2 cursor-pointer hover-danger" style="line-height: 0.5;" (click)="removeValue(val)"></i>
+                  </span>
+                  <span *ngIf="getList(selectedField).length === 0" class="text-muted fst-italic py-2">No options defined yet.</span>
+                </div>
+
+                <label class="form-label text-muted small fw-semibold">Add New Option</label>
+                <div class="input-group w-50">
+                  <input type="text" class="form-control form-control-sm" placeholder="Type and press enter..." [(ngModel)]="newValues[selectedField.key]" (keyup.enter)="addValue()">
+                  <button class="btn btn-primary btn-sm px-3" type="button" (click)="addValue()"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. GitHub Sync Tab -->
+        <div class="tab-pane fade show active" *ngIf="activeTab === 'github'">
+          <div class="card shadow-sm border-light">
+            <div class="card-header bg-light d-flex align-items-center">
+              <i class="bi bi-github fs-5 me-2"></i>
+              <h6 class="mb-0 fw-semibold">GitHub Synchronization</h6>
+            </div>
+            <div class="card-body bg-white">
+              <div *ngIf="github.isConnected" class="alert alert-success d-flex align-items-center">
+                <i class="bi bi-check-circle-fill me-2 fs-4"></i>
+                <div>
+                  <strong>Connected to GitHub!</strong><br>
+                  Repository: {{githubConfig.owner}}/{{githubConfig.repo}} ({{githubConfig.branch}})
+                </div>
+                <button class="btn btn-outline-danger btn-sm ms-auto" (click)="disconnectGithub()">Disconnect</button>
+              </div>
+
+              <div *ngIf="!github.isConnected" class="row g-3 align-items-end">
+                <div class="col-md-6">
+                  <label class="form-label small text-muted mb-1">GitHub PAT (Token)</label>
+                  <input type="password" class="form-control form-control-sm" [(ngModel)]="githubConfig.token" placeholder="ghp_xxxxxxxx">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted mb-1">Owner (Username/Org)</label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="githubConfig.owner" placeholder="e.g. johndoe">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small text-muted mb-1">Repository Name</label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="githubConfig.repo" placeholder="e.g. monodi-data">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small text-muted mb-1">Branch</label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="githubConfig.branch" placeholder="main">
+                </div>
+                <div class="col-md-2">
+                  <button class="btn btn-primary btn-sm w-100" (click)="connectGithub()" [disabled]="isGithubConnecting">
+                    <i class="bi bi-link-45deg me-1" *ngIf="!isGithubConnecting"></i>
+                    <span class="spinner-border spinner-border-sm me-1" *ngIf="isGithubConnecting"></span>
+                    Connect
+                  </button>
+                </div>
+              </div>
+              <small class="text-muted mt-2 d-block" *ngIf="!github.isConnected">Create a Personal Access Token with 'repo' scope to sync your project data.</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. PDF Export & Layout Settings Tab -->
+        <div class="tab-pane fade show active" *ngIf="activeTab === 'pdf'">
+          <!-- Group 1: Scaling & Zoom -->
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-zoom-in me-2"></i>Scaling & Zoom</h6>
+            </div>
+            <div class="card-body bg-white py-3">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Global PDF Scale</span>
+                    <span class="badge bg-secondary">{{settings.pdfScale}}</span>
+                  </label>
+                  <input type="range" class="form-range" min="0.2" max="1.0" step="0.05" [(ngModel)]="settings.pdfScale" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Apparatus Staff Scale</span>
+                    <span class="badge bg-secondary">{{settings.pdfCommentStaffScale}}</span>
+                  </label>
+                  <input type="range" class="form-range" min="0.2" max="1.0" step="0.05" [(ngModel)]="settings.pdfCommentStaffScale" (ngModelChange)="onSettingsChange()">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Group 2: Page Layout & Margins -->
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-aspect-ratio me-2"></i>Page Layout & Margins</h6>
+            </div>
+            <div class="card-body bg-white py-3">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Staff Line Left Indent (Siglum Space)</span>
+                    <span class="badge bg-secondary">{{settings.pdfSignaturSpace}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="0" max="150" step="1" [(ngModel)]="settings.pdfSignaturSpace" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Left Margin</span>
+                    <span class="badge bg-secondary">{{settings.pdfMarginLeft}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="10" max="100" step="1" [(ngModel)]="settings.pdfMarginLeft" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Right Margin</span>
+                    <span class="badge bg-secondary">{{settings.pdfMarginRight}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="10" max="100" step="1" [(ngModel)]="settings.pdfMarginRight" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Top Margin</span>
+                    <span class="badge bg-secondary">{{settings.pdfMarginTop}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="10" max="100" step="1" [(ngModel)]="settings.pdfMarginTop" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Bottom Margin</span>
+                    <span class="badge bg-secondary">{{settings.pdfMarginBottom}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="10" max="100" step="1" [(ngModel)]="settings.pdfMarginBottom" (ngModelChange)="onSettingsChange()">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Group 3: Musical Staves & Lyrics -->
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-music-note-list me-2"></i>Musical Staves & Lyrics Spacing</h6>
+            </div>
+            <div class="card-body bg-white py-3">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Staff Spacing (Y gap after staves)</span>
+                    <span class="badge bg-secondary">{{settings.pdfStaffSpacing}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="5" max="50" step="1" [(ngModel)]="settings.pdfStaffSpacing" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Extra Syllable Spacing (X gap)</span>
+                    <span class="badge bg-secondary">{{settings.pdfSyllableSpacing}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="0" max="30" step="1" [(ngModel)]="settings.pdfSyllableSpacing" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Syllable Text Offset (Y below note)</span>
+                    <span class="badge bg-secondary">{{settings.pdfSyllableTextOffset}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="2" max="20" step="1" [(ngModel)]="settings.pdfSyllableTextOffset" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Vertical Section Space</span>
+                    <span class="badge bg-secondary">{{settings.pdfVerticalSpace}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="5" max="50" step="1" [(ngModel)]="settings.pdfVerticalSpace" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Text Block Gap</span>
+                    <span class="badge bg-secondary">{{settings.pdfTextBlockGap}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="2" max="30" step="1" [(ngModel)]="settings.pdfTextBlockGap" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Paratext Spacing (Y gap after titles)</span>
+                    <span class="badge bg-secondary">{{settings.pdfParatextSpacing}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="2" max="40" step="1" [(ngModel)]="settings.pdfParatextSpacing" (ngModelChange)="onSettingsChange()">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Group 4: Lemma Brackets -->
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-brackets me-2"></i>Lemma Brackets</h6>
+            </div>
+            <div class="card-body bg-white py-3">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Bracket Width</span>
+                    <span class="badge bg-secondary">{{settings.pdfBracketWidth}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="4" max="30" step="1" [(ngModel)]="settings.pdfBracketWidth" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Bracket Thickness</span>
+                    <span class="badge bg-secondary">{{settings.pdfBracketThickness}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="0.5" max="4.0" step="0.1" [(ngModel)]="settings.pdfBracketThickness" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Bracket Gap (Distance to Lyrics)</span>
+                    <span class="badge bg-secondary">{{settings.pdfBracketGap}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="-10" max="20" step="1" [(ngModel)]="settings.pdfBracketGap" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Bracket Tick (Vertical Hooks)</span>
+                    <span class="badge bg-secondary">{{settings.pdfBracketTick}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="1" max="10" step="1" [(ngModel)]="settings.pdfBracketTick" (ngModelChange)="onSettingsChange()">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Group 5: Critical Apparatus & Typography -->
+          <div class="card shadow-sm border-light">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-fonts me-2"></i>Critical Apparatus & Typography</h6>
+            </div>
+            <div class="card-body bg-white py-3">
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Apparatus Tree Padding</span>
+                    <span class="badge bg-secondary">{{settings.pdfCommentTreePadding}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="0" max="20" step="1" [(ngModel)]="settings.pdfCommentTreePadding" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Apparatus Tree Gap</span>
+                    <span class="badge bg-secondary">{{settings.pdfCommentTreeGap}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="0" max="20" step="1" [(ngModel)]="settings.pdfCommentTreeGap" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Apparatus Block Gap</span>
+                    <span class="badge bg-secondary">{{settings.pdfCommentBlockGap}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="5" max="50" step="1" [(ngModel)]="settings.pdfCommentBlockGap" (ngModelChange)="onSettingsChange()">
+                </div>
+              </div>
+
+              <hr>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label small fw-medium text-muted mb-1">Font Family</label>
+                  <select class="form-select form-select-sm" [(ngModel)]="settings.pdfFontFamily" (ngModelChange)="onSettingsChange()">
+                    <option value="times">Times (Classic Serif)</option>
+                    <option value="helvetica">Helvetica (Modern Sans-Serif)</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Paratext Size (Titles/Rubrics)</span>
+                    <span class="badge bg-secondary">{{settings.pdfParatextFontSize}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="6" max="24" step="0.5" [(ngModel)]="settings.pdfParatextFontSize" (ngModelChange)="onSettingsChange()">
+                </div>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Title Size</span>
+                    <span class="badge bg-secondary">{{settings.pdfTitleFontSize}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="8" max="36" step="1" [(ngModel)]="settings.pdfTitleFontSize" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Title Y-Space</span>
+                    <span class="badge bg-secondary">{{settings.pdfTitleVerticalSpace}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="5" max="80" step="1" [(ngModel)]="settings.pdfTitleVerticalSpace" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Body Size</span>
+                    <span class="badge bg-secondary">{{settings.pdfFontSize}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="6" max="24" step="0.5" [(ngModel)]="settings.pdfFontSize" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Meta Size</span>
+                    <span class="badge bg-secondary">{{settings.pdfMetadataFontSize}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="5" max="18" step="0.5" [(ngModel)]="settings.pdfMetadataFontSize" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Meta Y-Space</span>
+                    <span class="badge bg-secondary">{{settings.pdfMetadataVerticalSpace}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="2" max="40" step="1" [(ngModel)]="settings.pdfMetadataVerticalSpace" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Comment Size</span>
+                    <span class="badge bg-secondary">{{settings.pdfCommentFontSize}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="5" max="18" step="0.5" [(ngModel)]="settings.pdfCommentFontSize" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Comment Title Size</span>
+                    <span class="badge bg-secondary">{{settings.pdfCommentTitleFontSize}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="5" max="18" step="0.5" [(ngModel)]="settings.pdfCommentTitleFontSize" (ngModelChange)="onSettingsChange()">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Group 6: Header, Footer & Running Headline -->
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-layout-text-window-reverse me-2"></i>Header, Footer & Running Headline</h6>
+            </div>
+            <div class="card-body bg-white py-3">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small fw-medium text-muted mb-1">Header Text Source</label>
+                  <select class="form-select form-select-sm" [(ngModel)]="settings.pdfHeaderSource" (ngModelChange)="onSettingsChange()">
+                    <option *ngFor="let field of availableHeaderFields" [value]="field.key">{{field.label}}</option>
+                  </select>
+                </div>
+                <div class="col-md-6 d-flex align-items-end">
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="showPageNumbers" [(ngModel)]="settings.pdfShowPageNumbers" (ngModelChange)="onSettingsChange()">
+                    <label class="form-check-label small fw-medium text-muted" for="showPageNumbers">Show Page Numbers</label>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Headline Size (Page 2+)</span>
+                    <span class="badge bg-secondary">{{settings.pdfHeadlineFontSize}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="5" max="14" step="0.5" [(ngModel)]="settings.pdfHeadlineFontSize" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Page Number Size</span>
+                    <span class="badge bg-secondary">{{settings.pdfPageNumberFontSize}} pt</span>
+                  </label>
+                  <input type="range" class="form-range" min="5" max="14" step="0.5" [(ngModel)]="settings.pdfPageNumberFontSize" (ngModelChange)="onSettingsChange()">
+                </div>
+                <div class="col-12">
+                  <label class="form-label small fw-medium text-muted mb-1 d-block">Page Headline Metadata Fields (Page 2+)</label>
+                  <div class="d-flex flex-wrap gap-3">
+                    <div class="form-check" *ngFor="let field of availableHeadlineFields">
+                      <input class="form-check-input" type="checkbox" [id]="'headline_' + field.key"
+                             [checked]="isFieldSelectedInHeadline(field.key)"
+                             (change)="toggleFieldInHeadline(field.key)">
+                      <label class="form-check-label small text-muted" [for]="'headline_' + field.key">
+                        {{field.label}}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Interactive PDF Page Mockups -->
+    <div class="col-lg-5 col-xl-4" *ngIf="activeTab === 'pdf'">
+      <div class="preview-sidebar position-sticky" style="top: 80px;">
+        <div class="card shadow-sm border-light">
+          <div class="card-header bg-light d-flex align-items-center justify-content-between py-2">
+            <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-eye text-primary me-2"></i>Layout Preview ({{previewScale}}x Scale)</h6>
+            <span class="badge bg-primary px-2" style="font-size: 0.75rem;">A4 Mockup</span>
+          </div>
+          <div class="card-body bg-dark-subtle p-3 d-flex flex-column align-items-center gap-3 overflow-auto" style="max-height: calc(100vh - 160px);">
+            
+            <!-- PAGE 1: Content Mockup (Title, Metadata, Staves, Lyrics, Brackets) -->
+            <div class="virtual-page shadow" [style.font-family]="settings.pdfFontFamily === 'times' ? 'Times New Roman, Georgia, serif' : 'sans-serif'">
+              <div class="margin-guideline"
+                   [style.top.px]="(settings.pdfMarginTop ?? 40) * previewScale"
+                   [style.left.px]="(settings.pdfMarginLeft ?? 40) * previewScale"
+                   [style.right.px]="(settings.pdfMarginRight ?? 40) * previewScale"
+                   [style.bottom.px]="(settings.pdfMarginBottom ?? 40) * previewScale">
+                
+                <!-- Title -->
+                <div class="virtual-title"
+                     [style.font-size.px]="(settings.pdfTitleFontSize ?? 16) * previewScale"
+                     [style.margin-bottom.px]="(settings.pdfTitleVerticalSpace ?? 20) * previewScale">
+                  {{mockupHeaderValue}}
+                </div>
+
+                <!-- Inline Metadata -->
+                <div class="virtual-metadata"
+                     [style.font-size.px]="(settings.pdfMetadataFontSize ?? 9) * previewScale"
+                     [style.margin-bottom.px]="(settings.pdfMetadataVerticalSpace ?? 15) * previewScale">
+                  <strong>ID:</strong> GL-01 <span class="bullet">•</span> 
+                  <strong>Genre:</strong> Gloria <span class="bullet">•</span> 
+                  <strong>Feast:</strong> Christmas
+                </div>
+
+                <!-- Section 1 -->
+                <div class="virtual-paratext"
+                     [style.font-size.px]="(settings.pdfParatextFontSize ?? 10) * previewScale"
+                     [style.margin-bottom.px]="(settings.pdfParatextSpacing ?? 12) * previewScale">
+                  DE INNOCENTIBUS (f. 158)
+                </div>
+
+                <!-- Staff Line 1 -->
+                <div class="virtual-staff-line" style="position: relative; width: 100%;">
+                  <!-- Signature -->
+                  <div class="virtual-signature" [style.width.px]="(settings.pdfSignaturSpace ?? 60) * previewScale" [style.height.px]="80 * (settings.pdfScale ?? 0.6) * previewScale">
+                    <span [style.font-size.px]="(settings.pdfFontSize ?? 10) * previewScale">1</span>
+                  </div>
+
+                  <!-- Notes and Lyrics -->
+                  <div class="virtual-notes-area" [style.margin-left.px]="(settings.pdfSignaturSpace ?? 60) * previewScale">
+                    <!-- Staff representation -->
+                    <div class="virtual-staff-staves" [style.height.px]="80 * (settings.pdfScale ?? 0.6) * previewScale">
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+
+                      <!-- Notes shapes scaled -->
+                      <div class="fake-note note-1" [style.transform]="'scale(' + (settings.pdfScale ?? 0.6) + ')'"></div>
+                      <div class="fake-note note-2" [style.transform]="'scale(' + (settings.pdfScale ?? 0.6) + ')'"></div>
+                      <div class="fake-note note-3" [style.transform]="'scale(' + (settings.pdfScale ?? 0.6) + ')'"></div>
+                    </div>
+
+                    <!-- Lyrics syllable -->
+                    <div class="virtual-lyrics"
+                         [style.margin-top.px]="(settings.pdfSyllableTextOffset ?? 10) * previewScale"
+                         [style.font-size.px]="(settings.pdfFontSize ?? 10) * previewScale">
+                      Glo-ri-a in ex-cel-sis
+                    </div>
+
+                    <!-- Bracket -->
+                    <div class="virtual-bracket"
+                         [style.margin-top.px]="(settings.pdfBracketGap ?? 5) * previewScale"
+                         [style.border-bottom-width.px]="(settings.pdfBracketThickness ?? 1.2) * previewScale"
+                         [style.border-left-width.px]="(settings.pdfBracketThickness ?? 1.2) * previewScale"
+                         [style.border-right-width.px]="(settings.pdfBracketThickness ?? 1.2) * previewScale"
+                         [style.height.px]="(settings.pdfBracketTick ?? 4) * previewScale"
+                         [style.width.px]="(settings.pdfBracketWidth ?? 12) * 2 * previewScale">
+                      <span class="bracket-label" 
+                            [style.font-size.px]="(settings.pdfCommentTitleFontSize ?? 8) * previewScale"
+                            [style.top.px]="((settings.pdfBracketTick ?? 4) * previewScale) + 1">
+                        1
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Staff spacing indicator -->
+                <div class="spacing-indicator staff-spacing"
+                     [style.height.px]="(settings.pdfStaffSpacing ?? 20) * previewScale">
+                </div>
+
+                <!-- Staff Line 2 -->
+                <div class="virtual-staff-line" style="position: relative; width: 100%;">
+                  <div class="virtual-signature" [style.width.px]="(settings.pdfSignaturSpace ?? 60) * previewScale" [style.height.px]="80 * (settings.pdfScale ?? 0.6) * previewScale">
+                    <span [style.font-size.px]="(settings.pdfFontSize ?? 10) * previewScale">2 a</span>
+                  </div>
+                  <div class="virtual-notes-area" [style.margin-left.px]="(settings.pdfSignaturSpace ?? 60) * previewScale">
+                    <div class="virtual-staff-staves" [style.height.px]="80 * (settings.pdfScale ?? 0.6) * previewScale">
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="fake-note note-4" [style.transform]="'scale(' + (settings.pdfScale ?? 0.6) + ')'"></div>
+                      <div class="fake-note note-5" [style.transform]="'scale(' + (settings.pdfScale ?? 0.6) + ')'"></div>
+                    </div>
+                    <div class="virtual-lyrics"
+                         [style.margin-top.px]="(settings.pdfSyllableTextOffset ?? 10) * previewScale"
+                         [style.font-size.px]="(settings.pdfFontSize ?? 10) * previewScale">
+                      De-o pa-tri om-ni-po-ten-ti
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Section Divider Indicator -->
+                <div class="spacing-indicator section-spacing"
+                     [style.height.px]="(settings.pdfVerticalSpace ?? 15) * previewScale">
+                </div>
+
+                <!-- Section 2 -->
+                <div class="virtual-paratext"
+                     [style.font-size.px]="(settings.pdfParatextFontSize ?? 10) * previewScale"
+                     [style.margin-bottom.px]="(settings.pdfParatextSpacing ?? 12) * previewScale">
+                  AD SANCTOS (f. 159)
+                </div>
+
+                <!-- Staff Line 3 -->
+                <div class="virtual-staff-line" style="position: relative; width: 100%;">
+                  <div class="virtual-signature" [style.width.px]="(settings.pdfSignaturSpace ?? 60) * previewScale" [style.height.px]="80 * (settings.pdfScale ?? 0.6) * previewScale">
+                    <span [style.font-size.px]="(settings.pdfFontSize ?? 10) * previewScale">b</span>
+                  </div>
+                  <div class="virtual-notes-area" [style.margin-left.px]="(settings.pdfSignaturSpace ?? 60) * previewScale">
+                    <div class="virtual-staff-staves" [style.height.px]="80 * (settings.pdfScale ?? 0.6) * previewScale">
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="fake-note note-6" [style.transform]="'scale(' + (settings.pdfScale ?? 0.6) + ')'"></div>
+                      <div class="fake-note note-7" [style.transform]="'scale(' + (settings.pdfScale ?? 0.6) + ')'"></div>
+                      <div class="fake-note note-8" [style.transform]="'scale(' + (settings.pdfScale ?? 0.6) + ')'"></div>
+                    </div>
+                    <div class="virtual-lyrics"
+                         [style.margin-top.px]="(settings.pdfSyllableTextOffset ?? 10) * previewScale"
+                         [style.font-size.px]="(settings.pdfFontSize ?? 10) * previewScale">
+                      Et in ter-ra pax
+                    </div>
+                    <!-- Bracket 2 -->
+                    <div class="virtual-bracket"
+                         [style.margin-top.px]="(settings.pdfBracketGap ?? 5) * previewScale"
+                         [style.border-bottom-width.px]="(settings.pdfBracketThickness ?? 1.2) * previewScale"
+                         [style.border-left-width.px]="(settings.pdfBracketThickness ?? 1.2) * previewScale"
+                         [style.border-right-width.px]="(settings.pdfBracketThickness ?? 1.2) * previewScale"
+                         [style.height.px]="(settings.pdfBracketTick ?? 4) * previewScale"
+                         [style.width.px]="(settings.pdfBracketWidth ?? 12) * 1.5 * previewScale">
+                      <span class="bracket-label" 
+                            [style.font-size.px]="(settings.pdfCommentTitleFontSize ?? 8) * previewScale"
+                            [style.top.px]="((settings.pdfBracketTick ?? 4) * previewScale) + 1">
+                        2
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Staff spacing indicator -->
+                <div class="spacing-indicator staff-spacing"
+                     [style.height.px]="(settings.pdfStaffSpacing ?? 20) * previewScale">
+                </div>
+
+                <!-- Staff Line 4 -->
+                <div class="virtual-staff-line" style="position: relative; width: 100%;">
+                  <div class="virtual-signature" [style.width.px]="(settings.pdfSignaturSpace ?? 60) * previewScale" [style.height.px]="80 * (settings.pdfScale ?? 0.6) * previewScale">
+                    <span [style.font-size.px]="(settings.pdfFontSize ?? 10) * previewScale">3</span>
+                  </div>
+                  <div class="virtual-notes-area" [style.margin-left.px]="(settings.pdfSignaturSpace ?? 60) * previewScale">
+                    <div class="virtual-staff-staves" [style.height.px]="80 * (settings.pdfScale ?? 0.6) * previewScale">
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="staff-line-hr"></div>
+                      <div class="fake-note note-9" [style.transform]="'scale(' + (settings.pdfScale ?? 0.6) + ')'"></div>
+                      <div class="fake-note note-10" [style.transform]="'scale(' + (settings.pdfScale ?? 0.6) + ')'"></div>
+                    </div>
+                    <div class="virtual-lyrics"
+                         [style.margin-top.px]="(settings.pdfSyllableTextOffset ?? 10) * previewScale"
+                         [style.font-size.px]="(settings.pdfFontSize ?? 10) * previewScale">
+                      bo-nae vo-lun-ta-tis
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Text block gap indicator -->
+                <div class="spacing-indicator text-block-gap"
+                     [style.height.px]="(settings.pdfTextBlockGap ?? 10) * previewScale">
+                </div>
+
+                <!-- Text Block -->
+                <div class="virtual-text-block" [style.font-size.px]="(settings.pdfFontSize ?? 10) * previewScale">
+                  <div class="text-line-placeholder"></div>
+                  <div class="text-line-placeholder" style="width: 75%;"></div>
+                </div>
+
+              </div>
+              <div class="page-number-mock" *ngIf="settings.pdfShowPageNumbers" [style.font-size.px]="(settings.pdfPageNumberFontSize ?? 8) * previewScale">Page 1</div>
+            </div>
+
+            <!-- PAGE 2: Critical Apparatus Mockup (Marginal comments trees) -->
+            <div class="virtual-page shadow" [style.font-family]="settings.pdfFontFamily === 'times' ? 'Times New Roman, Georgia, serif' : 'sans-serif'">
+              <div class="margin-guideline"
+                   [style.top.px]="(settings.pdfMarginTop ?? 40) * previewScale"
+                   [style.left.px]="(settings.pdfMarginLeft ?? 40) * previewScale"
+                   [style.right.px]="(settings.pdfMarginRight ?? 40) * previewScale"
+                   [style.bottom.px]="(settings.pdfMarginBottom ?? 40) * previewScale">
+                
+                <!-- Running Header (Page 2+) -->
+                <div class="virtual-running-header" *ngIf="settings.pdfHeadlineMetadataFields?.length && mockupHeadlineText"
+                     [style.font-size.px]="(settings.pdfHeadlineFontSize ?? 8) * previewScale">
+                  {{mockupHeadlineText}}
+                </div>
+
+                <!-- Apparatus Title -->
+                <div class="virtual-title"
+                     [style.font-size.px]="(settings.pdfTitleFontSize ?? 16) * previewScale"
+                     [style.margin-bottom.px]="(settings.pdfTitleVerticalSpace ?? 20) * previewScale">
+                  Critical Apparatus
+                </div>
+
+                <!-- Global Comment Block -->
+                <div class="virtual-comment-block">
+                  <div class="virtual-comment-header fw-bold fst-italic" style="width: 100%; border-right: none;" [style.font-size.px]="(settings.pdfCommentTitleFontSize ?? 10) * previewScale">
+                    General Comment
+                  </div>
+                  <div class="virtual-comment-tree"
+                       [style.padding.px]="(settings.pdfCommentTreePadding ?? 4) * previewScale"
+                       [style.gap.px]="(settings.pdfCommentTreeGap ?? 4) * previewScale">
+                    <div class="virtual-tree-row">
+                      <div class="virtual-tree-node text-node" [style.font-size.px]="(settings.pdfCommentFontSize ?? 9) * previewScale">
+                        This is a global comment describing the source and general layout.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="spacing-indicator comment-block-gap"
+                     [style.height.px]="(settings.pdfCommentBlockGap ?? 25) * previewScale">
+                </div>
+
+                <!-- Comment Block 1 (Tree Representation) -->
+                <div class="virtual-comment-block">
+                  <div class="virtual-comment-header" [style.font-size.px]="(settings.pdfCommentTitleFontSize ?? 10) * previewScale">
+                    1
+                  </div>
+                  
+                  <div class="virtual-comment-tree"
+                       [style.padding.px]="(settings.pdfCommentTreePadding ?? 4) * previewScale"
+                       [style.gap.px]="(settings.pdfCommentTreeGap ?? 4) * previewScale">
+                    <div class="virtual-tree-row">
+                      <div class="virtual-tree-node text-node" [style.font-size.px]="(settings.pdfCommentFontSize ?? 9) * previewScale">
+                        ms. A variant
+                      </div>
+                      <div class="virtual-tree-node notes-node">
+                        <div class="mini-staff" [style.height.px]="40 * (settings.pdfCommentStaffScale ?? 0.6) * previewScale">
+                          <div class="staff-line-hr"></div>
+                          <div class="staff-line-hr"></div>
+                          <div class="staff-line-hr"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="virtual-tree-row">
+                      <div class="virtual-tree-node text-node" [style.font-size.px]="(settings.pdfCommentFontSize ?? 9) * previewScale">
+                        ms. B variant
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Comment block gap indicator -->
+                <div class="spacing-indicator comment-block-gap"
+                     [style.height.px]="(settings.pdfCommentBlockGap ?? 25) * previewScale">
+                </div>
+
+                <!-- Comment Block 2 -->
+                <div class="virtual-comment-block">
+                  <div class="virtual-comment-header" [style.font-size.px]="(settings.pdfCommentTitleFontSize ?? 10) * previewScale">
+                    2
+                  </div>
+                  <div class="virtual-comment-text text-node" [style.font-size.px]="(settings.pdfCommentFontSize ?? 9) * previewScale">
+                    Omission of syllable "in" in codex C.
+                  </div>
+                </div>
+
+                <!-- Comment block gap indicator -->
+                <div class="spacing-indicator comment-block-gap"
+                     [style.height.px]="(settings.pdfCommentBlockGap ?? 25) * previewScale">
+                </div>
+
+                <!-- Comment Block 3 (Tree Representation) -->
+                <div class="virtual-comment-block">
+                  <div class="virtual-comment-header" [style.font-size.px]="(settings.pdfCommentTitleFontSize ?? 10) * previewScale">
+                    3
+                  </div>
+                  
+                  <div class="virtual-comment-tree"
+                       [style.padding.px]="(settings.pdfCommentTreePadding ?? 4) * previewScale"
+                       [style.gap.px]="(settings.pdfCommentTreeGap ?? 4) * previewScale">
+                    <div class="virtual-tree-row">
+                      <div class="virtual-tree-node text-node" [style.font-size.px]="(settings.pdfCommentFontSize ?? 9) * previewScale">
+                        cod. S has
+                      </div>
+                      <div class="virtual-tree-node notes-node">
+                        <div class="mini-staff" [style.height.px]="40 * (settings.pdfCommentStaffScale ?? 0.6) * previewScale">
+                          <div class="staff-line-hr"></div>
+                          <div class="staff-line-hr"></div>
+                          <div class="staff-line-hr"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="virtual-tree-row">
+                      <div class="virtual-tree-node text-node" [style.font-size.px]="(settings.pdfCommentFontSize ?? 9) * previewScale">
+                        cod. V has
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Comment block gap indicator -->
+                <div class="spacing-indicator comment-block-gap"
+                     [style.height.px]="(settings.pdfCommentBlockGap ?? 25) * previewScale">
+                </div>
+
+                <!-- Comment Block 4 -->
+                <div class="virtual-comment-block">
+                  <div class="virtual-comment-header" [style.font-size.px]="(settings.pdfCommentTitleFontSize ?? 10) * previewScale">
+                    4
+                  </div>
+                  <div class="virtual-comment-text text-node" [style.font-size.px]="(settings.pdfCommentFontSize ?? 9) * previewScale">
+                    Syllable "pax" omitted in secondary sources.
+                  </div>
+                </div>
+
+              </div>
+              <div class="page-number-mock" *ngIf="settings.pdfShowPageNumbers"
+                   [style.font-size.px]="(settings.pdfPageNumberFontSize ?? 8) * previewScale">Page 2</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

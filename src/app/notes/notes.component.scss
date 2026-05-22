@@ -1,0 +1,80 @@
+.section {
+    display: inline-block;
+    vertical-align: top;
+}
+
+svg {
+    height: 120px;
+    width: 100%;
+}
+
+/* Note-code input (neume encoding) */
+.noteText {
+    white-space: pre;
+    padding-left: 5px;
+    text-align: left;
+    border: 1px solid #e5e7eb;
+    border-radius: 3px;
+    margin: 2px 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 22px;
+    height: 22px;
+    color: #374151;
+    background: #f9fafb;
+    transition: border-color 0.12s, background 0.12s;
+
+    &:focus {
+        border-color: #a5b4fc;
+        background: #fff;
+        outline: none;
+    }
+}
+
+/* Syllable text input */
+.syllableText {
+    white-space: pre;
+    padding-left: 5px;
+    text-align: left;
+    border: 1px solid #e5e7eb;
+    border-radius: 3px;
+    margin: 2px 3px;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 15px;
+    line-height: 24px;
+    height: 24px;
+    color: #1f2937;
+    transition: border-color 0.12s, background 0.12s;
+
+    &:focus {
+        border-color: #a5b4fc;
+        outline: none;
+    }
+}
+
+.vhidden {
+    visibility: hidden;
+}
+
+.dnone {
+    display: none;
+}
+
+svg .note {
+    cursor: pointer;
+}
+
+.read-only {
+    .noteText {
+        display: none;
+    }
+
+    .syllableText {
+        border: none;
+        background: transparent;
+    }
+
+    svg {
+        height: 90px;
+    }
+}

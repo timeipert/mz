@@ -1,0 +1,51 @@
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center">
+      <h2 class="page-title">Sources</h2>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-secondary" (click)="exportWorkspace()">Export Workspace</button>
+      <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
+      <button class="btn btn-secondary" (click)="triggerImport()">Import Workspace</button>
+      <button class="btn btn-primary" [routerLink]="['/source']"><i class="bi bi-plus-lg me-1"></i>Add New Source</button>
+    </div>
+  </div>
+
+  <div class="row mt-3">
+    <div class="col">
+      <!-- Column picker toggle -->
+      <div class="d-flex justify-content-end mb-2 position-relative">
+        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                (click)="showColPicker = !showColPicker"
+                id="col-picker-toggle">
+          <i class="bi bi-layout-three-columns"></i> Columns
+        </button>
+
+        <!-- Floating column picker panel -->
+        <div *ngIf="showColPicker" class="col-picker-panel shadow-lg border rounded-3 bg-white"
+             style="position:absolute; top: 2.2rem; right: 0; z-index: 200; min-width: 240px; padding: 1rem;">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="fw-semibold" style="font-size:.9rem;">Visible columns</span>
+            <button class="btn-close btn-sm" (click)="showColPicker = false"></button>
+          </div>
+          <div class="d-flex flex-column gap-2">
+            <div *ngFor="let col of cols" class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" [id]="'col-' + col.key"
+                     [(ngModel)]="col.visible" (change)="saveCols()" />
+              <label class="form-check-label" [for]="'col-' + col.key"
+                     style="font-size:.85rem;">{{col.label}}</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <app-smart-table
+        (onDelete)="delete($event)"
+        (onRowClick)="goToSource($event)"
+        [canDelete]="true"
+        [headers]="headers"
+        [objects]="sources"
+      ></app-smart-table>
+    </div>
+  </div>
+</div>
