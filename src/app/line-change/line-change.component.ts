@@ -94,6 +94,7 @@ export class LineChangeComponent implements OnDestroy, OnInit {
     this.focusService.preferredFocus = Focus.Notes;
     this.focus({ focusLast: false });
     this.request.emit({ kind: "EndCommentRequested", endKind: VM.CommentPartKind.LineChange, endUUID: this.model.uuid });
+    this.request.emit({ kind: "HighlightRegionRequested", uuid: this.model.uuid } as any);
   }
 
   keyDown(event: KeyboardEvent) {

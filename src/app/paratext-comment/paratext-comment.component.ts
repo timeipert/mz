@@ -21,7 +21,7 @@ export class ParatextCommentComponent implements OnInit {
   }
 
   onSave() {
-    this.undoService.beforeChange();
+    this.undoService.beforeChange('Save Paratext Comment');
     this.updateParaTextComment.emit(this.comment);
     this.activeModal.close();
   }

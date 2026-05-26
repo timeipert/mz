@@ -1,5 +1,6 @@
 import * as VM from '../types/model';
 import { CommonEvent } from '../types/CommonEvent';
+import { ViewIiifRequested, HighlightRegionRequested } from '../notes/Request';
 
 export type Event =
   CommonEvent |
@@ -10,7 +11,9 @@ export type Event =
   NoFocusRequested |
   NewCommentRequested |
   StaleCommentRemovealRequested |
-  PasteRequested;
+  PasteRequested |
+  ViewIiifRequested |
+  HighlightRegionRequested;
 
 export interface NewNoteLineRequsted {
   kind: "NewNoteLineRequsted";

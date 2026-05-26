@@ -76,27 +76,44 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
 
   ngOnChanges(): void {
 
-    this.actionHandlers = {
-      'Neuer Paratext': () => { this.newAt(Model.emptyParatextContainer(), 0) },
-      'Neuer Formteil': () => this.onEvent.emit({ 'kind': 'NewFormteilRequested' }),
-      'Löschen': () => this.onEvent.emit({ 'kind': "DeletionRequested", focusLast: true }),
-    };
+    this.actionHandlers = {};
 
-    const structure = Model.structure[this.documentType][this.zipper.length - 1];
-    if (structure.canHaveLines) {
-      this.actionHandlers['Neue Zeile'] = () => this.newAt(Model.emptyZeileContainer(), 0);
+    const docStruct = Model.getStructure(this.documentType);
+    const structure = docStruct[this.zipper.length - 1];
+    const currentLevelNum = this.zipper.length;
+    
+    // 1. Add line (Most specific)
+    if (structure && structure.canHaveLines) {
+      this.actionHandlers['+ Line'] = () => this.newAt(Model.emptyZeileContainer(), 0);
     }
 
-    const nextLevel = Model.structure[this.documentType][this.zipper.length];
+    // 2. Add section (Peer level)
+    this.actionHandlers['+ L' + currentLevelNum] = () => this.onEvent.emit({ 'kind': 'NewFormteilRequested' });
+
+    // 3. Add sub section (Child level)
+    const nextLevel = docStruct[this.zipper.length];
     if (nextLevel) {
-      const name = nextLevel.name ? ": " + nextLevel.name : ": Sub-Formteil";
-      this.actionHandlers['Neuer Container' + name] = () => this.newAt(Model.emptyFormteilContainer(this.documentType, this.zipper.concat([0])), 0);
+      this.actionHandlers['+ L' + (currentLevelNum + 1)] = () => this.newAt(Model.emptyFormteilContainer(this.documentType, this.zipper.concat([0])), 0);
     }
+    
+    // 4. Add paratext (Additional metadata/text)
+    this.actionHandlers['+ Text'] = () => { this.newAt(Model.emptyParatextContainer(), 0) };
 
   }
 
   getName(): string {
-    return Model.structure[this.documentType][this.zipper.length - 1].name || "";
+    const docStruct = Model.getStructure(this.documentType);
+    const structure = docStruct[this.zipper.length - 1];
+    return (structure && structure.name) || "";
+  }
+
+  getLevelName(): string {
+    if (!this.levelNames) return "";
+    const depth = this.zipper.length;
+    if (depth === 1) return this.levelNames.level1 || "";
+    if (depth === 2) return this.levelNames.level2 || "";
+    if (depth === 3) return this.levelNames.level3 || "";
+    return "";
   }
 
   newAt(model: Model.FormteilChildren, newIndex: number) {

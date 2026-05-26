@@ -155,7 +155,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     const newNoteText = (this.noteTextElement.nativeElement as HTMLElement).textContent || '';
     //Do not call function if nothing changes thus adding empty changes to undoService
     if (oldNoteText !== newNoteText) {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       event.stopPropagation();
       event.preventDefault();
@@ -217,7 +217,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     handleTextInputMove(this.syllableTextElement.nativeElement, event, e => this.request.emit(e));
 
     if (event.key === 'ArrowUp') {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       event.preventDefault();
       this.focusService.preferredFocus = Focus.Code;
@@ -271,7 +271,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     e.stopPropagation();
     e.preventDefault();
     if (e.clipboardData) {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       const text = e.clipboardData.getData('text');
       this.splitAndCreateNewSegments(text);
@@ -293,13 +293,13 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
         if (e.key === '-') {
           e.stopPropagation();
           e.preventDefault();
-          this.undoService.beforeChange();
+          this.undoService.beforeChange('Edit Note');
           const text = (this.syllableTextElement.nativeElement as HTMLElement).textContent;
           if (text) {
             this.splitAndCreateNewSegments(text);
           }
         } else {
-          this.undoService.beforeChange();
+          this.undoService.beforeChange('Edit Note');
           this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
           this.model.uuid
           const newContent = (this.syllableTextElement.nativeElement as HTMLElement).textContent || '';
@@ -314,7 +314,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     e.preventDefault();
     e.stopPropagation();
     if (this.model.notes.spaced[0].nonSpaced.length === 0) {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       this.model.notes = VM.emptySyllable().notes;
       this.model.notes.spaced[0].nonSpaced[0].grouped[0] = this.getNoteByClickPos(e.offsetY);
@@ -415,27 +415,27 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
   }
 
   splitLine() {
-    this.undoService.beforeChange();
+    this.undoService.beforeChange('Edit Note');
     this.request.emit({ kind: 'SplitLineRequested' })
   }
 
   insertLinChangeInFront() {
     this.withPath((s, ns, gr, no) => {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.request.emit({ kind: 'LineChangeRequested', after: false });
     });
   }
 
   insertOrShiftRight() {
     this.withPath((s, ns, gr, no) => {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.request.emit({ kind: 'AddNoteToNextSegment', note: no });
     });
   }
 
   insertFar(): void {
     this.withPath((s, ns, gr, no) => {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       const newNote = noteFromTemplate(no);
       this.insertNoteFar(newNote);
@@ -444,7 +444,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
 
   insertNoteFar(note: VM.Note) {
     this.withPath((s, ns, gr, no) => {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       no.focus = false;
       const notesBefore = gr.grouped.slice(0, gr.grouped.indexOf(no) + 1);
@@ -481,7 +481,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
 
   insertNear(): void {
     this.withPath((s, ns, gr, no) => {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       const newNote = noteFromTemplate(no);
       this.insertNoteNear(newNote);
@@ -490,7 +490,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
 
   insertNoteNear(note: VM.Note) {
     this.withPath((s, ns, gr, no) => {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       no.focus = false;
       const notesBefore = gr.grouped.slice(0, gr.grouped.indexOf(no) + 1);
@@ -505,7 +505,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
 
   insertNoteSlur(): void {
     this.withPath((s, ns, gr, no) => {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       const newNote = noteFromTemplate(no);
       no.focus = false;
@@ -519,7 +519,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
       this.toastr.info('Bitte löschen Sie zunächst den Kommentar, bevor Sie das Symbol löschen');
     } else {
       const nextNote = this.withPath((s, ns, gr, no) => {
-        this.undoService.beforeChange();
+        this.undoService.beforeChange('Edit Note');
         this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
         let nextNote = !focusLast ? VM.getRightOf(s, no) : VM.getLeftOf(s, no);
         gr.grouped.splice(gr.grouped.indexOf(no), 1);
@@ -574,7 +574,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
 
   changePitch(producer: (n: VM.Note) => VM.Note): void {
     this.withFocus(f => {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       const newNote = producer(f);
       f.octave = newNote.octave;
@@ -630,7 +630,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
   textToNotes(): void {
     const text = (this.noteTextElement.nativeElement as HTMLElement).textContent || '';
     try {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       this.lastModelString = '';
       const newNotes = musicLanguage.Spaced.tryParse(text);
@@ -668,7 +668,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
       tools: [
         {
           callback: () => { this.showComments(true); },
-          icon: 'comment',
+          icon: 'chat-text',
           title: 'Kommentare anzeigen'
         }
       ]
@@ -715,17 +715,17 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
       tools: [
         {
           callback: () => { this.showComments(false); },
-          icon: 'comment',
+          icon: 'chat-text',
           title: 'Kommentare anzeigen'
         },
         {
           callback: () => { this.changeType(); this.cdr.markForCheck(); },
-          icon: 'line-style',
+          icon: 'music-note-list',
           title: 'Silbenart ändern'
         },
         {
           callback: () => { this.deleteNote(false); this.cdr.markForCheck(); },
-          icon: 'delete',
+          icon: 'trash',
           title: 'Löschen'
         }
       ]
@@ -734,7 +734,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
 
   changeType(): void {
     const t = this.model.syllableType;
-    this.undoService.beforeChange();
+    this.undoService.beforeChange('Edit Note');
     this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
     switch (t) {
       case VM.SyllableType.Normal:

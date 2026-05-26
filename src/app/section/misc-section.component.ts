@@ -46,12 +46,12 @@ export class MiscSectionComponent extends S.Section<Model.MiscContainer> impleme
 
   ngOnChanges(): void {
     this.actionHandlers = {
-      'Neuer Paratext': () => { this.undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), 0) },
-      'Neue Zeile': () => { this.undo.beforeChange(); this.newAt(Model.emptyZeileContainer(), 0) },
-      'Löschen': () => this.onEvent.emit({ 'kind': "DeletionRequested", focusLast: true }),
+      '+ Line': () => { this.undo.beforeChange(); this.newAt(Model.emptyZeileContainer(), 0) },
+      '+ Text': () => { this.undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), 0) }
     };
 
-    const structure = Model.structure[this.documentType][this.zipper.length - 1];
+    const docStruct = Model.getStructure(this.documentType);
+    const structure = docStruct[this.zipper.length - 1];
   }
 
   getName(): string {

@@ -16,7 +16,19 @@ export type Request =
   NewClefRequested |
   StartCommentRequested |
   EndCommentRequested |
-  ChangeToBoxRequested;
+  ChangeToBoxRequested |
+  ViewIiifRequested |
+  HighlightRegionRequested;
+
+export interface ViewIiifRequested {
+  kind: "ViewIiifRequested";
+  folio: string;
+}
+
+export interface HighlightRegionRequested {
+  kind: "HighlightRegionRequested";
+  uuid: string; // The UUID of the LineChange that was clicked
+}
 
 export interface SplitLineRequested {
   kind: "SplitLineRequested";

@@ -1,13 +1,29 @@
 <div class="app-container" [class.read-only]="readOnly" [class.insertion-point]="isDragTarget">
   <div>
     <div class="content-row" [class.formteil-section]="kindIs(data, 'FormteilContainer')">
-      <app-dragger *ngIf="!readOnly" [zipper]="zipper" (dropRequested)="onDropRequested($event); isDragTarget=false"
+      <app-dragger *ngIf="!readOnly && !kindIs(data, 'RootContainer')" [zipper]="zipper" (dropRequested)="onDropRequested($event); isDragTarget=false"
         (actionRequested)="executeAction($event)" [actions]="actions()"
         (dragEnterTarget)="isDragTarget=true" (dragLeaveTarget)="isDragTarget=false"></app-dragger>
+        
+      <div class="dragger-row" *ngIf="!readOnly && kindIs(data, 'RootContainer')" style="position: absolute; left: -10px; top: 0; display: flex; z-index: 10;">
+        <div ngbDropdown placement="right" class="dropdown dropright">
+          <div ngbDropdownToggle class="btn btn-sm btn-outline-primary p-0 d-flex align-items-center justify-content-center border-0 shadow-sm" style="width: 32px; height: 24px; background-color: #eff6ff; color: #3b82f6; cursor: pointer; font-size: 0.6rem; font-weight: 700; border-radius: 4px; margin-top: 2px;">
+            ROOT
+          </div>
+          <div ngbDropdownMenu class="shadow border-0 py-1">
+            <button class="dropdown-item d-flex align-items-center gap-2 py-2" (click)="executeAction(action)" *ngFor="let action of actions()">
+              <i [class]="getActionIcon(action)"></i>
+              <span>{{getActionLabel(action)}}</span>
+            </button>
+          </div>
+        </div>
+        <div class="final-padding" style="width: 5px;"></div>
+      </div>
       <div class="after-dragger">
         <div class="type-identifier">
           <ng-container *ngIf="kindIs(data, 'FormteilContainer')">
             <span class="type-identifier-name">{{getName()}}</span>
+            <span class="ms-2 text-muted small" *ngIf="getLevelName()">{{getLevelName()}}</span>
           </ng-container>
           <ng-container *ngIf="kindIs(data, 'MiscContainer')">
             <span class="type-identifier-name">Misc</span>
@@ -16,20 +32,16 @@
             <span class="type-identifier-name">{{name}}</span>
           </ng-container>
 
-          <div class="root-line form-inline" *ngIf="kindIs(data, 'RootContainer')">
-            <div class="formteil-line-detail">
-              <span>Type</span>
-              <select [disabled]="canChangeDocumentType()" class='form-control' [(ngModel)]="data.documentType">
-                <option *ngFor="let o of documentTypes">{{o}}</option>
+          <div class="root-line form-inline d-flex align-items-center gap-2" *ngIf="kindIs(data, 'RootContainer')">
+            <div class="formteil-line-detail d-flex align-items-center flex-nowrap" style="gap: 4px;">
+              <span class="small fw-semibold text-muted" style="white-space: nowrap;">Number of layers</span>
+              <select [disabled]="canChangeDocumentType()" class='form-control form-control-sm ms-2' [(ngModel)]="data.documentType" (ngModelChange)="onDocumentTypeChange()">
+                <option *ngFor="let o of documentTypes" [value]="o.value">{{o.label}}</option>
               </select>
             </div>
           </div>
 
-          <div class="para-line form-inline" *ngIf="kindIs(data, 'ParatextContainer')">
-            <div class="formteil-para-detail">
-              <span>Retrospective</span> <input class="form-control" type="checkbox" [ngModel]="data.retro"
-                (ngModelChange)="setParaDetail($event)" />
-            </div>
+          <div class="para-line form-inline d-flex align-items-center gap-2" *ngIf="kindIs(data, 'ParatextContainer')">
             <div class="formteil-line-detail">
               <span>Type</span> <select class='form-control' [ngModel]="data.paratextType"
                 (ngModelChange)="setParaType($event)">
@@ -53,12 +65,14 @@
               </ng-container>
               <button class="deleteData" (click)="deleteData(i)" type="button" title="Remove">×</button>
             </div>
-            <div ngbDropdown placement="right" class="dropdown dropright">
-              <div ngbDropdownToggle class="my-dropdown">
-                <img width="24px" height="24px" src="assets/icons/add.svg" />
+            <div ngbDropdown placement="right" class="dropdown dropright d-inline-block ms-2">
+              <div ngbDropdownToggle class="btn btn-sm btn-outline-success rounded-circle p-0 d-flex align-items-center justify-content-center border-0 shadow-sm" style="width: 24px; height: 24px; background-color: #ecfdf5; color: #10b981; cursor: pointer;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-plus" viewBox="0 0 16 16">
+                  <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                </svg>
               </div>
-              <div ngbDropdownMenu>
-                <span class="dropdown-item" (click)="addData(name)" *ngFor="let name of newDataName">{{name}}</span>
+              <div ngbDropdownMenu class="shadow-sm border-0">
+                <button class="dropdown-item" (click)="addData(name)" *ngFor="let name of newDataName">{{getEnglishDataName(name)}}</button>
               </div>
             </div>
 
@@ -91,16 +105,16 @@
   <div class="children">
     <div class="child" *ngFor="let child of getChildren(); let i = index;trackBy:getUUID">
       <app-formteil-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
-        *ngIf="child.kind === 'FormteilContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)">
+        *ngIf="child.kind === 'FormteilContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
       </app-formteil-section>
       <app-misc-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
-        *ngIf="child.kind === 'MiscContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)">
+        *ngIf="child.kind === 'MiscContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
       </app-misc-section>
       <app-zeile-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
-        *ngIf="child.kind === 'ZeileContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)">
+        *ngIf="child.kind === 'ZeileContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
       </app-zeile-section>
       <app-paratext-section #sub [documentType]="documentType" [readOnly]="readOnly" (onEvent)="handleEvent($event, i)"
-        *ngIf="child.kind === 'ParatextContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)">
+        *ngIf="child.kind === 'ParatextContainer'" [data]="child" [comments]="comments" [zipper]="getZipper(i)" [levelNames]="levelNames">
       </app-paratext-section>
     </div>
   </div>
@@ -109,7 +123,7 @@
 <ng-template #LemmatisiertesTextInitium let-index>Lem. Text Init. <input class="form-control"
     [(ngModel)]="data.data[index].data" /></ng-template>
 <ng-template #Signatur let-index>Signature
-  <input class="form-control" [ngModel]="getFormControlData(index)" (ngModelChange)="setFormControl($event, index)" />
+  <input class="form-control form-control-sm d-inline-block ms-2" style="width: auto; min-width: 6ch; max-width: 100%; field-sizing: content;" [size]="getFormControlData(index)?.length || 6" [ngModel]="getFormControlData(index)" (ngModelChange)="setFormControl($event, index)" />
 </ng-template>
 <ng-template #Status let-index>
   Status

@@ -43,6 +43,35 @@ export interface RootContainer {
   documentType: DocumentType;
   version?: number | undefined;
   globalComment?: CommentTree;
+  
+  // CM-Transcription-Equivalents integration
+  annotationRegions?: AnnotationRegion[];
+  annotationItems?: AnnotationItem[];
+  equivalents?: EquivalentMetadata[];
+}
+
+export interface AnnotationRegion {
+  id: string;
+  name: string;
+  points: string;
+  folio: string;
+  /** UUID of the LineChange in the transcription that this region corresponds to */
+  lineUUID?: string;
+}
+
+export interface AnnotationItem {
+  id: string;
+  regionId: string;
+  pattern: string;  // base pattern, e.g. "Virga"
+  variant?: string; // variant letter, e.g. "a", "b" — combined display is "Virga a"
+  points: string;   // percentage-based polygon points
+  uuid?: string;    // Reference to the NonSpaced UUID
+}
+
+export interface EquivalentMetadata {
+  pattern: string;
+  refId: string;
+  notes?: string;
 }
 
 export interface ZeileContainer {
@@ -668,7 +697,7 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
 
   switch (after.kind) {
     case ContainerKind.RootContainer: switch (moved.kind) {
-      case ContainerKind.RootContainer: return "Die Editionseinheit kann nicht verschoben werden.";
+      case ContainerKind.RootContainer: return "The Edition unit cannot be moved.";
       case ContainerKind.FormteilContainer: if (movedDepth === 1) {
         root.children.splice(root.children.indexOf(moved), 1);
         root.children.unshift(moved); return undefined;
@@ -681,7 +710,7 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
       default: return assertNever(moved);
     }
     case ContainerKind.FormteilContainer: switch (moved.kind) {
-      case ContainerKind.RootContainer: return "Die Editionseinheit kann nicht verschoben werden.";
+      case ContainerKind.RootContainer: return "The Edition unit cannot be moved.";
       case ContainerKind.FormteilContainer: {
         if (afterDepth === movedDepth - 1) {
           remove(root, moved);
@@ -700,19 +729,21 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
       }
       case ContainerKind.ParatextContainer: remove(root, moved); after.children.unshift(moved); return undefined;
       case ContainerKind.ZeileContainer: {
-        if (structure[root.documentType][afterZ.length - 1].canHaveLines) {
+        const docStruct = getStructure(root.documentType);
+        const limit = docStruct[afterZ.length - 1];
+        if (limit && limit.canHaveLines) {
           remove(root, moved);
           after.children.unshift(moved);
           return undefined;
         } else {
-          return "In Editionseinheiten diesen Typs können keine Notenzeilen auf diese Ebene verschoben werden. Bitte legen Sie weitere Zwischencontainer an und legen Sie die Zeilen dort ab.";
+          return "In Edition units of this type, no note lines can be moved to this level. Please create additional intermediate containers and drop the lines there.";
         }
       }
       case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";
       default: return assertNever(moved);
     }
     case ContainerKind.ZeileContainer: switch (moved.kind) {
-      case ContainerKind.RootContainer: return "Die Editionseinheit kann nicht verschoben werden.";
+      case ContainerKind.RootContainer: return "The Edition unit cannot be moved.";
       case ContainerKind.FormteilContainer: return "Ein Formteil kann nicht hinter einer Zeile eingefügt werden.";
       case ContainerKind.ParatextContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
       case ContainerKind.ZeileContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
@@ -720,7 +751,7 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
       default: return assertNever(moved);
     }
     case ContainerKind.ParatextContainer: switch (moved.kind) {
-      case ContainerKind.RootContainer: return "Die Editionseinheit kann nicht verschoben werden.";
+      case ContainerKind.RootContainer: return "The Edition unit cannot be moved.";
       case ContainerKind.FormteilContainer: return "Ein Formteil kann nicht hinter einem Paratext eingefügt werden.";
       case ContainerKind.ParatextContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
       case ContainerKind.ZeileContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
@@ -728,7 +759,7 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
       default: return assertNever(moved);
     }
     case ContainerKind.MiscContainer: switch (moved.kind) {
-      case ContainerKind.RootContainer: return "Die Editionseinheit kann nicht verschoben werden.";
+      case ContainerKind.RootContainer: return "The Edition unit cannot be moved.";
       case ContainerKind.FormteilContainer: return "Der Misc-Container kann keine Formteile enthalten";
       case ContainerKind.ParatextContainer: remove(root, moved); after.children.unshift(moved); return undefined;
       case ContainerKind.ZeileContainer: {
@@ -920,6 +951,20 @@ export const structure: StructureHead = {
       name: "L3",
     }
   ]
+}
+
+export function getStructure(docType: any): FormteilDescription[] {
+  if (!docType) {
+    return structure.Level1;
+  }
+  const normalized = Object.keys(structure).find(
+    k => k.toLowerCase() === String(docType).toLowerCase()
+  ) as DocumentType | undefined;
+
+  if (normalized && structure[normalized]) {
+    return structure[normalized];
+  }
+  return structure.Level1;
 }
 
 export function print(c: Container, indent: string): void {

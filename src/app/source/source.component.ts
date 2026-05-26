@@ -1,4 +1,4 @@
-import { DoCheck, Component, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, DoCheck, Component, OnInit, OnDestroy } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
 import { UserService, User } from '../user.service';
@@ -8,6 +8,8 @@ import { ToolsService, Tool } from '../tools.service';
 import { assertNever } from '../../utils';
 import { Subscription, combineLatest } from 'rxjs';
 import * as S from '../sselect/sselect.component';
+import { AnalyzedPattern } from '../transcription-analyzer.service';
+import { analyzeDocument, extractDocumentFolios } from '../transcription-analyzer-core';
 import { ProjectSettings } from '../api.service';
 
 export interface DocColDef {
@@ -46,7 +48,19 @@ export class SourceComponent implements OnInit {
   settings: ProjectSettings | null = null;
   isSaving = false;
 
+  // Tab state
+  activeTab: 'documents' | 'notation' = 'documents';
+  activeNotationTab: 'select' | 'annotate' | 'view' = 'select';
+
+  // Notation analysis
+  allPatterns: AnalyzedPattern[] = [];
+  sourceFolios: string[] = [];
+  isLoadingNotation = false;
+  notationLoaded = false;
+
   showDocColPicker = false;
+  showMetadataPanel = false;
+  iiifGalleryPattern = '';
   docCols: DocColDef[] = [];
 
   get visibleDocCols(): DocColDef[] {
@@ -81,7 +95,8 @@ export class SourceComponent implements OnInit {
     private route: ActivatedRoute,
     private toastr: ToastrService,
     private location: Location,
-    private toolService: ToolsService) {
+    private toolService: ToolsService,
+    private cdr: ChangeDetectorRef) {
     this.loadDocCols();
   }
 
@@ -141,6 +156,9 @@ export class SourceComponent implements OnInit {
             this.source = res.source;
             if (!this.source.custom) this.source.custom = {};
             this.updateQuellensigle(this.source.quellensigle);
+            this.notationLoaded = false;
+            this.allPatterns = [];
+            this.sourceFolios = [];
             break;
           case 'InsufficientPermissions': this.userService.logout(); break;
           default: assertNever(res);
@@ -230,6 +248,72 @@ export class SourceComponent implements OnInit {
         this.toastr.success(`${val} zu ${category} hinzugefügt`);
       });
     }
+  }
+
+  /** Unique pattern IDs across all analysed documents, passed to the IIIF annotator. */
+  get documentPatternIds(): string[] {
+    return Array.from(new Set(this.allPatterns.map(p => p.patternId)));
+  }
+
+  openPatternInGallery(event: { patternId: string; folio: string }) {
+    this.iiifGalleryPattern = event.patternId;
+    this.activeNotationTab = 'annotate';
+    this.switchTab('notation');
+  }
+
+  switchTab(tab: 'documents' | 'notation') {
+    this.activeTab = tab;
+    // Eagerly load notation when switching to notation tab — patterns feed the annotator and viewer
+    if (tab === 'notation' && !this.notationLoaded && this.source?.id) {
+      this.loadNotation();
+    }
+  }
+
+  loadNotation() {
+    if (!this.user || !this.source?.id) return;
+    this.isLoadingNotation = true;
+    this.allPatterns = [];
+    this.sourceFolios = [];
+    const sourceId = this.source.id;
+
+    this.api.listDocuments(this.user.token).subscribe(res => {
+      if (res.kind !== 'DocumentsRetrieved') return;
+      const docs = res.documents.filter(d => d.quelle_id === sourceId);
+
+      if (docs.length === 0) {
+        this.isLoadingNotation = false;
+        this.notationLoaded = true;
+        return;
+      }
+
+      let loaded = 0;
+      const docsData: any[] = [];
+
+      for (const doc of docs) {
+        this.api.getDocumentNotes(this.user!.token, doc.id).subscribe(noteRes => {
+          if (noteRes.kind === 'NotesRetrieved') {
+            docsData.push({ root: noteRes.data, id: doc.id, quelle_id: doc.quelle_id });
+          }
+          loaded++;
+          if (loaded === docs.length) {
+            setTimeout(() => {
+              let patterns: AnalyzedPattern[] = [];
+              const folios = new Set<string>();
+              for (const d of docsData) {
+                patterns = patterns.concat(analyzeDocument(d.root, d.quelle_id || 'Unknown', d.id || 'Unknown'));
+                const docFolios = extractDocumentFolios(d.root, d.foliostart);
+                docFolios.forEach(f => folios.add(f));
+              }
+              this.allPatterns = patterns;
+              this.sourceFolios = Array.from(folios);
+              this.isLoadingNotation = false;
+              this.notationLoaded = true;
+              this.cdr.detectChanges();
+            }, 0);
+          }
+        });
+      }
+    });
   }
 
   addToSettingsCustom(category: string, value: string | undefined) {

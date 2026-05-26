@@ -12,7 +12,7 @@ export interface FieldDef { key: string, label: string, isCustom: boolean }
   styleUrls: ['./settings.component.css']
 })
 export class SettingsComponent implements OnInit, OnDestroy {
-  activeTab: 'metadata' | 'github' | 'pdf' = 'metadata';
+  activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' = 'metadata';
   previewScale = 0.6;
   user: User | null = null;
   subs: Subscription[] = [];
@@ -49,6 +49,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   newCustomFieldLabel = '';
   newCustomFieldType: 'source' | 'document' = 'source';
+
+  newProfileGattung1 = '';
+  newProfileGattung2 = '';
+  newProfileLevel1 = '';
+  newProfileLevel2 = '';
+  newProfileLevel3 = '';
 
   githubConfig: GithubConfig = { token: '', owner: '', repo: '', branch: 'main' };
   isGithubConnecting = false;
@@ -159,6 +165,33 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.saveSettings();
     this.newCustomFieldLabel = '';
     this.selectField({ ...field, isCustom: true });
+  }
+
+  addGenreProfile() {
+    if (!this.settings) return;
+    if (!this.settings.genreLevelProfiles) this.settings.genreLevelProfiles = [];
+    this.settings.genreLevelProfiles.push({
+      id: Math.random().toString(36).substr(2, 9),
+      gattung1: this.newProfileGattung1.trim(),
+      gattung2: this.newProfileGattung2.trim(),
+      names: {
+        level1: this.newProfileLevel1.trim(),
+        level2: this.newProfileLevel2.trim(),
+        level3: this.newProfileLevel3.trim()
+      }
+    });
+    this.saveSettings();
+    this.newProfileGattung1 = '';
+    this.newProfileGattung2 = '';
+    this.newProfileLevel1 = '';
+    this.newProfileLevel2 = '';
+    this.newProfileLevel3 = '';
+  }
+
+  removeGenreProfile(id: string) {
+    if (!this.settings || !this.settings.genreLevelProfiles) return;
+    this.settings.genreLevelProfiles = this.settings.genreLevelProfiles.filter(p => p.id !== id);
+    this.saveSettings();
   }
 
   get availableHeadlineFields(): FieldDef[] {

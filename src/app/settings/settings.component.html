@@ -30,6 +30,20 @@
             <i class="bi bi-file-pdf me-2"></i>PDF Export & Layout
           </button>
         </li>
+        <li class="nav-item">
+          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
+                  [class.active]="activeTab === 'containers'"
+                  (click)="activeTab = 'containers'" type="button">
+            <i class="bi bi-diagram-3 me-2"></i>Container Names
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
+                  [class.active]="activeTab === 'editor'"
+                  (click)="activeTab = 'editor'" type="button">
+            <i class="bi bi-pencil-square me-2"></i>Editor Settings
+          </button>
+        </li>
       </ul>
 
       <!-- Active Tab Content -->
@@ -486,6 +500,100 @@
             </div>
           </div>
         </div>
+        <!-- 4. Container Names Tab -->
+        <div class="tab-pane fade show active" *ngIf="activeTab === 'containers'">
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light d-flex align-items-center">
+              <i class="bi bi-diagram-3 fs-5 me-2"></i>
+              <h6 class="mb-0 fw-semibold">Dynamic Container Names</h6>
+            </div>
+            <div class="card-body bg-white">
+              <p class="text-muted small">Define custom labels for hierarchy levels based on the document's Genre combination. The global default is "Level 1/2/3" if no profile matches.</p>
+
+              <div class="table-responsive mb-4">
+                <table class="table table-hover align-middle border">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Genre 1</th>
+                      <th>Genre 2</th>
+                      <th>Level 1 Name</th>
+                      <th>Level 2 Name</th>
+                      <th>Level 3 Name</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let profile of settings.genreLevelProfiles">
+                      <td><span class="badge bg-secondary">{{profile.gattung1 || '*'}}</span></td>
+                      <td><span class="badge bg-secondary">{{profile.gattung2 || '*'}}</span></td>
+                      <td>{{profile.names.level1 || '-'}}</td>
+                      <td>{{profile.names.level2 || '-'}}</td>
+                      <td>{{profile.names.level3 || '-'}}</td>
+                      <td class="text-end">
+                        <button class="btn btn-sm btn-outline-danger border-0" (click)="removeGenreProfile(profile.id)">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                    <tr *ngIf="!settings.genreLevelProfiles || settings.genreLevelProfiles.length === 0">
+                      <td colspan="6" class="text-center text-muted fst-italic py-3">No profiles defined. Using default names.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <h6 class="fw-semibold mb-3">Add New Profile</h6>
+              <div class="row g-2 align-items-end bg-light p-3 rounded border">
+                <div class="col-md-2">
+                  <label class="form-label small text-muted mb-1">Genre 1</label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="newProfileGattung1" placeholder="* (Any)">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small text-muted mb-1">Genre 2</label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="newProfileGattung2" placeholder="* (Any)">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small text-muted mb-1">Level 1</label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="newProfileLevel1" placeholder="e.g. Strophe">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small text-muted mb-1">Level 2</label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="newProfileLevel2" placeholder="e.g. Vers">
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label small text-muted mb-1">Level 3</label>
+                  <input type="text" class="form-control form-control-sm" [(ngModel)]="newProfileLevel3" placeholder="e.g. Wort">
+                </div>
+                <div class="col-md-2">
+                  <button class="btn btn-primary btn-sm w-100" (click)="addGenreProfile()">Add Profile</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <!-- 5. Editor Settings Tab -->
+        <div class="tab-pane fade show active" *ngIf="activeTab === 'editor'">
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light d-flex align-items-center">
+              <i class="bi bi-pencil-square fs-5 me-2"></i>
+              <h6 class="mb-0 fw-semibold">Editor Configuration</h6>
+            </div>
+            <div class="card-body bg-white">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Undo/Redo History Size</span>
+                    <span class="badge bg-secondary">{{settings.undoHistorySize || 10}}</span>
+                  </label>
+                  <input type="range" class="form-range" min="5" max="50" step="1" [(ngModel)]="settings.undoHistorySize" (ngModelChange)="onSettingsChange()">
+                  <small class="text-muted d-block mt-1">Number of actions to keep in the undo/redo stack.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -842,4 +950,3 @@
       </div>
     </div>
   </div>
-</div>

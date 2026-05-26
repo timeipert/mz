@@ -100,6 +100,41 @@ export class DraggerComponent implements OnInit, AfterViewInit, OnDestroy {
       to: this.zipper
     });
   }
+
+  getActionIcon(action: string): string {
+    const a = action.toLowerCase();
+    if (a.includes('delete') || a.startsWith('x ')) {
+      return 'bi bi-trash text-danger';
+    }
+    if (a.includes('line')) {
+      return 'bi bi-music-note-list text-success';
+    }
+    if (a.includes('text')) {
+      return 'bi bi-file-earmark-text text-primary';
+    }
+    if (a.includes('copy')) {
+      return 'bi bi-copy text-secondary';
+    }
+    if (a.includes('paste')) {
+      if (a.includes('notes')) return 'bi bi-clipboard-x text-secondary';
+      if (a.includes('text')) return 'bi bi-clipboard-minus text-secondary';
+      return 'bi bi-clipboard-check text-secondary';
+    }
+    if (a.includes('+ l')) {
+      return 'bi bi-plus-square text-info';
+    }
+    return 'bi bi-gear';
+  }
+
+  getActionLabel(action: string): string {
+    if (action === 'Copy') {
+      return 'Copy section';
+    }
+    if (action === 'x Delete') {
+      return 'Delete';
+    }
+    return action;
+  }
 }
 
 export interface DragRequest {

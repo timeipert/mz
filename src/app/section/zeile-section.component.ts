@@ -39,11 +39,10 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
 
   ngOnInit(): void {
     this.actionHandlers = {
-      'Neue Zeile': () => this.onEvent.emit({ 'kind': 'NewNoteLineRequsted', container: Model.emptyZeileContainer() }),
-      'Silbentext editieren': () => this.editText({ 'kind': 'EditSyllableTextReqested' }),
-      'Notentext editieren': () => this.editText({ 'kind': 'EditNotesTextReqested' }),
-      'Zeile löschen': () => this.onEvent.emit({ 'kind': 'DeletionRequested', focusLast: true }),
-      'Neuer Paratext': () => this.onEvent.emit({ 'kind': 'NewParatextRequested' }),
+      '+ Line': () => this.onEvent.emit({ 'kind': 'NewNoteLineRequsted', container: Model.emptyZeileContainer() }),
+      'Edit Notes': () => this.editText({ 'kind': 'EditNotesTextReqested' }),
+      'Edit Syllables': () => this.editText({ 'kind': 'EditSyllableTextReqested' }),
+      '+ Text': () => this.onEvent.emit({ 'kind': 'NewParatextRequested' })
     };
   }
 
@@ -400,6 +399,14 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
         break;
       }
       case 'LineFocusShiftRequest': {
+        break;
+      }
+      case 'ViewIiifRequested': {
+        this.onEvent.emit(r);
+        break;
+      }
+      case 'HighlightRegionRequested': {
+        this.onEvent.emit(r);
         break;
       }
       default: assertNever(r);

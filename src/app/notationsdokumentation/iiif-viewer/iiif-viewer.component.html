@@ -1,0 +1,405 @@
+<div class="iiif-root">
+
+  <!-- ── left: canvas list ──────────────────────────────────────────── -->
+  <div class="iiif-sidebar" [class.d-none]="leftSidebarCollapsed">
+    <div class="sidebar-title">
+      Pages
+      <button class="sidebar-filter-btn" [class.active]="onlyDocumentFolios"
+              (click)="onlyDocumentFolios = !onlyDocumentFolios"
+              [title]="onlyDocumentFolios ? 'Showing document folios only — click to show all' : 'Showing all folios — click to filter to documents'">
+        <i class="bi" [class.bi-funnel-fill]="onlyDocumentFolios" [class.bi-funnel]="!onlyDocumentFolios"></i>
+      </button>
+    </div>
+    <div *ngIf="!canvases.length" class="text-muted small px-2 py-2">
+      No canvases — add a IIIF Manifest URL.
+    </div>
+    <ul class="list-group list-group-flush">
+      <li *ngFor="let entry of visibleCanvases; trackBy: trackByOriginalIndex"
+          class="list-group-item list-group-item-action py-1 px-2 small cursor-pointer"
+          [class.active]="currentCanvasIndex === entry.originalIndex"
+          (click)="selectCanvas(entry.originalIndex)">
+        {{ entry.canvas.label || ('Canvas ' + (entry.originalIndex + 1)) }}
+      </li>
+    </ul>
+  </div>
+
+  <!-- ── center ─────────────────────────────────────────────────────── -->
+  <div class="iiif-center">
+
+    <!-- Top bar -->
+    <div class="iiif-topbar">
+      <button class="btn btn-sm btn-light border me-2" (click)="leftSidebarCollapsed = !leftSidebarCollapsed" title="Toggle Pages Sidebar">
+        <i class="bi" [class.bi-layout-sidebar]="leftSidebarCollapsed" [class.bi-layout-sidebar-inset]="!leftSidebarCollapsed"></i>
+      </button>
+      <ng-container *ngIf="!showGallery">
+        <!-- Regions mode -->
+        <ng-container *ngIf="viewMode === 'regions'">
+          <span class="text-muted small">
+            <i class="bi bi-pencil-square me-1"></i>Draw a box to mark a line region
+          </span>
+        </ng-container>
+        <!-- Items mode -->
+        <ng-container *ngIf="viewMode === 'items' && activeRegion">
+          <button class="btn btn-sm btn-outline-secondary me-2" (click)="backToRegions()">
+            <i class="bi bi-arrow-left me-1"></i>Regions
+          </button>
+          <span class="fw-semibold small me-3">{{ activeRegion.name }}</span>
+          <span class="small" [class.text-danger]="!activePattern"
+                              [class.text-muted]="!!activePattern">
+            <ng-container *ngIf="!activePattern">
+              <i class="bi bi-exclamation-circle me-1"></i>Select a pattern first
+            </ng-container>
+            <ng-container *ngIf="activePattern">
+              <i class="bi bi-crosshair me-1"></i>Drawing:
+              <app-svg-pattern [pattern]="activePattern" class="topbar-svg-pattern"></app-svg-pattern>
+              <strong class="ms-1">{{ activePattern }}<span *ngIf="activeVariant"> {{ activeVariant }}</span></strong>
+            </ng-container>
+          </span>
+        </ng-container>
+      </ng-container>
+
+      <ng-container *ngIf="showGallery">
+        <span class="fw-semibold small me-2">Gallery</span>
+        <input class="form-control form-control-sm" style="max-width:200px;"
+               [(ngModel)]="galleryFilterPattern" placeholder="Filter by pattern…">
+      </ng-container>
+
+      <button class="btn btn-sm ms-auto"
+              [class.btn-primary]="showGallery"
+              [class.btn-outline-secondary]="!showGallery"
+              (click)="showGallery = !showGallery">
+        <i class="bi bi-images me-1"></i>Gallery
+        <span *ngIf="(source?.annotationItems?.length || 0) > 0" class="badge bg-secondary ms-1">
+          {{ source?.annotationItems?.length }}
+        </span>
+      </button>
+    </div>
+
+    <!-- Region-name input bar -->
+    <div class="region-name-bar" *ngIf="pendingRegionPoints && !showGallery">
+      <span class="small fw-semibold me-2">Name this line region:</span>
+      <input class="form-control form-control-sm" style="max-width:180px;"
+             [(ngModel)]="pendingRegionName"
+             placeholder="e.g. Line 3"
+             (keyup.enter)="confirmRegion()">
+      <button class="btn btn-primary btn-sm ms-2"
+              [disabled]="!pendingRegionName.trim()"
+              (click)="confirmRegion()">
+        <i class="bi bi-check-lg me-1"></i>Save &amp; Annotate
+      </button>
+      <button class="btn btn-outline-secondary btn-sm ms-1"
+              (click)="cancelPendingRegion()">Cancel</button>
+    </div>
+
+    <!-- Empty state -->
+    <div *ngIf="!currentCanvasImage && !showGallery"
+         class="d-flex align-items-center justify-content-center flex-grow-1 text-muted">
+      Select a page to view the manuscript image
+    </div>
+
+    <!-- ── Gallery ── -->
+    <div *ngIf="showGallery" class="gallery-grid">
+      <div *ngIf="galleryItems.length === 0" class="text-muted text-center py-5 w-100">
+        No annotated items yet.
+      </div>
+      <div *ngFor="let g of galleryItems" class="gallery-card" (click)="navigateToItem(g)"
+           [title]="(g.region?.name || '?') + ', p.' + (g.canvasIdx + 1)">
+
+        <!-- SVG cutout — padded viewBox shows context, polygon highlights the exact annotation -->
+        <div class="gallery-cutout-wrap">
+          <svg class="gallery-crop"
+               [attr.viewBox]="g.rect.x + ' ' + g.rect.y + ' ' + g.rect.w + ' ' + g.rect.h"
+               preserveAspectRatio="xMidYMid meet">
+            <image [attr.href]="g.imageUrl" x="0" y="0" width="100" height="100"
+                   preserveAspectRatio="none" referrerpolicy="no-referrer"></image>
+            <!-- Region outline (context) -->
+            <polygon *ngIf="g.region"
+                     [attr.points]="g.region.points"
+                     fill="none" stroke="#94a3b8" stroke-width="0.4"
+                     vector-effect="non-scaling-stroke" opacity="0.7"></polygon>
+            <!-- Item annotation highlight -->
+            <polygon [attr.points]="g.item.points"
+                     fill="rgba(37,99,235,0.18)" stroke="#2563eb" stroke-width="0.5"
+                     vector-effect="non-scaling-stroke"></polygon>
+          </svg>
+          <!-- HTML label overlay — positioned at top-left of the annotation -->
+          <div class="gallery-item-label">{{ itemDisplayId(g.item) }}</div>
+        </div>
+
+        <!-- Footer -->
+        <div class="gallery-footer">
+          <span class="gallery-loc">{{ g.region?.name || '?' }}, p.{{ g.canvasIdx + 1 }}</span>
+          <span *ngIf="g.linked" class="gallery-linked">
+            <i class="bi bi-link-45deg"></i>{{ g.linked.syllable }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Annotation view ── -->
+    <div *ngIf="currentCanvasImage && !showGallery" class="iiif-body">
+
+      <!-- Image viewport -->
+      <div #viewportRef class="iiif-viewport"
+           [class.cursor-crosshair]="!pendingRegionPoints"
+           (mousedown)="onMouseDown($event)"
+           (mousemove)="onMouseMove($event)"
+           (mouseup)="onMouseUp($event)"
+           (mouseleave)="onMouseLeave($event)">
+
+        <!-- Loading spinner — outside the zoom/pan transform -->
+        <div *ngIf="imageLoading && !imageError" class="iiif-image-loading">
+          <div class="spinner-border text-light" role="status" style="width:2.5rem;height:2.5rem;">
+            <span class="visually-hidden">Loading…</span>
+          </div>
+          <div class="text-light mt-2" style="font-size:0.82rem;opacity:0.6;">Loading image…</div>
+        </div>
+
+        <div #contentRef class="iiif-content" [style.transform]="contentTransform">
+          <div class="iiif-image-wrap" *ngIf="!imageError">
+            <img [src]="currentCanvasImage" referrerpolicy="no-referrer" alt="Manuscript page"
+                 draggable="false" class="iiif-image"
+                 [class.iiif-image-hidden]="imageLoading"
+                 (load)="onImageLoad()" (error)="onImageError()">
+
+            <svg *ngIf="!imageLoading" class="iiif-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+
+              <!-- REGION mode OR SIMPLE mode -->
+              <ng-container *ngIf="viewMode === 'regions' || simpleMode">
+                <g *ngFor="let region of currentRegions" class="region-group" (click)="enterItemMode(region)">
+                  <!-- Highlighted region (linked to focused line-change): bright orange pulsing border -->
+                  <ng-container *ngIf="region.id === highlightedRegionId">
+                    <polygon [attr.points]="region.points"
+                             fill="rgba(255,152,0,0.22)"
+                             stroke="#ff9800" stroke-width="2"
+                             stroke-dasharray="3 1"
+                             vector-effect="non-scaling-stroke"
+                             class="region-highlighted-pulse">
+                      <title>{{ region.name }} (linked line)</title>
+                    </polygon>
+                  </ng-container>
+                  <!-- Normal / active-name region -->
+                  <ng-container *ngIf="region.id !== highlightedRegionId">
+                    <polygon [attr.points]="region.points"
+                             [attr.fill]="region.name === activeRegionName ? 'rgba(255,193,7,0.4)' : 'rgba(13,110,253,0.12)'"
+                             [attr.stroke]="region.name === activeRegionName ? '#ffc107' : '#0d6efd'"
+                             [attr.stroke-width]="region.name === activeRegionName ? '1' : '0.4'"
+                             vector-effect="non-scaling-stroke">
+                      <title>{{ region.name }}</title>
+                    </polygon>
+                  </ng-container>
+                  <!-- Label — shows chain icon if region is linked to a transcription line -->
+                  <text [attr.x]="+region.points.split(' ')[0].split(',')[0] + 0.4"
+                        [attr.y]="+region.points.split(' ')[0].split(',')[1] + 2.2"
+                        [attr.fill]="region.id === highlightedRegionId ? '#ff9800' : (region.name === activeRegionName ? '#ffc107' : '#0d6efd')"
+                        font-size="2" font-weight="700"
+                        vector-effect="non-scaling-stroke" pointer-events="none">
+                    {{ region.name }}{{ region.lineUUID ? ' 🔗' : '' }}
+                  </text>
+                </g>
+              </ng-container>
+
+              <!-- ITEM mode: evenodd dim path (outer rect minus region hole) -->
+              <ng-container *ngIf="(viewMode === 'items' && activeRegion) || simpleMode">
+                <path *ngIf="!simpleMode" [attr.d]="getDimPath()"
+                      fill="rgba(0,0,0,0.42)" fill-rule="evenodd" pointer-events="none"></path>
+                <polygon *ngIf="!simpleMode" [attr.points]="activeRegion.points"
+                         fill="none" stroke="#0d6efd" stroke-width="0.6"
+                         vector-effect="non-scaling-stroke" pointer-events="none"></polygon>
+                
+                <g *ngFor="let item of (simpleMode ? currentCanvasItems : activeRegionItems)">
+                  <polygon [attr.points]="item.points"
+                           [class.item-linked]="!!item.uuid"
+                           fill="rgba(13,110,253,0.2)" stroke="#0d6efd"
+                           stroke-width="0.35" vector-effect="non-scaling-stroke"
+                           pointer-events="none">
+                    <title>{{ itemDisplayId(item) }}</title>
+                  </polygon>
+                  <text [attr.x]="+item.points.split(' ')[0].split(',')[0] + 0.2"
+                        [attr.y]="+item.points.split(' ')[0].split(',')[1] + 2"
+                        fill="#0d6efd" font-size="1.6" font-weight="700"
+                        vector-effect="non-scaling-stroke" pointer-events="none">
+                    {{ itemDisplayId(item) }}
+                  </text>
+                </g>
+              </ng-container>
+
+              <!-- Draft box -->
+              <rect *ngIf="isDraggingBox && currentBoxRect"
+                    [attr.x]="currentBoxRect.x" [attr.y]="currentBoxRect.y"
+                    [attr.width]="currentBoxRect.w" [attr.height]="currentBoxRect.h"
+                    fill="rgba(220,53,69,0.18)" stroke="#dc3545"
+                    stroke-width="0.4" stroke-dasharray="2"
+                    vector-effect="non-scaling-stroke" pointer-events="none"></rect>
+            </svg>
+          </div>
+          <div *ngIf="imageError"
+               class="iiif-image-error">
+            <i class="bi bi-exclamation-triangle fs-2 mb-2 text-warning opacity-75"></i>
+            <div class="fw-semibold text-light">Image could not be loaded</div>
+            <div class="text-light opacity-50 small mt-1">The IIIF server may be unavailable or the URL is incorrect.</div>
+            <code class="mt-2 px-2 py-1 rounded text-warning-emphasis small"
+                  style="background:rgba(255,255,255,0.07);max-width:360px;word-break:break-all;">
+              {{ currentCanvasImage }}
+            </code>
+            <button class="btn btn-sm btn-outline-light mt-3" (click)="retryImage()">
+              <i class="bi bi-arrow-clockwise me-1"></i>Retry
+            </button>
+          </div>
+        </div>
+      </div><!-- /viewport -->
+
+      <!-- ── RIGHT PANEL ── -->
+
+      <!-- Regions overview panel (regions mode) -->
+      <div class="iiif-tool-panel" *ngIf="viewMode === 'regions' && !simpleMode">
+        <div class="tool-section">
+          <div class="tool-label">Line Regions on this page</div>
+          <div *ngIf="currentRegions.length === 0" class="text-muted small text-center py-3">
+            No regions yet.<br>Draw a box on the image.
+          </div>
+          <div *ngFor="let region of currentRegions" class="region-row">
+
+            <!-- Display / rename toggle -->
+            <ng-container *ngIf="renamingRegionId !== region.id">
+              <span class="region-row-name" (click)="enterItemMode(region)">{{ region.name }}</span>
+              <!-- Linked-to-line badge -->
+              <span *ngIf="region.lineUUID" class="region-linked-badge" title="Linked to a transcription line">
+                <i class="bi bi-link-45deg"></i>
+              </span>
+              <span class="region-row-count" *ngIf="regionItemCount(region.id) > 0">
+                {{ regionItemCount(region.id) }}
+              </span>
+              <!-- Link-to-line button: enters link mode. The document component listens and lets the user click a line-change. -->
+              <button *ngIf="!region.lineUUID"
+                      class="btn-icon-xs text-secondary"
+                      title="Link this region to a transcription line (then click the line-change)"
+                      (click)="startRegionLinkMode(region)">
+                <i class="bi bi-link"></i>
+              </button>
+              <button *ngIf="region.lineUUID"
+                      class="btn-icon-xs text-warning"
+                      title="Remove line link"
+                      (click)="clearRegionLink(region)">
+                <i class="bi bi-link-45deg text-warning"></i>
+              </button>
+              <button class="btn-icon-xs" title="Rename" (click)="startRename(region)">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn-icon-xs text-danger" title="Delete" (click)="deleteRegion(region.id)">
+                <i class="bi bi-trash"></i>
+              </button>
+              <button class="btn-icon-xs text-primary" title="Annotate" (click)="enterItemMode(region)">
+                <i class="bi bi-arrow-right"></i>
+              </button>
+            </ng-container>
+
+            <!-- Rename input -->
+            <ng-container *ngIf="renamingRegionId === region.id">
+              <input class="form-control form-control-sm rename-input"
+                     [(ngModel)]="renamingValue"
+                     (keyup.enter)="confirmRename()"
+                     (keyup.escape)="cancelRename()">
+              <button class="btn-icon-xs text-success" (click)="confirmRename()">
+                <i class="bi bi-check-lg"></i>
+              </button>
+              <button class="btn-icon-xs" (click)="cancelRename()">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </ng-container>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Items mode tool panel -->
+      <div class="iiif-tool-panel" *ngIf="viewMode === 'items' && !simpleMode">
+
+        <!-- LINKER panel -->
+        <div class="tool-section linker-section" *ngIf="linkingItemId">
+          <div class="tool-label"><i class="bi bi-link-45deg me-1"></i>Link to neume</div>
+          <div class="text-muted small mb-2">
+            Pattern: <strong>{{ linkingItemDisplayId() }}</strong>
+          </div>
+          <div class="link-list">
+            <div *ngFor="let cand of linkCandidates" class="link-row"
+                 [class.link-row-linked]="cand.uuid === (getItemById(linkingItemId!)?.uuid)"
+                 (click)="doLink(cand)">
+              <span class="link-folio">{{ cand.folio }}</span>
+              <span class="link-line">L{{ cand.line }}</span>
+              <span class="link-syl">{{ cand.syllable }}</span>
+              <i class="bi bi-check2 ms-auto text-success"
+                 *ngIf="cand.uuid === (getItemById(linkingItemId!)?.uuid)"></i>
+              <i class="bi bi-arrow-right-short ms-auto"
+                 *ngIf="cand.uuid !== (getItemById(linkingItemId!)?.uuid)"></i>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline-secondary mt-2 w-100" (click)="closeLinking()">
+            Close
+          </button>
+        </div>
+
+        <!-- Variant picker -->
+        <div class="tool-section" *ngIf="!linkingItemId">
+          <div class="tool-label">Variant</div>
+          <div class="variant-buttons">
+            <button class="variant-btn" [class.active]="!activeVariant" (click)="setVariant('')">Base</button>
+            <button *ngFor="let v of VARIANTS" class="variant-btn"
+                    [class.active]="activeVariant === v" (click)="setVariant(v)">{{ v }}</button>
+          </div>
+        </div>
+
+        <!-- Pattern list -->
+        <div class="tool-section pattern-section" *ngIf="!linkingItemId">
+          <div class="tool-label">Pattern</div>
+          <input class="form-control form-control-sm mb-1" [(ngModel)]="patternSearch" placeholder="Search…">
+          <div *ngIf="filteredPatterns.length === 0" class="text-muted small text-center py-2">
+            No patterns — run Notation analysis first
+          </div>
+          <div class="pattern-list">
+            <div *ngFor="let pat of filteredPatterns" class="pattern-item"
+                 [class.active]="activePattern === pat"
+                 (click)="activePattern = pat; activeVariant = ''">
+              <app-svg-pattern [pattern]="pat" class="pattern-item-svg"></app-svg-pattern>
+              <span class="pattern-item-text">{{ pat }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Items in region -->
+        <div class="tool-section items-section">
+          <div class="tool-label">Items ({{ activeRegionItems.length }})</div>
+          <div *ngIf="activeRegionItems.length === 0" class="text-muted small text-center py-1">None yet</div>
+          <div *ngFor="let item of activeRegionItems" class="item-row"
+               [class.item-row-linking]="linkingItemId === item.id">
+            <span class="item-id">{{ itemDisplayId(item) }}</span>
+            <i *ngIf="item.uuid" class="bi bi-link-45deg text-success ms-1" title="Linked"></i>
+            <button class="btn-icon-xs text-primary ms-auto" title="Link to neume"
+                    (click)="openLinking(item.id)">
+              <i class="bi bi-link-45deg"></i>
+            </button>
+            <button *ngIf="item.uuid" class="btn-icon-xs text-warning" title="Remove link"
+                    (click)="clearLink(item.id)">
+              <i class="bi bi-link"></i>
+            </button>
+            <button class="btn-icon-xs text-danger" title="Delete" (click)="deleteItem(item.id)">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /tool panel -->
+    </div><!-- /body -->
+
+    <!-- Bottom hint + region chips -->
+    <div class="iiif-hint-bar" *ngIf="currentCanvasImage && !imageError && !showGallery">
+      <span class="text-muted" style="font-size:0.74rem;">
+        <kbd>Scroll</kbd> zoom &nbsp;·&nbsp; <kbd>Alt</kbd>+Drag pan
+        <ng-container *ngIf="viewMode === 'regions'">
+          &nbsp;·&nbsp; Click a region to open it
+        </ng-container>
+      </span>
+    </div>
+
+  </div><!-- /center -->
+</div>

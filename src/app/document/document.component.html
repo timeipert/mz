@@ -1,5 +1,5 @@
 <input style="display: none" type="file" id="document-upload" (change)="handleFile()" />
-<div class="container">
+<div [ngClass]="viewMode === 'split' ? 'container-fluid px-2' : 'container'">
   <div class="row mt-5" *ngIf="!document">
     <div class="col">
       The document is loading. If it does not load within a few seconds, someone has probably deleted the document.
@@ -16,9 +16,8 @@
       </datalist>
     </ng-container>
     <div class="row mb-4">
-      <div class="col d-flex align-items-center justify-content-between">
+      <div class="col">
         <h2 class="page-title mb-0">{{document.textinitium || document.dokumenten_id || 'Untitled Chant'}}</h2>
-        <span class="text-muted small" *ngIf="isSaving"><i class="bi bi-arrow-repeat spin me-1"></i> Saving…</span>
       </div>
     </div>
 
@@ -56,9 +55,9 @@
     </div>
 
 
-    <div class="row g-4">
+    <div class="row g-4 d-flex" id="split-screen-container" [class.flex-nowrap]="splitScreen" [class.overflow-auto]="splitScreen">
       <!-- Left Sidebar: Metadata & Comments -->
-      <div [ngClass]="sidebarVisible ? 'col-lg-4 col-md-5' : 'col-auto'">
+      <div [ngClass]="sidebarVisible ? 'col-lg-4 col-md-5' : 'col-auto'" *ngIf="!splitScreen || sidebarVisible" [style.flex-shrink]="splitScreen ? '0' : ''">
 
         <!-- Collapsed strip: just the expand button -->
         <div *ngIf="!sidebarVisible" class="sidebar-collapsed-strip">
@@ -210,10 +209,51 @@
         </div>
       </div>
 
+      <!-- Left Column: IIIF Viewer (Shown in Split Screen or IIIF mode) -->
+      <div *ngIf="(viewMode === 'split' || viewMode === 'iiif') && sourceData?.iiifManifestUrl" [style.flex]="viewMode === 'iiif' ? '1 1 0%' : '0 0 ' + splitLeftWidth + '%'" style="min-width: 0;">
+        <!-- Linking mode banner -->
+        <div *ngIf="isLinkingMode" class="linking-mode-banner">
+          <i class="bi bi-link-45deg me-2"></i>
+          Click a <strong>line-change</strong> in the transcription to link it to
+          <strong class="ms-1">«{{ linkModeRegionName }}»</strong>
+          <button class="btn btn-sm btn-outline-light ms-3 py-0" (click)="isLinkingMode = false">
+            <i class="bi bi-x me-1"></i>Cancel
+          </button>
+        </div>
+        <div class="border rounded-3 bg-white shadow-sm overflow-hidden mb-5">
+          <app-iiif-viewer [source]="sourceData"
+                           [documentPatterns]="emptyArray"
+                           [allPatterns]="emptyArray"
+                           [simpleMode]="true"
+                           [documentFolios]="documentFolios"
+                           [initialCanvasIndex]="currentFolioIndex"
+                           [highlightedLineUUID]="highlightedLineUUID"
+                           [activeRegionName]="activeLineName"
+                           (sourceChanged)="saveSourceData()"
+                           (regionClicked)="handleIiifRegionClicked($event)"
+                           (requestLineLink)="handleIiifRequestLineLink($event)">
+          </app-iiif-viewer>
+        </div>
+      </div>
+
+      <!-- Draggable Splitter -->
+      <div *ngIf="splitScreen && sourceData?.iiifManifestUrl"
+           (mousedown)="startSplitDrag($event)"
+           style="width: 8px; cursor: col-resize; background: #e9ecef; border-radius: 4px; margin: 0 -0.5rem; z-index: 10; transition: background 0.2s;"
+           onmouseover="this.style.background='#ced4da'"
+           onmouseout="this.style.background='#e9ecef'">
+      </div>
+
       <!-- Right Column: Content -->
-      <div [ngClass]="sidebarVisible ? 'col-lg-8 col-md-7' : 'col'">
-        <div class="border rounded-3 p-3 bg-white mb-5">
-          <app-root-section [zipper]="[]" [readOnly]="readOnly" *ngIf="cont" [data]="cont" [comments]="cont.comments" [documentType]="cont.documentType"></app-root-section>
+      <div *ngIf="viewMode === 'transcription' || viewMode === 'split'" [ngClass]="viewMode === 'split' ? '' : (sidebarVisible ? 'col-lg-8 col-md-7' : 'col')" [style.flex]="viewMode === 'split' ? '1 1 0%' : ''" style="min-width: 0;">
+        <div class="border rounded-3 bg-white mb-5" [ngClass]="viewMode === 'split' ? 'p-1' : 'p-3'">
+          <!-- Linking-mode highlight ring on the editor panel -->
+          <div *ngIf="splitScreen && isLinkingMode" class="linking-mode-editor-hint">
+            <i class="bi bi-hand-index me-1"></i> Click a line-change below to link it
+          </div>
+          <div (focusout)="save()">
+            <app-root-section [sourceId]="document.quelle_id" [levelNames]="currentLevelNames" [zipper]="[]" [readOnly]="readOnly" *ngIf="cont" [data]="cont" [comments]="cont.comments" [documentType]="cont.documentType" (onEvent)="handleRootEvent($event)"></app-root-section>
+          </div>
         </div>
       </div>
     </div>

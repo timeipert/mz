@@ -2,7 +2,7 @@ import { ViewChild, ElementRef, Component, OnInit, HostListener } from '@angular
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
 import { UserService, User } from '../user.service';
-import { APIService, Document, ProjectSettings } from '../api.service';
+import { APIService, Document, ProjectSettings, Source } from '../api.service';
 import { assertNever } from '../../utils';
 import { ToolsService } from '../tools.service';
 import { ToastrService } from 'ngx-toastr';
@@ -14,6 +14,8 @@ import * as S from '../sselect/sselect.component';
 import { UndoService } from '../undoService';
 import { CommentComponent } from '../comment/comment.component';
 import { DragStateService } from '../dragger/drag-state.service';
+import { NavigationService } from '../notationsdokumentation/navigation.service';
+import { extractFolioFromString, extractDocumentFolios } from '../transcription-analyzer-core';
 
 import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
@@ -40,9 +42,40 @@ export class DocumentComponent implements OnInit {
   contJsonClone: string | undefined = undefined;
   textImportErrors: Array<string> = [];
   settings: ProjectSettings | null = null;
+  sourceData: Source | null = null;
+  viewMode: 'transcription' | 'split' | 'iiif' = 'transcription';
+  get splitScreen(): boolean { return this.viewMode === 'split'; }
+  splitLeftWidth = 45;
+  isDraggingSplitter = false;
   isSaving = false;
+  /** True if a save was requested while an HTTP request was already ongoing */
+  private savePending = false;
   sidebarTab: 'metadata' | 'comments' = 'metadata';
   sidebarVisible = true;
+
+  // ── IIIF split-screen two-way connection ──────────────────────────────────
+  /** UUID of the line-change last clicked; passed to IIIF viewer to highlight the linked region. */
+  highlightedLineUUID = '';
+  /** When true the user just clicked a region's "Link" button — next line-change click links them. */
+  isLinkingMode = false;
+  linkModeRegionId = '';
+  linkModeRegionName = '';
+  
+  /** Dynamic folio index to pass to IIIF viewer to snap to the correct page */
+  currentFolioIndex: number | undefined;
+
+  /** Folios present in the current document (extracted during line mapping) */
+  documentFolios: string[] = [];
+
+  /** Name of the region corresponding to the active line. */
+  activeLineName?: string;
+  /** Maps LineChange UUID to { folio, lineName } */
+  lineMap: Map<string, { folio: string, lineName: string }> = new Map();
+  /** Maps `${folio}_${lineName}` to LineChange UUID */
+  regionToLineMap: Map<string, string> = new Map();
+
+  /** Stable empty array — never pass `[]` literals as @Input to avoid a new reference every CD cycle. */
+  readonly emptyArray: any[] = [];
 
   showPdfExportDialog = false;
   printIncludeMetadata = true;
@@ -62,7 +95,8 @@ export class DocumentComponent implements OnInit {
     private modalService: NgbModal,
     private location: Location,
     private toolService: ToolsService,
-    private dragState: DragStateService) {
+    private dragState: DragStateService,
+    private navService: NavigationService) {
   }
 
   test() {
@@ -71,6 +105,194 @@ export class DocumentComponent implements OnInit {
 
   toggleReadOnly() {
     this.readOnly = !this.readOnly;
+  }
+
+  setViewMode(mode: 'transcription' | 'split' | 'iiif') {
+    this.viewMode = mode;
+    if (mode === 'split' || mode === 'iiif') {
+      this.sidebarVisible = false;
+      this.buildLineMap();
+    }
+    // Reset link state when changing views
+    this.activeLineName = undefined;
+    this.isLinkingMode = false;
+    this.highlightedLineUUID = '';
+    this.updateToolbar();
+  }
+
+  /** Receives events bubbled up from app-root-section (via the Section base class onEvent output). */
+  handleRootEvent(e: any): void {
+    if (e.kind === 'HighlightRegionRequested') {
+      if (this.isLinkingMode && this.linkModeRegionId && this.sourceData) {
+        // Link mode: bind the clicked line UUID to the pending region
+        const region = (this.sourceData.annotationRegions ?? []).find(r => r.id === this.linkModeRegionId);
+        if (region) {
+          region.lineUUID = e.uuid;
+          this.saveSourceData();
+          this.toastr.success(`"${this.linkModeRegionName}" linked to the selected line`);
+        }
+        this.isLinkingMode = false;
+        this.linkModeRegionId = '';
+        this.linkModeRegionName = '';
+        // Also highlight the newly-linked region
+        this.highlightedLineUUID = e.uuid;
+      } else {
+        // Normal mode: highlight the region linked to this line UUID
+        this.highlightedLineUUID = e.uuid;
+        
+        // Implicit mapping: if the explicit UUID mapping in iiif-viewer fails, we provide activeLineName as fallback
+        this.buildLineMap(); // Ensure map is up-to-date
+        const mapped = this.lineMap.get(e.uuid);
+        if (mapped) {
+          this.activeLineName = mapped.lineName;
+          
+          if (mapped.folio !== undefined && !isNaN(parseInt(mapped.folio, 10))) {
+            this.currentFolioIndex = parseInt(mapped.folio, 10);
+          }
+          
+          // Optional: we can force the IIIF viewer to navigate to the folio if needed
+          if (this.sourceData && this.sourceData.id) {
+            // this.navService.openIiifViewerForFolio(this.sourceData.id, mapped.folio);
+          }
+        } else {
+          this.activeLineName = undefined;
+        }
+      }
+    }
+  }
+
+  /** Called when the IIIF viewer emits requestLineLink — user clicked "Link" on a region. */
+  handleIiifRequestLineLink(data: { regionId: string; regionName: string }): void {
+    this.isLinkingMode = true;
+    this.linkModeRegionId = data.regionId;
+    this.linkModeRegionName = data.regionName;
+    this.toastr.info(`Now click a line-change in the transcription to link it to "${data.regionName}"`, '', { timeOut: 8000 });
+  }
+
+  /** Builds a map of line-changes to their implicit region names based on DOM order. */
+  private buildLineMap(): void {
+    this.lineMap.clear();
+    this.regionToLineMap.clear();
+    if (!this.cont) return;
+
+    let currentFolio = this.document?.foliostart || "1";
+    let currentLine = 1;
+
+    const traverse = (node: any) => {
+      if (!node || !node.kind) return;
+
+      const oldFolio = currentFolio;
+
+      if (node.kind === VM.LinePartKind.FolioChange) {
+        currentFolio = node.text || currentFolio;
+      } else if (node.kind === VM.ContainerKind.ParatextContainer) {
+        if (node.text && node.text.includes('|')) {
+          currentLine += (node.text.match(/\|/g) || []).length;
+        }
+        const extracted = extractFolioFromString(node.text || '');
+        if (extracted) {
+          currentFolio = extracted;
+        }
+      }
+
+      if (node.kind === VM.LinePartKind.FolioChange || currentFolio !== oldFolio) {
+        currentLine = 1;
+      }
+
+      if (node.kind === VM.LinePartKind.LineChange) {
+        const lineName = currentLine.toString();
+        this.lineMap.set(node.uuid, { folio: currentFolio, lineName });
+        this.regionToLineMap.set(`${currentFolio}_${lineName}`, node.uuid);
+        currentLine++;
+      }
+
+      if (node.children && Array.isArray(node.children)) {
+        for (const child of node.children) {
+          traverse(child);
+        }
+      }
+      if (node.parts && Array.isArray(node.parts)) {
+        for (const part of node.parts) {
+          traverse(part);
+        }
+      }
+    };
+
+    traverse(this.cont);
+    this.documentFolios = extractDocumentFolios(this.cont, this.document?.foliostart);
+  }
+
+  /** Called when the user clicks a region in the IIIF viewer (simpleMode).
+   *  If the region has a lineUUID, try to scroll to that line in the DOM. */
+  handleIiifRegionClicked(data: { name: string, folio: string, lineUUID?: string }): void {
+    let targetUUID = data.lineUUID;
+
+    // Implicit fallback: if not explicitly linked, try to map from region name
+    if (!targetUUID) {
+      this.buildLineMap();
+      targetUUID = this.regionToLineMap.get(`${data.folio}_${data.name}`);
+    }
+
+    if (targetUUID) {
+      // Try to scroll the transcription to the element with that UUID
+      const el = document.querySelector(`[data-uuid="${targetUUID}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Optionally flash the element
+        (el as HTMLElement).style.transition = 'background-color 0.5s';
+        (el as HTMLElement).style.backgroundColor = '#fff3cd';
+        setTimeout(() => (el as HTMLElement).style.backgroundColor = '', 1500);
+      }
+    }
+  }
+
+  get initialFolioIndex(): number | undefined {
+    if (this.document && this.document.foliostart) {
+      const idx = parseInt(this.document.foliostart, 10);
+      return isNaN(idx) ? undefined : idx;
+    }
+    return undefined;
+  }
+
+  saveSourceData() {
+    if (this.user && this.sourceData) {
+      this.api.updateSource(this.user.token, this.sourceData).subscribe(res => {
+        if (res.kind === 'Ok') {
+          this.toastr.success('Source annotations saved successfully');
+        } else {
+          this.toastr.error('Failed to save source annotations');
+        }
+      });
+    }
+  }
+
+  @HostListener('window:mousemove', ['$event'])
+  onMouseMove(event: MouseEvent) {
+    if (!this.isDraggingSplitter) return;
+    const container = document.getElementById('split-screen-container');
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      let newWidth = ((event.clientX - rect.left) / rect.width) * 100;
+      if (newWidth < 20) newWidth = 20;
+      if (newWidth > 80) newWidth = 80;
+      this.splitLeftWidth = newWidth;
+      // Prevent text selection while dragging
+      event.preventDefault();
+    }
+  }
+
+  @HostListener('window:mouseup')
+  onMouseUp() {
+    if (this.isDraggingSplitter) {
+      this.isDraggingSplitter = false;
+      document.body.style.cursor = 'default';
+    }
+  }
+
+  startSplitDrag(event: MouseEvent) {
+    this.isDraggingSplitter = true;
+    document.body.style.cursor = 'col-resize';
+    event.preventDefault();
   }
 
   openPdfExport() {
@@ -114,6 +336,16 @@ export class DocumentComponent implements OnInit {
       }
     }
     return parts.join('   •   ');
+  }
+
+  get currentLevelNames(): any {
+    if (!this.settings || !this.settings.genreLevelProfiles || !this.document) return null;
+    const g1 = this.document.gattung1 || '';
+    const g2 = this.document.gattung2 || '';
+    let profile = this.settings.genreLevelProfiles.find((p: any) => p.gattung1 === g1 && p.gattung2 === g2);
+    if (!profile) profile = this.settings.genreLevelProfiles.find((p: any) => p.gattung1 === g1 && (!p.gattung2 || p.gattung2 === '*'));
+    if (!profile) profile = this.settings.genreLevelProfiles.find((p: any) => (!p.gattung1 || p.gattung1 === '*') && (!p.gattung2 || p.gattung2 === '*'));
+    return profile ? profile.names : null;
   }
 
   async confirmPdfExport() {
@@ -806,10 +1038,10 @@ export class DocumentComponent implements OnInit {
     }
   }
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.undoService.registerUnDo(this.getJsonString, this.undoChanges);
-    this.subs.push(combineLatest(this.userService.user, this.route.paramMap, (user, params) => ({ user, params })).subscribe(pair => {
-      this.user = pair.user;
+    this.subs.push(combineLatest([this.userService.user, this.route.paramMap]).subscribe(([user, params]) => {
+      this.user = user;
       if (this.user) {
         this.api.getSettings(this.user.token).subscribe(res => {
           if (res.kind === 'SettingsRetrieved') {
@@ -817,9 +1049,19 @@ export class DocumentComponent implements OnInit {
           }
         });
       }
-      const source = (pair.params.get('source') as string);
-      const id = pair.params.get('id');
+      const source = (params.get('source') as string);
+      const id = params.get('id');
       this.setSourceSigle(source);
+      
+      if (this.user) {
+        this.api.getSource(this.user.token, source).subscribe(res => {
+          if (res.kind === 'SourceRetrieved') {
+            this.sourceData = res.source;
+            this.updateToolbar();
+          }
+        });
+      }
+
       if (id !== null) {
         this.retrieveForId(id);
       } else {
@@ -842,56 +1084,91 @@ export class DocumentComponent implements OnInit {
           custom: {}
         };
         this.cont = VM.emptyRootContainer();
+        this.currentFolioIndex = this.initialFolioIndex;
       }
 
       setTimeout(() => {
-        this.toolService.addStack({
-          source: this,
-          tools: [
-            {
-              callback: () => { this.goToSource(source); },
-              icon: 'to-source',
-              title: 'Back to Source'
-            },
-            {
-              callback: () => { if (this.document && this.document.id) { this.update(); } else { this.create(); } },
-              icon: 'save',
-              title: 'Save'
-            },
-            {
-              callback: () => { this.upload(); },
-              icon: 'upload',
-              title: 'Upload Document'
-            },
-            {
-              callback: () => { this.download(); },
-              icon: 'download',
-              title: 'Export Document'
-            },
-            {
-              callback: () => { this.openPdfExport(); },
-              icon: 'file-pdf',
-              title: 'Export as PDF'
-            },
-            {
-              callback: () => { this.toggleReadOnly(); },
-              icon: 'eye',
-              title: 'Toggle Read-Only Mode'
-            },
-            {
-              callback: () => { this.modalService.open(this.textImportModal); },
-              icon: 'short-text',
-              title: 'Import Text'
-            },
-            {
-              callback: () => { this.modalService.open(this.globalCommentModal, { size: 'xl', fullscreen: true }); },
-              icon: 'comment',
-              title: 'Edit Global Comment'
-            }
-          ]
-        });
+        this.updateToolbar();
       }, 0);
     }));
+  }
+
+  updateToolbar() {
+    const source = this.route.snapshot.paramMap.get('source') || '';
+    
+    // Tools logic
+    const tools: any[] = [
+      {
+        callback: () => { this.goToSource(source); },
+        icon: 'to-source',
+        title: 'Back to Source'
+      }
+    ];
+
+    // Add view buttons if IIIF exists
+    if (this.sourceData?.iiifManifestUrl) {
+      tools.push(
+        {
+          callback: () => { this.setViewMode('transcription'); },
+          icon: 'file-text',
+          title: 'Single View (Transcription)',
+          active: this.viewMode === 'transcription'
+        },
+        {
+          callback: () => { this.setViewMode('split'); },
+          icon: 'layout-split',
+          title: 'Side by Side View',
+          active: this.viewMode === 'split'
+        },
+        {
+          callback: () => { this.setViewMode('iiif'); },
+          icon: 'image',
+          title: 'Single View (Scan)',
+          active: this.viewMode === 'iiif'
+        }
+      );
+    }
+
+    // Standard buttons
+    tools.push(
+      {
+        callback: () => { this.upload(); },
+        icon: 'upload',
+        title: 'Upload Document'
+      },
+      {
+        callback: () => { this.download(); },
+        icon: 'download',
+        title: 'Export Document'
+      },
+      {
+        callback: () => { this.openPdfExport(); },
+        icon: 'file-pdf',
+        title: 'Export as PDF'
+      },
+      {
+        callback: () => { this.toggleReadOnly(); },
+        icon: 'eye',
+        title: 'Toggle Read-Only Mode'
+      },
+      {
+        callback: () => { this.modalService.open(this.textImportModal); },
+        icon: 'file-earmark-text',
+        title: 'Import Text'
+      },
+      {
+        callback: () => { this.modalService.open(this.globalCommentModal, { size: 'xl', fullscreen: true }); },
+        icon: 'chat-left-text',
+        title: 'Edit Global Comment'
+      }
+    );
+
+    // Update stack
+    this.toolService.remove(this);
+    this.toolService.addStack({
+      source: this,
+      tools: tools
+    });
   }
 
   goToSource(s_id: string) {
@@ -908,7 +1185,10 @@ export class DocumentComponent implements OnInit {
           case 'DocumentRetrieved': 
             this.document = res.document; 
             if (!this.document.custom) this.document.custom = {};
-            this.documentJsonClone = JSON.stringify(this.document); 
+            if (this.document) {
+              this.documentJsonClone = JSON.stringify(this.document);
+              this.currentFolioIndex = this.initialFolioIndex;
+            }
             break;
           default: assertNever(res);
         }
@@ -977,7 +1257,11 @@ export class DocumentComponent implements OnInit {
   create(): void {
     const doc = this.document;
     const cont = this.cont;
-    if (this.user && doc && cont && !this.isSaving) {
+    if (this.user && doc && cont) {
+      if (this.isSaving) {
+        this.savePending = true;
+        return;
+      }
       this.isSaving = true;
       this.api.createDocument(this.user.token, { document: doc, notes: cont }).subscribe(res => {
         this.isSaving = false;
@@ -990,12 +1274,20 @@ export class DocumentComponent implements OnInit {
             break;
           default: assertNever(res);
         }
+        if (this.savePending) {
+          this.savePending = false;
+          this.save();
+        }
       });
     }
   }
 
   update(): void {
-    if (this.user && this.document && this.document.id && this.cont && !this.isSaving) {
+    if (this.user && this.document && this.document.id && this.cont) {
+      if (this.isSaving) {
+        this.savePending = true;
+        return;
+      }
       this.isSaving = true;
       this.api.updateDocument(this.user.token, { document: this.document, notes: this.cont }).subscribe(res => {
         this.isSaving = false;
@@ -1008,6 +1300,10 @@ export class DocumentComponent implements OnInit {
           case 'DocumentNotFound': this.toastr.error("Es sieht so aus, als wäre das Dokument zwischenzeitlich gelöscht worden"); break;
           case 'InsufficientPermissions': this.toastr.error("Sie haben nicht genügend Rechte, um dieses Dokument zu speichern. Sie können das Dokument jedoch als JSON downloaden, um die Rechte bitten und es dann wieder hochladen um Datenverlust zu vermeiden.", "Fehler beim Speichern."); break;
           default: assertNever(res);
+        }
+        if (this.savePending) {
+          this.savePending = false;
+          this.save();
         }
       });
     }
@@ -1190,7 +1486,7 @@ export class DocumentComponent implements OnInit {
 
   openComment(comment: VM.Comment): void {
     if (!this.cont) return;
-    this.undoService.beforeChange();
+    this.undoService.beforeChange('Edit Comment');
     const original = VM.extractComment(this.cont, comment);
     
     const modalRef = this.modalService.open(CommentComponent, { size: 'xl', fullscreen: true });

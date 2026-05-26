@@ -1,0 +1,44 @@
+.notation-viewer-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 12px;
+}
+
+.header-section h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.hover-bg-primary:hover {
+  background-color: #0d6efd !important;
+  color: white !important;
+  border-color: #0d6efd !important;
+}
+
+.hover-bg-light:hover {
+  background-color: #e2e8f0 !important;
+  color: black !important;
+}
+
+.line-card {
+  transition: all 0.3s ease;
+}
+
+tr {
+  transition: background-color 0.3s ease;
+}

@@ -1,4 +1,4 @@
-<div #mainDiv (keydown)="keyDown($event)" (focusin)="setDivFocus(true)" (focusout)="setDivFocus(false)" (click)="onClick()" class="section" [style.width]="20 + 'px'" [class.read-only]="readOnly" tabindex="-1">
+<div #mainDiv (keydown)="keyDown($event)" (focusin)="setDivFocus(true)" (focusout)="setDivFocus(false)" (click)="onClick()" class="section" [style.width]="20 + 'px'" [class.read-only]="readOnly" tabindex="-1" [attr.data-uuid]="model.uuid">
 	<div class="notes">
 		<svg [attr.width]="20 + 'px'">
 			<g [attr.transform]="readOnly ? 'translate(0, -30)' : 'translate(0, 0)'">

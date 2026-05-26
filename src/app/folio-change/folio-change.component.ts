@@ -202,6 +202,11 @@ export class FolioChangeComponent implements OnDestroy, OnInit {
           callback: () => { this.request.emit({ kind: "DeletionRequested", focusLast: false }); },
           icon: 'delete',
           title: 'Löschen'
+        },
+        {
+          callback: () => { this.request.emit({ kind: "ViewIiifRequested", folio: this.model.text }); },
+          icon: 'image',
+          title: 'View IIIF'
         }
       ]
     });

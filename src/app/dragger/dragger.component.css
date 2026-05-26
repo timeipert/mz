@@ -4,14 +4,17 @@
 }
 
 .middle {
-    width: 13px;
-    min-height: 24px;
-    height: 100%;
+    width: 20px;
+    height: 24px;
     cursor: grab;
     position: relative;
-    border-radius: 3px;
-    transition: background 0.12s;
+    border-radius: 4px;
+    transition: background 0.12s, box-shadow 0.12s;
     flex-shrink: 0;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    margin-right: 4px;
+    margin-top: 2px;
 }
 
 /* Grip dots via pseudo-element */
@@ -21,27 +24,28 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 5px;
-    height: 18px;
-    background-image: radial-gradient(circle, #c8cdd4 1.1px, transparent 1.1px);
-    background-size: 5px 5px;
+    width: 8px;
+    height: 12px;
+    background-image: radial-gradient(circle, #9ca3af 1.5px, transparent 1.5px);
+    background-size: 4px 4px;
     border-radius: 2px;
     pointer-events: none;
 }
 
 .middle:hover {
-    background: rgba(0, 0, 0, 0.055);
+    background: #e5e7eb;
+    border-color: #d1d5db;
 }
 .middle:hover::before {
-    background-image: radial-gradient(circle, #9ca3af 1.1px, transparent 1.1px);
+    background-image: radial-gradient(circle, #6b7280 1.5px, transparent 1.5px);
 }
 
-/* Depth accent — left border only, very subtle */
-.middle.depth-0 { border-left: 2px solid transparent; }
-.middle.depth-1 { border-left: 2px solid #bfdbfe; }
-.middle.depth-2 { border-left: 2px solid #93c5fd; }
-.middle.depth-3 { border-left: 2px solid #60a5fa; }
-.middle.depth-4 { border-left: 2px solid #3b82f6; }
+/* Depth accent — left border only */
+.middle.depth-0 { border-left: 3px solid transparent; }
+.middle.depth-1 { border-left: 3px solid #93c5fd; }
+.middle.depth-2 { border-left: 3px solid #60a5fa; }
+.middle.depth-3 { border-left: 3px solid #3b82f6; }
+.middle.depth-4 { border-left: 3px solid #2563eb; }
 
 .final-padding {
     width: 5px;

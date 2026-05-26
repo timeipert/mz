@@ -64,6 +64,31 @@ ul {
   display: none;
 }
 
+/* ── IIIF split-screen linking mode ──────────────────────────────────────── */
+.linking-mode-banner {
+  display: flex;
+  align-items: center;
+  background: #e65100;
+  color: #fff;
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  border-radius: 6px 6px 0 0;
+  font-weight: 500;
+  gap: 4px;
+  margin-bottom: 0;
+}
+
+.linking-mode-editor-hint {
+  background: #fff3e0;
+  color: #e65100;
+  border: 1.5px dashed #ff9800;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  margin-bottom: 6px;
+}
+
 .row.internal-id-row .col {
   display: flex;
   flex-direction: row;

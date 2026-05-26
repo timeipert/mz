@@ -46,6 +46,7 @@ export interface Tool {
   callback?: () => void;
   icon?: string;
   title: string;
+  active?: boolean;
 }
 
 export interface StackEntry {

@@ -27,28 +27,26 @@ export class ParatextSectionComponent extends S.Section<Model.ParatextContainer>
     private undoService: UndoService) {
     super('Paratext', {}, undoService);
   }
-
   ngOnInit(): void {
     this.actionHandlers = {
-      'Neue Zeile': () => this.onEvent.emit({ 'kind': 'NewNoteLineRequsted', container: Model.emptyZeileContainer() }),
-      'Neuer Paratext': () => this.onEvent.emit({ 'kind': 'NewParatextRequested' }),
-      'Neuer Formteil': () => this.onEvent.emit({ 'kind': 'NewFormteilRequested' }),
-      'Löschen': () => this.onEvent.emit({ 'kind': 'DeletionRequested', focusLast: true }),
+      '+ Line': () => this.onEvent.emit({ 'kind': 'NewNoteLineRequsted', container: Model.emptyZeileContainer() }),
+      ['+ L' + this.zipper.length]: () => this.onEvent.emit({ 'kind': 'NewFormteilRequested' }),
+      '+ Text': () => this.onEvent.emit({ 'kind': 'NewParatextRequested' })
     };
   }
 
   setParatextTextArea(e: string) {
-    this.undoService.beforeChange();
+    this.undoService.beforeChange('Edit Paratext');
     this.data.text = e;
   }
 
   setParaDetail(e: boolean) {
-    this.undoService.beforeChange();
+    this.undoService.beforeChange('Toggle Detail');
     this.data.retro = e;
   }
 
   setParaType(e: Model.ParatextType) {
-    this.undoService.beforeChange();
+    this.undoService.beforeChange('Change Type');
     this.data.paratextType = e;
   }
 
@@ -69,7 +67,7 @@ export class ParatextSectionComponent extends S.Section<Model.ParatextContainer>
     if (event.ctrlKey && event.key === 'z') {
       this.undoService.undo();
     } else {
-      this.undoService.beforeChange();
+      this.undoService.beforeChange('Typing');
       handleTextInputMove(this.paratext.nativeElement, event, e => this.onEvent.emit(e));
     }
 

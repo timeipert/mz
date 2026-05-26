@@ -352,7 +352,21 @@ export class APIService {
   }
 }
 
+export interface LevelNames {
+  level1?: string;
+  level2?: string;
+  level3?: string;
+}
+
+export interface GenreLevelProfile {
+  id: string;
+  gattung1: string;
+  gattung2: string;
+  names: LevelNames;
+}
+
 export interface ProjectSettings {
+  genreLevelProfiles?: GenreLevelProfile[];
   quellensigle: string[];
   herkunftsregion: string[];
   herkunftsort: string[];
@@ -372,6 +386,7 @@ export interface ProjectSettings {
   pdfScale?: number;
   pdfSyllableSpacing?: number;
   pdfVerticalSpace?: number;
+  undoHistorySize?: number;
   pdfMarginLeft?: number;
   pdfSignaturSpace?: number;
   pdfFontSize?: number;
@@ -523,6 +538,10 @@ export interface Source {
   bibliothekssignatur: string;
   kommentar: string;
   datierung: string;
+  iiifManifestUrl?: string;
+  equivalents?: VM.EquivalentMetadata[];
+  annotationRegions?: VM.AnnotationRegion[];
+  annotationItems?: VM.AnnotationItem[];
   custom?: { [key: string]: string };
 }
 
@@ -585,6 +604,10 @@ export interface SourceQuery {
   bibliothekssignatur?: string | undefined;
   kommentar?: string | undefined;
   datierung?: string | undefined;
+  iiifManifestUrl?: string | undefined;
+  equivalents?: VM.EquivalentMetadata[] | undefined;
+  annotationRegions?: VM.AnnotationRegion[] | undefined;
+  annotationItems?: VM.AnnotationItem[] | undefined;
 }
 
 export function sanitizeSettings(settings: any): ProjectSettings {

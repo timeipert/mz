@@ -1,3 +1,138 @@
+/* ── Source page layout ───────────────────────────────────────────────────── */
+.source-layout {
+  padding-top: 1.5rem;
+  padding-bottom: 2rem;
+}
+
+/* Sticky top bar: title + compact chips + edit button */
+.source-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 0;
+  flex-wrap: wrap;
+}
+
+.source-header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.source-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.source-meta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.meta-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.source-header-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── Collapsible metadata panel ───────────────────────────────────────────── */
+.source-meta-panel {
+  background: #f8f9fa;
+  border: 1px solid #e5e7eb;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  padding: 16px 20px 20px;
+  margin-bottom: 4px;
+}
+
+.meta-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px 16px;
+}
+
+.meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.meta-field--wide {
+  grid-column: 1 / -1;
+}
+
+.meta-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ca3af;
+  margin-bottom: 0;
+}
+
+/* ── Tabs wrapper — always full width ─────────────────────────────────────── */
+.source-tabs-wrap {
+  margin-top: 4px;
+}
+
+.source-nav-tabs {
+  border-bottom: 2px solid #e5e7eb;
+  gap: 2px;
+}
+
+.source-nav-tabs .nav-link {
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  border-radius: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+  padding: 8px 14px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.source-nav-tabs .nav-link:hover {
+  color: #111827;
+  border-bottom-color: #d1d5db;
+}
+
+.source-nav-tabs .nav-link.active {
+  color: #0d6efd;
+  border-bottom-color: #0d6efd;
+  font-weight: 600;
+  background: transparent;
+}
+
+/* ── Tab content panels ───────────────────────────────────────────────────── */
+.tab-content-panel {
+  padding: 20px 0 0;
+}
+
+/* IIIF viewer gets no padding — fills edge to edge */
+.tab-content-panel--flush {
+  padding: 12px 0 0;
+}
+
 button {
     margin: 5px;
 }

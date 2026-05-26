@@ -11,10 +11,11 @@ import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { AppComponent } from './app.component';
 import { WelcomeComponent } from './welcome/welcome.component';
 // Removed LoginComponent
-import { UsersOverviewComponent } from './users-overview/users-overview.component';
+import { SettingsComponent } from './settings/settings.component';
 import { SourcesOverviewComponent } from './sources-overview/sources-overview.component';
 import { SourceComponent } from './source/source.component';
 import { DocumentComponent } from './document/document.component';
+import { UsersOverviewComponent } from './users-overview/users-overview.component';
 
 import { NotesComponent } from './notes/notes.component';
 import { RootSectionComponent } from './section/root-section.component';
@@ -47,8 +48,8 @@ import { CommentTreeActionDotComponent } from './complex-comment/comment-tree/co
 import { CommentInfoComponent } from './comment/comment-info/comment-info.component';
 
 import { SearchComponent } from './search/search.component';
-import { SettingsComponent } from './settings/settings.component';
 import { DragMapComponent } from './drag-map/drag-map.component';
+import { NotationsdokumentationModule } from './notationsdokumentation/notationsdokumentation.module';
 
 @NgModule({
   declarations: [
@@ -98,6 +99,7 @@ import { DragMapComponent } from './drag-map/drag-map.component';
     ToastrModule.forRoot(),
     FormsModule,
     HttpClientModule,
+    NotationsdokumentationModule,
     NgbModule,
     RouterModule.forRoot([
       {

@@ -70,33 +70,45 @@ export class DragMapComponent implements OnDestroy {
   private buildFilteredTree(): TreeItem[] {
     const dz = this.dragState.draggingZipper;
     if (!this.dragState.rootData || !dz) return [];
+    
+    const targetDepth = dz.length - 1;
     const items: TreeItem[] = [];
 
-    // Ancestors: one entry per step along the path (not including the item itself)
-    for (let i = 0; i < dz.length - 1; i++) {
-      const ancestorZipper = dz.slice(0, i + 1);
-      const node = this.getNodeAt(ancestorZipper);
-      if (node) {
-        items.push({ zipper: ancestorZipper, label: this.getLabel(node), kind: node.kind, depth: i, isAncestor: true });
-      }
-    }
-
-    // Siblings: all children of the parent at the dragged depth
-    const parentZipper = dz.slice(0, -1);
-    const parentNode = parentZipper.length === 0
-      ? this.dragState.rootData
-      : this.getNodeAt(parentZipper);
-    if (parentNode && parentNode.children) {
-      parentNode.children.forEach((child: any, i: number) => {
+    const traverse = (node: any, currentZipper: number[], currentDepth: number) => {
+      // If we are at the target depth, it's a valid drop target (sibling level)
+      if (currentDepth === targetDepth) {
         items.push({
-          zipper: [...parentZipper, i],
-          label: this.getLabel(child),
-          kind: child.kind,
-          depth: dz.length - 1,
+          zipper: currentZipper,
+          label: this.getLabel(node),
+          kind: node.kind,
+          depth: currentDepth,
           isAncestor: false
         });
-      });
-    }
+        return;
+      }
+
+      // If we are above the target depth, it's an ancestor container
+      if (currentDepth < targetDepth) {
+        if (currentZipper.length > 0) {
+          items.push({
+            zipper: currentZipper,
+            label: this.getLabel(node),
+            kind: node.kind,
+            depth: currentDepth,
+            isAncestor: true
+          });
+        }
+
+        // Recurse into children
+        if (node.children && node.children.length > 0) {
+          node.children.forEach((child: any, i: number) => {
+            traverse(child, [...currentZipper, i], currentDepth + 1);
+          });
+        }
+      }
+    };
+
+    traverse(this.dragState.rootData, [], -1);
 
     return items;
   }

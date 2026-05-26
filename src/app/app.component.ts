@@ -1,8 +1,10 @@
 import { Component } from '@angular/core';
+import { Router } from '@angular/router';
 import { APIService } from './api.service'
 import { StackEntry, ToolsService, Tool} from './tools.service';
 import { UserService, User } from './user.service';
 import { GithubService } from './github.service';
+import { UndoService } from './undoService';
 import * as localforage from 'localforage';
 import * as _ from 'lodash';
 
@@ -23,7 +25,9 @@ export class AppComponent {
     private api: APIService, 
     private userService: UserService, 
     private toolsService: ToolsService,
-    public github: GithubService
+    public github: GithubService,
+    public undoService: UndoService,
+    public router: Router
   ) {
     userService.user.subscribe(u => this.user = u);
     toolsService.subscribe((ts, hasParent) => { this.tools = ts; this.toolHasParent = hasParent });

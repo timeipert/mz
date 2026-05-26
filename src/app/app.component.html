@@ -48,23 +48,52 @@
         <!-- Left: Back to Source button -->
         <button *ngIf="tools.tools[0]?.icon === 'to-source'"
                 class="btn btn-sm btn-back-source d-flex align-items-center gap-1 me-3"
-                (click)="tools.tools[0].callback!()">
-            <i class="bi bi-arrow-left-short fs-5"></i> Back to Source
+                (click)="tools.tools[0].callback && tools.tools[0].callback()">
+            <i class="bi bi-arrow-left"></i>
+            {{ tools.tools[0].title }}
         </button>
         <button *ngIf="toolHasParent" class="btn btn-sm btn-outline-secondary d-flex align-items-center me-2" (click)="toolsBack()" title="Back">
             <i class="bi bi-arrow-left"></i>
         </button>
+        <!-- Middle: Undo/Redo group -->
+        <div class="d-flex align-items-center gap-1 ms-3" *ngIf="router.url.includes('/document/')">
+            <div ngbDropdown class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary d-flex align-items-center bg-white" [disabled]="undoService.getHistoryCount() === 0" (click)="undoService.undo()" title="Undo">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+                <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split bg-white" 
+                        ngbDropdownToggle [disabled]="undoService.getHistoryCount() === 0">
+                    <span class="visually-hidden">Toggle Dropdown</span>
+                </button>
+                <div ngbDropdownMenu class="shadow border-0 py-1" style="max-height: 300px; overflow-y: auto;">
+                    <h6 class="dropdown-header">Undo History</h6>
+                    <button class="dropdown-item py-2 small" *ngFor="let name of undoService.getHistoryNames(); let i = index" (click)="undoService.jumpToHistory(i + 1)">
+                        Undo: {{ name }} ({{ i + 1 }} step{{ i + 1 > 1 ? 's' : '' }})
+                    </button>
+                </div>
+            </div>
+            
+            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center bg-white" [disabled]="undoService.getRedoCount() === 0" (click)="undoService.redo()" title="Redo">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+
         <!-- Right: remaining tool icons -->
         <div class="ms-auto d-flex align-items-center gap-2">
-            <ng-container *ngFor="let tool of tools.tools">
-                <ng-container *ngIf="tool.icon !== 'to-source'">
-                    <ng-container *ngIf="tool.icon; else other">
-                        <button class="btn btn-toolbar-icon" (click)="tool.callback()" [attr.title]="tool.title">
-                            <img [attr.src]="'assets/icons/' + tool.icon + '.svg'" class="toolbar-icon" />
+            <ng-container *ngFor="let t of tools.tools; let i = index">
+                <ng-container *ngIf="t.icon !== 'to-source'">
+                    <ng-container *ngIf="t.icon; else other">
+                        <button *ngIf="!(i === 0 && t.icon === 'to-source')"
+                                class="btn btn-sm"
+                                [ngClass]="t.active ? 'btn-primary shadow-sm' : 'btn-outline-secondary bg-white'"
+                                (click)="t.callback && t.callback()"
+                                [title]="t.title">
+                            <i class="bi bi-{{t.icon}}"></i>
+                            <span *ngIf="t.active" class="ms-1">{{t.title}}</span>
                         </button>
                     </ng-container>
                     <ng-template #other>
-                        <span class="badge bg-secondary text-white">{{tool.title}}</span>
+                        <span class="badge bg-secondary text-white">{{t.title}}</span>
                     </ng-template>
                 </ng-container>
             </ng-container>

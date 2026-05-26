@@ -1,0 +1,93 @@
+<div class="notation-viewer-container">
+  
+  <div class="header-section">
+    <h2>Patterns & Equivalents</h2>
+    <span class="badge bg-primary">{{ tableRows.length }} Patterns</span>
+  </div>
+
+  <div class="table-responsive mb-5 shadow-sm border rounded">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th style="width: 40px;">Sel</th>
+          <th style="width: 150px;">Ref ID</th>
+          <th style="width: 250px;">Pattern</th>
+          <th>Occurrences</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let row of tableRows" 
+            [id]="'nv-pat-' + row.patternId"
+            [class.table-primary]="highlightedPattern === row.patternId">
+          <td class="text-center">
+            <input class="form-check-input" type="checkbox" 
+                   [checked]="selectedPatterns.has(row.patternId)" 
+                   (change)="togglePatternSelection(row.patternId)">
+          </td>
+          <td class="font-monospace text-primary fw-bold" style="cursor: pointer;" (click)="scrollToPattern(row.patternId)">
+            {{ row.baseId }}
+          </td>
+          <td>
+            <app-svg-pattern [pattern]="row.patternId" style="height: 40px; display: block;"></app-svg-pattern>
+          </td>
+          <td>
+            <div class="d-flex flex-wrap gap-2">
+              <ng-container *ngIf="patternOccurrences.get(row.patternId) as locs; else noData">
+                <span *ngFor="let loc of locs" 
+                      class="badge bg-light text-primary border border-primary-subtle rounded-pill cursor-pointer hover-bg-primary"
+                      (click)="scrollToLine(loc.regionId)">
+                  p.{{ loc.folio }} / L{{ loc.line }}
+                </span>
+              </ng-container>
+              <ng-template #noData>
+                <span class="text-muted fst-italic small">No annotated occurrences</span>
+              </ng-template>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="header-section mt-5">
+    <h2>Manuscript Line Gallery</h2>
+    <span class="badge bg-secondary">{{ filteredManuscriptLines.length }} Annotated Lines</span>
+  </div>
+
+  <div *ngIf="filteredManuscriptLines.length === 0" class="alert alert-info mt-3">
+    No IIIF annotated lines found for this manuscript (or none match your selected patterns).
+  </div>
+
+  <div class="d-flex flex-column gap-4 mt-3">
+    <div *ngFor="let line of filteredManuscriptLines" 
+         [id]="'nv-line-' + line.regionId"
+         class="card shadow-sm line-card"
+         [class.border-primary]="highlightedLineId === line.regionId">
+      
+      <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 fs-6 fw-bold text-secondary">
+          <span class="font-monospace me-2">p.{{ line.folio }}</span> / <span class="ms-2">{{ line.lineName }}</span>
+        </h5>
+        <div class="d-flex flex-wrap gap-2">
+          <span *ngFor="let item of line.items" 
+                class="badge bg-white text-dark border font-monospace cursor-pointer hover-bg-light d-inline-flex align-items-center gap-1"
+                (click)="scrollToPattern(item.pattern)">
+            {{ item.displayId }}
+            <app-svg-pattern [pattern]="item.pattern" style="height: 14px; display: block;"></app-svg-pattern>
+          </span>
+        </div>
+      </div>
+
+      <div class="card-body p-0 bg-white d-flex justify-content-center overflow-hidden">
+        <app-annotation-cutout 
+          [imageUrl]="line.imageUrl"
+          [regionPoints]="line.points"
+          [items]="line.items"
+          width="100%"
+          height="150px">
+        </app-annotation-cutout>
+      </div>
+    </div>
+  </div>
+
+</div>
