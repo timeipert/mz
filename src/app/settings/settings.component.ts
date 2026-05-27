@@ -3,6 +3,7 @@ import { APIService, ProjectSettings, sanitizeSettings } from '../api.service';
 import { UserService, User } from '../user.service';
 import { GithubService, GithubConfig } from '../github.service';
 import { Subscription } from 'rxjs';
+import { PageTitleService } from '../page-title.service';
 
 export interface FieldDef { key: string, label: string, isCustom: boolean }
 
@@ -62,7 +63,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
   constructor(
     private api: APIService,
     private userService: UserService,
-    public github: GithubService
+    public github: GithubService,
+    private pageTitle: PageTitleService
   ) {
     if (this.github.config) {
       this.githubConfig = { ...this.github.config };
@@ -70,6 +72,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.pageTitle.set('Settings');
     this.subs.push(this.userService.user.subscribe(user => {
       this.user = user;
       if (this.user) {

@@ -108,17 +108,29 @@ export class APIService {
       let sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
       if (query) {
         sources = sources.filter((s: Source) => {
-          let matches = true;
           for (const [key, value] of Object.entries(query)) {
-            if (value !== undefined && s[key as keyof Source] !== value) {
-              matches = false;
-              break;
+            if (value !== undefined && value !== '') {
+              const sv = String((s as any)[key] ?? '').toLowerCase();
+              if (!sv.includes(String(value).toLowerCase())) return false;
             }
           }
-          return matches;
+          return true;
         });
       }
       return { kind: "SourcesRetrieved" as const, sources: sources };
+    })());
+  }
+
+  public fullTextSearchSources(token: string, text: string): Observable<LoginRequired | SourcesRetrieved> {
+    return from((async () => {
+      const sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+      if (!text.trim()) return { kind: "SourcesRetrieved" as const, sources };
+      const q = text.toLowerCase();
+      const filtered = sources.filter((s: Source) => {
+        const allText = Object.values(s).filter(v => typeof v === 'string').join(' ').toLowerCase();
+        return allText.includes(q);
+      });
+      return { kind: "SourcesRetrieved" as const, sources: filtered };
     })());
   }
 
@@ -251,17 +263,35 @@ export class APIService {
       let documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
       if (query) {
         documents = documents.filter((d: Document) => {
-          let matches = true;
           for (const [key, value] of Object.entries(query)) {
-            if (value !== undefined && d[key as keyof Document] !== value) {
-              matches = false;
-              break;
+            if (value !== undefined && value !== '') {
+              const dv = String((d as any)[key] ?? '').toLowerCase();
+              if (!dv.includes(String(value).toLowerCase())) return false;
             }
           }
-          return matches;
+          return true;
         });
       }
       return { kind: "DocumentsRetrieved" as const, documents: documents };
+    })());
+  }
+
+  public fullTextSearchDocuments(token: string, text: string): Observable<LoginRequired | DocumentsRetrieved> {
+    return from((async () => {
+      const documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
+      if (!text.trim()) return { kind: "DocumentsRetrieved" as const, documents };
+      const q = text.toLowerCase();
+      const filtered = documents.filter((d: Document) => {
+        const allText = Object.values(d).filter(v => typeof v === 'string').join(' ').toLowerCase();
+        return allText.includes(q);
+      });
+      return { kind: "DocumentsRetrieved" as const, documents: filtered };
+    })());
+  }
+
+  public getAllDocumentNotes(token: string): Observable<{ [id: string]: VM.RootContainer }> {
+    return from((async () => {
+      return (await localforage.getItem<any>('monodi_notes')) || {};
     })());
   }
 

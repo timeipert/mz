@@ -7,6 +7,7 @@ import { Subscription } from 'rxjs';
 import { Header } from '../smart-table/smart-table.component';
 import { ToastrService } from 'ngx-toastr';
 import * as localforage from 'localforage';
+import { PageTitleService } from '../page-title.service';
 
 export interface SourceColDef {
   key: keyof Source | string;
@@ -56,10 +57,12 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
     private api: APIService,
     private router: Router,
     private userService: UserService,
-    private toastr: ToastrService
+    private toastr: ToastrService,
+    private pageTitle: PageTitleService
   ) {}
 
   ngOnInit() {
+    this.pageTitle.set('Sources');
     this.loadCols();
     this.subs.push(this.userService.user.subscribe(u => {
       this.user = u;

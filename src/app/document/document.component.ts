@@ -15,6 +15,7 @@ import { UndoService } from '../undoService';
 import { CommentComponent } from '../comment/comment.component';
 import { DragStateService } from '../dragger/drag-state.service';
 import { NavigationService } from '../notationsdokumentation/navigation.service';
+import { PageTitleService } from '../page-title.service';
 import { extractFolioFromString, extractDocumentFolios } from '../transcription-analyzer-core';
 
 import { jsPDF } from 'jspdf';
@@ -96,7 +97,8 @@ export class DocumentComponent implements OnInit {
     private location: Location,
     private toolService: ToolsService,
     private dragState: DragStateService,
-    private navService: NavigationService) {
+    private navService: NavigationService,
+    private pageTitle: PageTitleService) {
   }
 
   test() {
@@ -1099,6 +1101,7 @@ export class DocumentComponent implements OnInit {
       if (id !== null) {
         this.retrieveForId(id);
       } else {
+        this.pageTitle.set('New Document', 'Editing');
         this.collapseMetadata = false;
         this.document = {
           id: '',
@@ -1223,12 +1226,17 @@ export class DocumentComponent implements OnInit {
           case 'LoginRequired': this.userService.logout(); break;
           case 'InsufficientPermissions': this.userService.logout(); break;
           case 'DocumentNotFound': this.document = undefined; break;
-          case 'DocumentRetrieved': 
-            this.document = res.document; 
+          case 'DocumentRetrieved':
+            this.document = res.document;
             if (!this.document.custom) this.document.custom = {};
             if (this.document) {
               this.documentJsonClone = JSON.stringify(this.document);
               this.currentFolioIndex = this.initialFolioIndex;
+              this.pageTitle.set(
+                this.document.textinitium || this.document.dokumenten_id || 'Document',
+                this.sourceSigle || undefined,
+                'Editing'
+              );
             }
             break;
           default: assertNever(res);

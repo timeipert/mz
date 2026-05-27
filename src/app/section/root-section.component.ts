@@ -115,24 +115,31 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
     return !this.data.children.every(c => c.kind === Model.ContainerKind.MiscContainer);
   }
 
+  /** Called by the button-group in the template. Sets the documentType AND always triggers
+   *  structure initialisation — even when the user clicks the already-selected level. */
+  setDocumentType(value: string): void {
+    this.data.documentType = value as Model.DocumentType;
+    this.onDocumentTypeChange();
+  }
+
   onDocumentTypeChange(): void {
     if (this.data.children.length === 0) {
       this.undo.beforeChange();
       const level = parseInt(this.data.documentType.replace(/level/i, ''), 10) || 1;
-      
+
       let currentContainer: any = this.data;
       let zipperPath: number[] = [];
-      
+
       for (let i = 0; i < level; i++) {
         const newFormteil = Model.emptyFormteilContainer(this.data.documentType, [...zipperPath, 0]);
         currentContainer.children.push(newFormteil);
         currentContainer = newFormteil;
         zipperPath.push(0);
       }
-      
+
       const newLine = Model.emptyZeileContainer();
       currentContainer.children.push(newLine);
-      
+
       this.cdr.detectChanges();
     }
   }

@@ -34,10 +34,19 @@
 
           <div class="root-line form-inline d-flex align-items-center gap-2" *ngIf="kindIs(data, 'RootContainer')">
             <div class="formteil-line-detail d-flex align-items-center flex-nowrap" style="gap: 4px;">
-              <span class="small fw-semibold text-muted" style="white-space: nowrap;">Number of layers</span>
-              <select [disabled]="canChangeDocumentType()" class='form-control form-control-sm ms-2' [(ngModel)]="data.documentType" (ngModelChange)="onDocumentTypeChange()">
-                <option *ngFor="let o of documentTypes" [value]="o.value">{{o.label}}</option>
-              </select>
+              <span class="small fw-semibold text-muted" style="white-space: nowrap;">Layers</span>
+              <!-- Button group instead of <select> so clicking the current level always fires the handler -->
+              <div class="btn-group btn-group-sm ms-2" role="group" aria-label="Number of structural layers">
+                <button type="button" class="btn"
+                        *ngFor="let o of documentTypes"
+                        [class.btn-primary]="data.documentType === o.value"
+                        [class.btn-outline-secondary]="data.documentType !== o.value"
+                        [disabled]="canChangeDocumentType()"
+                        (click)="setDocumentType(o.value)"
+                        [title]="'Use ' + o.label + ' structural layer' + (o.label === '1' ? '' : 's')">
+                  {{ o.label }}
+                </button>
+              </div>
             </div>
           </div>
 

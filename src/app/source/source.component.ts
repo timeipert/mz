@@ -11,6 +11,7 @@ import * as S from '../sselect/sselect.component';
 import { AnalyzedPattern } from '../transcription-analyzer.service';
 import { analyzeDocument, extractDocumentFolios } from '../transcription-analyzer-core';
 import { ProjectSettings } from '../api.service';
+import { PageTitleService } from '../page-title.service';
 
 export interface DocColDef {
   key: keyof Document | string;
@@ -96,7 +97,8 @@ export class SourceComponent implements OnInit {
     private toastr: ToastrService,
     private location: Location,
     private toolService: ToolsService,
-    private cdr: ChangeDetectorRef) {
+    private cdr: ChangeDetectorRef,
+    private pageTitle: PageTitleService) {
     this.loadDocCols();
   }
 
@@ -114,6 +116,7 @@ export class SourceComponent implements OnInit {
       if (id !== null) {
         this.retrieveForId(id);
       } else {
+        this.pageTitle.set('New Source');
         this.source = {
           id: undefined,
           quellensigle: "",
@@ -156,6 +159,10 @@ export class SourceComponent implements OnInit {
             this.source = res.source;
             if (!this.source.custom) this.source.custom = {};
             this.updateQuellensigle(this.source.quellensigle);
+            this.pageTitle.set(
+              this.source.quellensigle || this.source.bibliothekssignatur || 'Source',
+              this.source.herkunftsinstitution || undefined
+            );
             this.notationLoaded = false;
             this.allPatterns = [];
             this.sourceFolios = [];

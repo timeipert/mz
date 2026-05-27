@@ -45,7 +45,18 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
       },
       'NewParatextRequested': (e: Event, oldIndex: number) => { undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), oldIndex + 1); },
       'DeletionRequested': (e: Event, oldIndex: number) => { undo.beforeChange(); this.deletionRequest(e as DeletionRequested, oldIndex) },
-      'FocusShiftRequested': (e: Event, oldIndex: number) => this.focusShiftRequest(e as FocusShiftRequested, oldIndex)
+      'FocusShiftRequested': (e: Event, oldIndex: number) => this.focusShiftRequest(e as FocusShiftRequested, oldIndex),
+      // A child container is requesting a new PEER sibling (same depth as itself).
+      // This FormteilContainer is the parent — it creates the new child at `oldIndex + 1`.
+      // Using this.zipper.concat([oldIndex+1]) keeps the depth correct.
+      // Without this handler the event bubbles to the root which always creates depth-1 containers.
+      'NewFormteilRequested': (e: Event, oldIndex: number) => {
+        undo.beforeChange();
+        this.newAt(
+          Model.emptyFormteilContainer(this.documentType, this.zipper.concat([oldIndex + 1])),
+          oldIndex + 1
+        );
+      },
     }, undo);
   }
 

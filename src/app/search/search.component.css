@@ -1,0 +1,77 @@
+.cursor-pointer { cursor: pointer; }
+
+/* Column picker dropdown */
+.col-picker {
+  position: absolute;
+  top: 2.4rem;
+  right: 0;
+  z-index: 300;
+  min-width: 230px;
+  padding: 1rem;
+}
+
+/* Sortable table headers */
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.sortable-th:hover {
+  background: #f0f4ff;
+}
+.sortable-th i {
+  font-size: 0.75rem;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* Quick results list */
+.list-group-item:hover {
+  background: #f8faff;
+}
+
+/* Accent color for first column values */
+.text-accent {
+  color: #2563eb;
+}
+
+/* Monospace pattern input */
+.font-monospace {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 1rem;
+}
+
+/* Page title */
+.page-title {
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: #1e293b;
+}
+
+/* Alert code */
+code {
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+/* Result tables */
+.table th {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  border-bottom-width: 1px;
+}
+
+.table-responsive {
+  overflow-x: auto;
+}
+
+/* Loading spinner alignment */
+.spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+}
