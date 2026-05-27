@@ -88,18 +88,18 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "mono-di:build"
+            "buildTarget": "mono-di:build"
           },
           "configurations": {
             "production": {
-              "browserTarget": "mono-di:build:production"
+              "buildTarget": "mono-di:build:production"
             }
           }
         },
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "mono-di:build"
+            "buildTarget": "mono-di:build"
           }
         },
         "test": {
