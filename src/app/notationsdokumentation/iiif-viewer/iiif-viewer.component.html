@@ -46,9 +46,7 @@
         </div>
 
         <ng-container *ngIf="activeLayer === 'transcription'">
-          <span class="text-muted small me-2">
-            Use the floating toolbar to select symbols. Click shapes to drag, Del to delete.
-          </span>
+          <!-- Tools are now floating -->
         </ng-container>
 
         <!-- Regions mode (Only in Notation layer) -->
@@ -175,6 +173,9 @@
         <!-- Floating Transcription Toolbar -->
         <div class="transcription-toolbar" *ngIf="activeLayer === 'transcription'">
           <div class="toolbar-group">
+            <input type="radio" class="btn-check" name="t_tool" id="ttool_region" [checked]="activeTranscriptionTool === 'region'" (change)="setTranscriptionTool('region')">
+            <label class="toolbar-btn" for="ttool_region" title="Staff Region Box (R)"><i class="bi bi-bounding-box"></i></label>
+            
             <input type="radio" class="btn-check" name="t_tool" id="ttool_line" [checked]="activeTranscriptionTool === 'line'" (change)="setTranscriptionTool('line')">
             <label class="toolbar-btn" for="ttool_line" title="Staff Line"><i class="bi bi-share"></i></label>
           </div>
@@ -204,6 +205,24 @@
           <div class="toolbar-group">
             <input type="radio" class="btn-check" name="t_tool" id="ttool_note" [checked]="activeTranscriptionTool === 'note'" (change)="setTranscriptionTool('note')">
             <label class="toolbar-btn" for="ttool_note" title="Note"><i class="bi bi-square-fill"></i></label>
+          </div>
+          
+          <div class="toolbar-divider" style="margin: 4px 0; border-top-style: dashed; border-color: rgba(255,255,255,0.2);"></div>
+          
+          <!-- Visibility toggles -->
+          <div class="toolbar-group d-flex flex-column gap-2" style="padding: 4px 2px;">
+            <div class="form-check form-switch mb-0 d-flex align-items-center justify-content-center p-0" title="Toggle Regions">
+              <input class="form-check-input m-0 me-2" type="checkbox" id="vReg" [(ngModel)]="showRegions" style="cursor:pointer; width: 2em; height: 1em;">
+              <label class="form-check-label text-white" for="vReg" style="cursor:pointer;"><i class="bi bi-bounding-box"></i></label>
+            </div>
+            <div class="form-check form-switch mb-0 d-flex align-items-center justify-content-center p-0" title="Toggle Lines">
+              <input class="form-check-input m-0 me-2" type="checkbox" id="vLin" [(ngModel)]="showLines" style="cursor:pointer; width: 2em; height: 1em;">
+              <label class="form-check-label text-white" for="vLin" style="cursor:pointer;"><i class="bi bi-share"></i></label>
+            </div>
+            <div class="form-check form-switch mb-0 d-flex align-items-center justify-content-center p-0" title="Toggle Notes">
+              <input class="form-check-input m-0 me-2" type="checkbox" id="vNot" [(ngModel)]="showNotes" style="cursor:pointer; width: 2em; height: 1em;">
+              <label class="form-check-label text-white" for="vNot" style="cursor:pointer;"><i class="bi bi-music-note"></i></label>
+            </div>
           </div>
         </div>
 
@@ -291,29 +310,49 @@
               <ng-container *ngIf="activeLayer === 'transcription'">
                 <ng-container *ngFor="let ta of currentCanvasTranscriptionAnnotations">
                   
-                  <ng-container *ngIf="ta.type === 'line'">
+                  <ng-container *ngIf="ta.type === 'line' && showLines">
                     <polyline 
                       [attr.points]="ta.points" 
                       fill="none" 
                       stroke="#ffc107" 
+                      [attr.stroke-opacity]="activeTranscriptionTool === 'region' ? '0.4' : '1.0'"
                       [attr.stroke-width]="ta.id === selectedTranscriptionAnnotationId ? '1.5' : '1.0'" 
+                      [attr.stroke-dasharray]="ta.id === selectedTranscriptionAnnotationId ? '4 2' : 'none'" 
                       vector-effect="non-scaling-stroke"
                       style="cursor: pointer;"
-                      [style.filter]="ta.id === selectedTranscriptionAnnotationId ? 'drop-shadow(0px 0px 1px #ffc107)' : 'none'"
                       (mousedown)="startAnnotationDrag($event, ta)">
                     </polyline>
                   </ng-container>
 
+                  <!-- Transcription Regions Rendering -->
+                  <ng-container *ngIf="activeLayer === 'transcription' && showRegions">
+                     <!-- Render regions as faint boxes so the user sees where to put notes -->
+                    <polygon *ngFor="let r of currentRegions"
+                             [attr.points]="r.points"
+                             [attr.fill]="activeTranscriptionTool === 'region' ? 'rgba(13,110,253,0.15)' : 'rgba(13,110,253,0.05)'"
+                             [attr.stroke]="activeTranscriptionTool === 'region' ? 'rgba(13,110,253,0.5)' : 'rgba(13,110,253,0.2)'" stroke-width="0.5"
+                             vector-effect="non-scaling-stroke"></polygon>
+                  </ng-container>
+
                   <!-- Reading order lines (drawn once per canvas, not per note) -->
-                  <ng-container *ngIf="activeLayer === 'transcription'">
+                  <ng-container *ngIf="activeLayer === 'transcription' && showLines">
                     <line *ngFor="let seg of readingOrderLines"
                           [attr.x1]="seg.x1" [attr.y1]="seg.y1"
                           [attr.x2]="seg.x2" [attr.y2]="seg.y2"
-                          stroke="rgba(255, 255, 255, 0.6)" stroke-width="0.3" stroke-dasharray="0.8 0.5"
+                          stroke="rgba(255, 255, 255, 0.6)" 
+                          [attr.stroke-opacity]="activeTranscriptionTool === 'region' ? '0.4' : '1.0'"
+                          stroke-width="0.3" stroke-dasharray="0.8 0.5"
+                          vector-effect="non-scaling-stroke"></line>
+                    <line *ngFor="let seg of graphicalConnectionLines"
+                          [attr.x1]="seg.x1" [attr.y1]="seg.y1"
+                          [attr.x2]="seg.x2" [attr.y2]="seg.y2"
+                          stroke="rgba(255, 255, 255, 0.9)" 
+                          [attr.stroke-opacity]="activeTranscriptionTool === 'region' ? '0.4' : '1.0'"
+                          stroke-width="0.5"
                           vector-effect="non-scaling-stroke"></line>
                   </ng-container>
 
-                  <ng-container *ngIf="activeLayer === 'transcription'">
+                  <ng-container *ngIf="activeLayer === 'transcription' && showNotes">
                     <ng-container *ngFor="let ta of currentCanvasTranscriptionAnnotations">
                       
                       <ng-container *ngIf="ta.type === 'note'">
@@ -323,12 +362,13 @@
                           [attr.width]="noteSquareSize" 
                           [attr.height]="noteSquareSize" 
                           [attr.rx]="noteSquareRadius" [attr.ry]="noteSquareRadius" 
-                          [attr.fill]="isSymbolOnLine(ta) ? 'rgba(255, 193, 7, 0.7)' : 'rgba(144, 238, 144, 0.7)'" 
+                          [attr.fill]="isSymbolOnLine(ta) ? (activeTranscriptionTool === 'region' ? 'rgba(255, 193, 7, 0.3)' : 'rgba(255, 193, 7, 0.9)') : (activeTranscriptionTool === 'region' ? 'rgba(144, 238, 144, 0.3)' : 'rgba(144, 238, 144, 0.9)')" 
                           [attr.stroke]="isSymbolOnLine(ta) ? '#ffc107' : '#90ee90'" 
-                          [attr.stroke-width]="ta.id === selectedTranscriptionAnnotationId ? '0.6' : '0.3'" 
+                          [attr.stroke-opacity]="activeTranscriptionTool === 'region' ? '0.3' : '1.0'"
+                          [attr.stroke-width]="ta.id === selectedTranscriptionAnnotationId ? '0.8' : '0.3'" 
+                          [attr.stroke-dasharray]="ta.id === selectedTranscriptionAnnotationId ? '0.5 0.5' : 'none'"
                           vector-effect="non-scaling-stroke"
                           style="cursor: pointer;"
-                          [style.filter]="ta.id === selectedTranscriptionAnnotationId ? 'drop-shadow(0px 0px 1px white)' : 'none'"
                           (mousedown)="startAnnotationDrag($event, ta)">
                         </rect>
                       </ng-container>
@@ -339,7 +379,7 @@
                               [attr.y]="+ta.points.split(',')[1] + (noteSquareSize)" 
                               [attr.font-size]="noteSquareSize * 3"
                               text-anchor="middle"
-                              [attr.fill]="isSymbolOnLine(ta) ? 'rgba(255, 193, 7, 0.9)' : 'rgba(144, 238, 144, 0.9)'" 
+                              [attr.fill]="isSymbolOnLine(ta) ? (activeTranscriptionTool === 'region' ? 'rgba(255, 193, 7, 0.3)' : 'rgba(255, 193, 7, 0.95)') : (activeTranscriptionTool === 'region' ? 'rgba(144, 238, 144, 0.3)' : 'rgba(144, 238, 144, 0.95)')" 
                               [style.cursor]="'pointer'"
                               (mousedown)="startAnnotationDrag($event, ta)">𝄡</text>
                       </ng-container>
@@ -350,7 +390,7 @@
                               [attr.y]="+ta.points.split(',')[1] + (noteSquareSize)" 
                               [attr.font-size]="noteSquareSize * 3"
                               text-anchor="middle"
-                              [attr.fill]="isSymbolOnLine(ta) ? 'rgba(255, 193, 7, 0.9)' : 'rgba(144, 238, 144, 0.9)'" 
+                              [attr.fill]="isSymbolOnLine(ta) ? (activeTranscriptionTool === 'region' ? 'rgba(255, 193, 7, 0.3)' : 'rgba(255, 193, 7, 0.95)') : (activeTranscriptionTool === 'region' ? 'rgba(144, 238, 144, 0.3)' : 'rgba(144, 238, 144, 0.95)')" 
                               [style.cursor]="'pointer'"
                               (mousedown)="startAnnotationDrag($event, ta)">𝄢</text>
                       </ng-container>
@@ -361,7 +401,7 @@
                               [attr.y]="+ta.points.split(',')[1] + (noteSquareSize / 2)" 
                               [attr.font-size]="noteSquareSize * 2"
                               text-anchor="middle"
-                              [attr.fill]="isSymbolOnLine(ta) ? 'rgba(255, 193, 7, 0.9)' : 'rgba(144, 238, 144, 0.9)'" 
+                              [attr.fill]="isSymbolOnLine(ta) ? (activeTranscriptionTool === 'region' ? 'rgba(255, 193, 7, 0.3)' : 'rgba(255, 193, 7, 0.95)') : (activeTranscriptionTool === 'region' ? 'rgba(144, 238, 144, 0.3)' : 'rgba(144, 238, 144, 0.95)')" 
                               [style.cursor]="'pointer'"
                               (mousedown)="startAnnotationDrag($event, ta)">♭</text>
                       </ng-container>
@@ -372,7 +412,7 @@
                               [attr.y]="+ta.points.split(',')[1] + (noteSquareSize / 2)" 
                               [attr.font-size]="noteSquareSize * 2"
                               text-anchor="middle"
-                              [attr.fill]="isSymbolOnLine(ta) ? 'rgba(255, 193, 7, 0.9)' : 'rgba(144, 238, 144, 0.9)'" 
+                              [attr.fill]="isSymbolOnLine(ta) ? (activeTranscriptionTool === 'region' ? 'rgba(255, 193, 7, 0.3)' : 'rgba(255, 193, 7, 0.95)') : (activeTranscriptionTool === 'region' ? 'rgba(144, 238, 144, 0.3)' : 'rgba(144, 238, 144, 0.95)')" 
                               [style.cursor]="'pointer'"
                               (mousedown)="startAnnotationDrag($event, ta)">♯</text>
                       </ng-container>

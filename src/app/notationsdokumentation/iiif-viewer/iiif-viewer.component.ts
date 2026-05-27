@@ -130,6 +130,11 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   pendingTranscriptionPoints: string[] = []; // array of "x,y" coordinates for ongoing polyline
   selectedTranscriptionAnnotationId: string | null = null;
   
+  // Layer visibility toggles
+  showRegions: boolean = true;
+  showLines: boolean = true;
+  showNotes: boolean = true;
+  
   setTranscriptionTool(tool: VM.TranscriptionAnnotationType) {
     if (this.activeTranscriptionTool === 'line' && tool !== 'line') {
       if (this.pendingTranscriptionPoints.length > 1) {
@@ -169,6 +174,8 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
 
   @HostListener('document:keydown', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent) {
+    const isInput = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
+
     if (event.key === 'Enter') {
       if (this.activeLayer === 'transcription' && this.activeTranscriptionTool === 'line' && this.pendingTranscriptionPoints.length > 0) {
         this.finishTranscriptionLine();
@@ -178,15 +185,82 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
         this.pendingTranscriptionPoints = [];
       }
       this.selectedTranscriptionAnnotationId = null;
-    } else if (event.key === 'Delete' || event.key === 'Backspace') {
+    } else if ((event.key === 'Delete' || event.key === 'Backspace') && !isInput) {
       if (this.selectedTranscriptionAnnotationId && !event.defaultPrevented) {
-        // Prevent backspace from navigating back in the browser if we're deleting an annotation
-        const isInput = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
-        if (!isInput) {
-          event.preventDefault();
-          this.deleteTranscriptionAnnotation(this.selectedTranscriptionAnnotationId);
+        event.preventDefault();
+        const toDeleteId = this.selectedTranscriptionAnnotationId;
+        // Roll selection to the right (next symbol) BEFORE deleting
+        this.rollSymbolSelection(1);
+        
+        // If the selection didn't change (because it was the last symbol on the line), 
+        // we'll just clear the selection after deleting.
+        const selectionChanged = this.selectedTranscriptionAnnotationId !== toDeleteId;
+        
+        this.deleteTranscriptionAnnotation(toDeleteId);
+        
+        if (!selectionChanged) {
           this.selectedTranscriptionAnnotationId = null;
         }
+      }
+    }
+
+    if (!isInput && this.activeLayer === 'transcription') {
+      const toolKeys: Record<string, VM.TranscriptionAnnotationType | 'region'> = {
+        '1': 'note', '2': 'clef_c', '3': 'clef_f', '4': 'accidental_flat', '5': 'accidental_sharp', 'R': 'region', 'r': 'region'
+      };
+      if (toolKeys[event.key]) {
+        this.setTranscriptionTool(toolKeys[event.key]);
+        return;
+      }
+
+      const selTa = this.source?.transcriptionAnnotations?.find(t => t.id === this.selectedTranscriptionAnnotationId);
+      if (selTa && selTa.type !== 'line') {
+        let changed = false;
+        const s = event.key.toUpperCase();
+        if (s === 'S') {
+          selTa.graphicalConnection = selTa.graphicalConnection === 'looped' ? 'gaped' : 'looped';
+          changed = true;
+        } else if (s === 'N') {
+          selTa.isNeumeStart = !selTa.isNeumeStart;
+          changed = true;
+        } else if (s === 'Q') {
+          selTa.isNeumeStart = true;
+          changed = true;
+        } else if (s === 'W') {
+          selTa.isNeumeStart = false;
+          selTa.graphicalConnection = 'gaped';
+          changed = true;
+        } else if (s === 'E') {
+          selTa.isNeumeStart = false;
+          selTa.graphicalConnection = 'looped';
+          changed = true;
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          event.preventDefault();
+          this.rollSymbolSelection(event.key === 'ArrowLeft' ? -1 : 1);
+        }
+        
+        if (changed) {
+          this.triggerBeforeChange();
+          this.save();
+        }
+      }
+    }
+  }
+
+  rollSymbolSelection(dir: number) {
+    const selTa = this.source?.transcriptionAnnotations?.find(t => t.id === this.selectedTranscriptionAnnotationId);
+    if (!selTa) return;
+    const lineId = this.getClosestLineIdForSymbol(selTa);
+    if (!lineId) return;
+    const symbolsOnThisLine = this.currentCanvasTranscriptionAnnotations
+      .filter(x => x.type !== 'line' && this.getClosestLineIdForSymbol(x) === lineId)
+      .sort((a, b) => Number(a.points.split(',')[0]) - Number(b.points.split(',')[0]));
+      
+    const idx = symbolsOnThisLine.findIndex(x => x.id === selTa.id);
+    if (idx !== -1) {
+      const nextIdx = idx + dir;
+      if (nextIdx >= 0 && nextIdx < symbolsOnThisLine.length) {
+        this.selectedTranscriptionAnnotationId = symbolsOnThisLine[nextIdx].id;
       }
     }
   }
@@ -367,12 +441,16 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     }
 
     if (this.activeLayer === 'transcription' && this.activeTranscriptionTool) {
+      if (this.activeTranscriptionTool === 'region') {
+        this.startBoxDraw(e);
+        return;
+      }
       // If holding shift/ctrl/meta, maybe pan? Or just prevent default.
       const p = this.getPct(e);
       if (this.activeTranscriptionTool === 'line') {
         this.pendingTranscriptionPoints.push(`${p.x.toFixed(2)},${p.y.toFixed(2)}`);
       } else {
-        this.addTranscriptionSymbol(p);
+        this.addTranscriptionSymbol(p, e.shiftKey);
       }
       return;
     }
@@ -466,6 +544,18 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   getClosestLineIdForSymbol(ta: VM.TranscriptionAnnotation): string | null {
     if (ta.type === 'line') return null;
     const [px, py] = ta.points.split(',').map(Number);
+    // 1. Check if the point falls inside any region
+    const regions = this.currentRegions;
+    for (const r of regions) {
+      if (r.lineUUID) { // Only consider regions that actually have a linked staff line
+        const box = this.rectFromPoints(r.points);
+        if (box && px >= box.x && px <= box.x + box.w && py >= box.y && py <= box.y + box.h) {
+          return r.lineUUID;
+        }
+      }
+    }
+
+    // 2. Fallback: geometric distance to all staff lines
     const lines = this.currentCanvasTranscriptionAnnotations.filter(x => x.type === 'line');
     
     // For grouping into reading order, allow notes to be visually above/below the line
@@ -539,26 +629,57 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
 
       // Create segments between ordered symbols
       for (let i = 0; i < symbolsOnThisLine.length - 1; i++) {
-        const [x1, y1] = symbolsOnThisLine[i].points.split(',').map(Number);
-        const [x2, y2] = symbolsOnThisLine[i+1].points.split(',').map(Number);
-        segments.push({ x1, y1, x2, y2 });
+        if (!symbolsOnThisLine[i+1].isNeumeStart) {
+          const [x1, y1] = symbolsOnThisLine[i].points.split(',').map(Number);
+          const [x2, y2] = symbolsOnThisLine[i+1].points.split(',').map(Number);
+          segments.push({ x1, y1, x2, y2 });
+        }
       }
     }
     return segments;
   }
 
-  private addTranscriptionSymbol(p: {x: number, y: number}) {
+  get graphicalConnectionLines(): { x1: number, y1: number, x2: number, y2: number }[] {
+    const segments: { x1: number, y1: number, x2: number, y2: number }[] = [];
+    const staffLines = this.currentCanvasTranscriptionAnnotations.filter(x => x.type === 'line');
+    const symbols = this.currentCanvasTranscriptionAnnotations.filter(x => x.type !== 'line');
+
+    for (const line of staffLines) {
+      const symbolsOnThisLine = symbols.filter(n => this.getClosestLineIdForSymbol(n) === line.id);
+      symbolsOnThisLine.sort((a, b) => {
+        const ax = Number(a.points.split(',')[0]);
+        const bx = Number(b.points.split(',')[0]);
+        return ax - bx;
+      });
+
+      for (let i = 0; i < symbolsOnThisLine.length - 1; i++) {
+        if (symbolsOnThisLine[i+1].graphicalConnection === 'looped') {
+          const [x1, y1] = symbolsOnThisLine[i].points.split(',').map(Number);
+          const [x2, y2] = symbolsOnThisLine[i+1].points.split(',').map(Number);
+          segments.push({ x1, y1, x2, y2 });
+        }
+      }
+    }
+    return segments;
+  }
+
+  private addTranscriptionSymbol(p: {x: number, y: number}, isShift: boolean) {
     if (!this.source || !this.activeTranscriptionTool) return;
     if (!this.source.transcriptionAnnotations) this.source.transcriptionAnnotations = [];
     
     this.triggerBeforeChange();
+    const isNeumeStart = isShift ? true : false;
     this.source.transcriptionAnnotations.push({
       id: 'ta_' + UUID(),
       folio: String(this.currentCanvasIndex),
       type: this.activeTranscriptionTool,
-      points: `${p.x.toFixed(2)},${p.y.toFixed(2)}`
+      points: `${p.x.toFixed(2)},${p.y.toFixed(2)}`,
+      isNeumeStart: isNeumeStart,
+      graphicalConnection: 'gaped'
     });
     this.save();
+    // Auto-select the newly added symbol
+    this.selectedTranscriptionAnnotationId = this.source.transcriptionAnnotations[this.source.transcriptionAnnotations.length - 1].id;
   }
 
   private finishTranscriptionLine() {
@@ -570,12 +691,24 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     if (!this.source.transcriptionAnnotations) this.source.transcriptionAnnotations = [];
     
     this.triggerBeforeChange();
+    const lineId = 'ta_' + UUID();
     this.source.transcriptionAnnotations.push({
-      id: 'ta_' + UUID(),
+      id: lineId,
       folio: String(this.currentCanvasIndex),
       type: 'line',
       points: this.pendingTranscriptionPoints.join(' ')
     });
+
+    // Auto-link line to region if its starting point falls inside one
+    const [px, py] = this.pendingTranscriptionPoints[0].split(',').map(Number);
+    for (const r of this.currentRegions) {
+      const box = this.rectFromPoints(r.points);
+      if (box && px >= box.x && px <= box.x + box.w && py >= box.y && py <= box.y + box.h) {
+        r.lineUUID = lineId;
+        break; // Link to the first enclosing region
+      }
+    }
+
     this.pendingTranscriptionPoints = [];
     this.save();
   }
@@ -585,8 +718,25 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
 
   private finishBoxDraw() {
     this.isDraggingBox = false;
-    if (this.viewMode === 'regions') this.savePendingRegion();
-    else this.saveItemAnnotation();
+    if (this.activeLayer === 'transcription' && this.activeTranscriptionTool === 'region') {
+      const box = this.currentBoxRect; this.dragStartPct = null; this.dragCurrentPct = null;
+      if (!box || box.w < 0.5 || box.h < 0.5) return;
+      if (!this.source) return;
+      if (!this.source.annotationRegions) this.source.annotationRegions = [];
+      this.triggerBeforeChange();
+      const r: VM.AnnotationRegion = {
+        id: 'r_' + UUID(),
+        name: this.suggestNextLineName(),
+        points: this.boxToPoints(box),
+        folio: String(this.currentCanvasIndex)
+      };
+      this.source.annotationRegions.push(r);
+      this.save();
+    } else if (this.viewMode === 'regions') {
+      this.savePendingRegion();
+    } else {
+      this.saveItemAnnotation();
+    }
   }
 
   cancelBoxDraw() { this.isDraggingBox = false; this.dragStartPct = null; this.dragCurrentPct = null; }

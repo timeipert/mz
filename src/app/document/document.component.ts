@@ -107,7 +107,7 @@ export class DocumentComponent implements OnInit {
     this.readOnly = !this.readOnly;
   }
 
-  setViewMode(mode: 'transcription' | 'split' | 'iiif') {
+  setViewMode(mode: 'transcription' | 'split' | 'iiif', updateRoute = true) {
     this.viewMode = mode;
     if (mode === 'split' || mode === 'iiif') {
       this.sidebarVisible = false;
@@ -118,6 +118,14 @@ export class DocumentComponent implements OnInit {
     this.isLinkingMode = false;
     this.highlightedLineUUID = '';
     this.updateToolbar();
+
+    if (updateRoute) {
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { view: mode },
+        queryParamsHandling: 'merge'
+      });
+    }
   }
 
   /** Receives events bubbled up from app-root-section (via the Section base class onEvent output). */
@@ -263,7 +271,7 @@ export class DocumentComponent implements OnInit {
     if (this.user && this.sourceData) {
       this.api.updateSource(this.user.token, this.sourceData).subscribe(res => {
         if (res.kind === 'Ok') {
-          this.toastr.success('Source annotations saved successfully');
+          // this.toastr.success('Source annotations saved successfully');
         } else {
           this.toastr.error('Failed to save source annotations');
         }
@@ -1117,6 +1125,13 @@ export class DocumentComponent implements OnInit {
         this.updateToolbar();
       }, 0);
     }));
+    
+    // Subscribe to query params to restore view mode
+    this.subs.push(this.route.queryParams.subscribe(params => {
+      if (params['view'] && ['transcription', 'split', 'iiif'].includes(params['view'])) {
+        this.setViewMode(params['view'] as any, false);
+      }
+    }));
   }
 
   updateToolbar() {
@@ -1135,22 +1150,22 @@ export class DocumentComponent implements OnInit {
     if (this.sourceData?.iiifManifestUrl) {
       tools.push(
         {
-          callback: () => { this.setViewMode('transcription'); },
-          icon: 'file-text',
-          title: 'Single View (Transcription)',
-          active: this.viewMode === 'transcription'
+          callback: () => { this.setViewMode('iiif'); },
+          icon: 'image',
+          title: 'Scan Only',
+          active: this.viewMode === 'iiif'
         },
         {
           callback: () => { this.setViewMode('split'); },
           icon: 'layout-split',
-          title: 'Side by Side View',
+          title: 'Split View',
           active: this.viewMode === 'split'
         },
         {
-          callback: () => { this.setViewMode('iiif'); },
-          icon: 'image',
-          title: 'Single View (Scan)',
-          active: this.viewMode === 'iiif'
+          callback: () => { this.setViewMode('transcription'); },
+          icon: 'music-note-list',
+          title: 'Transcription Only',
+          active: this.viewMode === 'transcription'
         }
       );
     }

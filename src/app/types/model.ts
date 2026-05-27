@@ -59,13 +59,15 @@ export interface AnnotationRegion {
   lineUUID?: string;
 }
 
-export type TranscriptionAnnotationType = 'line' | 'note' | 'clef_c' | 'clef_f' | 'accidental_flat' | 'accidental_sharp';
+export type TranscriptionAnnotationType = 'line' | 'note' | 'clef_c' | 'clef_f' | 'accidental_flat' | 'accidental_sharp' | 'region';
 
 export interface TranscriptionAnnotation {
   id: string;
   folio: string;
   type: TranscriptionAnnotationType;
   points: string;
+  isNeumeStart?: boolean;
+  graphicalConnection?: 'looped' | 'gaped';
 }
 
 export interface AnnotationItem {
