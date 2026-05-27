@@ -1,7 +1,7 @@
 import { BrowserModule } from '@angular/platform-browser';
 import { NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { HttpClientModule } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
@@ -51,99 +51,91 @@ import { SearchComponent } from './search/search.component';
 import { DragMapComponent } from './drag-map/drag-map.component';
 import { NotationsdokumentationModule } from './notationsdokumentation/notationsdokumentation.module';
 
-@NgModule({
-  declarations: [
-    AppComponent,
-    WelcomeComponent,
-// Removed LoginComponent
-    UsersOverviewComponent,
-    SourcesOverviewComponent,
-    SourceComponent,
-    DocumentComponent,
-
-    NotesComponent,
-    RootSectionComponent,
-    FormteilSectionComponent,
-    MiscSectionComponent,
-    ZeileSectionComponent,
-    ParatextSectionComponent,
-    DraggerComponent,
-    LineChangeComponent,
-    FolioChangeComponent,
-    SmartTableComponent,
-    SselectComponent,
-    ClefComponent,
-    BoxComponent,
-    ZipUploadComponent,
-    EditSyllableTextComponent,
-    CommentComponent,
-    ParatextCommentComponent,
-    ComplexCommentComponent,
-    CommentTreeComponent,
-    CommentTreeLeafComponent,
-    CommentTreeUndecidedComponent,
-    CommentTreeGridComponent,
-    CommentTreeBracketComponent,
-    CommentTreeTextComponent,
-    CommentTreeNotesComponent,
-    CommentTreeActionDotComponent,
-    CommentInfoComponent,
-    SearchComponent,
-    SettingsComponent,
-    DragMapComponent
-  ],
-  imports: [
-    BrowserModule,
-    CommonModule,
-    BrowserAnimationsModule,
-    ToastrModule.forRoot(),
-    FormsModule,
-    HttpClientModule,
-    NotationsdokumentationModule,
-    NgbModule,
-    RouterModule.forRoot([
-      {
-        path: 'login',
-        redirectTo: '/sources',
-        pathMatch: 'full'
-      }, {
-        path: 'users',
-        component: UsersOverviewComponent,
-      }, {
-        path: 'sources',
-        component: SourcesOverviewComponent,
-      }, {
-        path: 'source/:id',
-        component: SourceComponent,
-      }, {
-        path: 'source',
-        component: SourceComponent,
-      }, {
-        path: 'document/:source',
-        component: DocumentComponent,
-      }, {
-        path: 'document/:source/:id',
-        component: DocumentComponent,
-        canDeactivate: [ConfirmDeactivateGuard]
-      }, {
-        path: 'search',
-        component: SearchComponent,
-      }, {
-        path: 'settings',
-        component: SettingsComponent,
-      }, {
-        path: 'zip-upload',
-        component: ZipUploadComponent,
-      }, {
-        path: 'cc',
-        component: ComplexCommentComponent
-      }, {
-        path: '**',
-        component: WelcomeComponent
-      }
-    ], { useHash: true })
-  ],
-  providers: [ConfirmDeactivateGuard],
-  bootstrap: [AppComponent]
-})
+@NgModule({ declarations: [
+        AppComponent,
+        WelcomeComponent,
+        // Removed LoginComponent
+        UsersOverviewComponent,
+        SourcesOverviewComponent,
+        SourceComponent,
+        DocumentComponent,
+        NotesComponent,
+        RootSectionComponent,
+        FormteilSectionComponent,
+        MiscSectionComponent,
+        ZeileSectionComponent,
+        ParatextSectionComponent,
+        DraggerComponent,
+        LineChangeComponent,
+        FolioChangeComponent,
+        SmartTableComponent,
+        SselectComponent,
+        ClefComponent,
+        BoxComponent,
+        ZipUploadComponent,
+        EditSyllableTextComponent,
+        CommentComponent,
+        ParatextCommentComponent,
+        ComplexCommentComponent,
+        CommentTreeComponent,
+        CommentTreeLeafComponent,
+        CommentTreeUndecidedComponent,
+        CommentTreeGridComponent,
+        CommentTreeBracketComponent,
+        CommentTreeTextComponent,
+        CommentTreeNotesComponent,
+        CommentTreeActionDotComponent,
+        CommentInfoComponent,
+        SearchComponent,
+        SettingsComponent,
+        DragMapComponent
+    ],
+    bootstrap: [AppComponent], imports: [BrowserModule,
+        CommonModule,
+        BrowserAnimationsModule,
+        ToastrModule.forRoot(),
+        FormsModule,
+        NotationsdokumentationModule,
+        NgbModule,
+        RouterModule.forRoot([
+            {
+                path: 'login',
+                redirectTo: '/sources',
+                pathMatch: 'full'
+            }, {
+                path: 'users',
+                component: UsersOverviewComponent,
+            }, {
+                path: 'sources',
+                component: SourcesOverviewComponent,
+            }, {
+                path: 'source/:id',
+                component: SourceComponent,
+            }, {
+                path: 'source',
+                component: SourceComponent,
+            }, {
+                path: 'document/:source',
+                component: DocumentComponent,
+            }, {
+                path: 'document/:source/:id',
+                component: DocumentComponent,
+                canDeactivate: [ConfirmDeactivateGuard]
+            }, {
+                path: 'search',
+                component: SearchComponent,
+            }, {
+                path: 'settings',
+                component: SettingsComponent,
+            }, {
+                path: 'zip-upload',
+                component: ZipUploadComponent,
+            }, {
+                path: 'cc',
+                component: ComplexCommentComponent
+            }, {
+                path: '**',
+                component: WelcomeComponent
+            }
+        ], { useHash: true })], providers: [ConfirmDeactivateGuard, provideHttpClient(withInterceptorsFromDi())] })
 export class AppModule { }

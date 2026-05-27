@@ -126,9 +126,22 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
 
   // Transcription Annotation Layers
   activeLayer: 'notation' | 'transcription' | 'none' = 'notation';
-  activeTranscriptionTool: 'select' | 'line' | 'note' | null = null;
+  activeTranscriptionTool: VM.TranscriptionAnnotationType | null = 'line';
   pendingTranscriptionPoints: string[] = []; // array of "x,y" coordinates for ongoing polyline
   selectedTranscriptionAnnotationId: string | null = null;
+  
+  setTranscriptionTool(tool: VM.TranscriptionAnnotationType) {
+    if (this.activeTranscriptionTool === 'line' && tool !== 'line') {
+      if (this.pendingTranscriptionPoints.length > 1) {
+        // Automatically finish line if they had placed multiple points
+        this.finishTranscriptionLine();
+      } else {
+        // Discard if only 1 point
+        this.pendingTranscriptionPoints = [];
+      }
+    }
+    this.activeTranscriptionTool = tool;
+  }
   
   // Dragging state for transcription annotations
   draggingAnnotationId: string | null = null;
@@ -349,13 +362,17 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   onMouseDown(e: MouseEvent) {
+    if (e.altKey) {
+      this.isPanning = true; this.panStartX = e.clientX; this.panStartY = e.clientY; return;
+    }
+
     if (this.activeLayer === 'transcription' && this.activeTranscriptionTool) {
       // If holding shift/ctrl/meta, maybe pan? Or just prevent default.
       const p = this.getPct(e);
-      if (this.activeTranscriptionTool === 'note') {
-        this.addTranscriptionNote(p);
-      } else if (this.activeTranscriptionTool === 'line') {
+      if (this.activeTranscriptionTool === 'line') {
         this.pendingTranscriptionPoints.push(`${p.x.toFixed(2)},${p.y.toFixed(2)}`);
+      } else {
+        this.addTranscriptionSymbol(p);
       }
       return;
     }
@@ -376,15 +393,14 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
 
   startAnnotationDrag(e: MouseEvent, ta: VM.TranscriptionAnnotation) {
     if (this.activeLayer !== 'transcription') return;
+    if (e.altKey) return; // Allow panning to take over
     e.stopPropagation();
     this.selectedTranscriptionAnnotationId = ta.id;
-    if (this.activeTranscriptionTool === 'select') {
-      this.draggingAnnotationId = ta.id;
-      const p = this.getPct(e);
-      this.dragStartX = p.x;
-      this.dragStartY = p.y;
-      this.dragOriginalPoints = ta.points;
-    }
+    this.draggingAnnotationId = ta.id;
+    const p = this.getPct(e);
+    this.dragStartX = p.x;
+    this.dragStartY = p.y;
+    this.dragOriginalPoints = ta.points;
   }
 
   onMouseMove(e: MouseEvent) {
@@ -447,37 +463,99 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     return (px - (vx + t * (wx - vx))) ** 2 + (py - (vy + t * (wy - vy))) ** 2;
   }
 
-  isNoteOnLine(ta: VM.TranscriptionAnnotation): boolean {
-    if (ta.type !== 'note') return false;
+  getClosestLineIdForSymbol(ta: VM.TranscriptionAnnotation): string | null {
+    if (ta.type === 'line') return null;
     const [px, py] = ta.points.split(',').map(Number);
     const lines = this.currentCanvasTranscriptionAnnotations.filter(x => x.type === 'line');
     
-    const THRESHOLD_SQ = 0.6 * 0.6; // 0.6% distance threshold squared
+    // For grouping into reading order, allow notes to be visually above/below the line
+    const GENEROUS_THRESHOLD = this.noteSquareSize * 4; 
+    const THRESHOLD_SQ = GENEROUS_THRESHOLD * GENEROUS_THRESHOLD;
     
+    let closestId: string | null = null;
+    let minD2 = Infinity;
+
     for (const line of lines) {
       const pts = line.points.split(' ').map(p => p.split(',').map(Number));
+      let lineD2 = Infinity;
       if (pts.length === 1) {
-        const d2 = (px - pts[0][0])**2 + (py - pts[0][1])**2;
-        if (d2 <= THRESHOLD_SQ) return true;
+        lineD2 = (px - pts[0][0])**2 + (py - pts[0][1])**2;
       } else {
         for (let i = 0; i < pts.length - 1; i++) {
           const d2 = this.distToSegmentSquared(px, py, pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1]);
-          if (d2 <= THRESHOLD_SQ) return true;
+          if (d2 < lineD2) lineD2 = d2;
         }
+      }
+      if (lineD2 <= THRESHOLD_SQ && lineD2 < minD2) {
+        minD2 = lineD2;
+        closestId = line.id;
+      }
+    }
+    return closestId;
+  }
+
+  isSymbolOnLine(ta: VM.TranscriptionAnnotation): boolean {
+    if (ta.type === 'line') return false;
+    const [px, py] = ta.points.split(',').map(Number);
+    const lines = this.currentCanvasTranscriptionAnnotations.filter(x => x.type === 'line');
+    
+    // STRICT threshold: The symbol must truly lay right on the line
+    const STRICT_THRESHOLD = this.noteSquareSize / 3;
+    const STRICT_THRESHOLD_SQ = STRICT_THRESHOLD * STRICT_THRESHOLD;
+    
+    for (const line of lines) {
+      const pts = line.points.split(' ').map(p => p.split(',').map(Number));
+      let lineD2 = Infinity;
+      if (pts.length === 1) {
+        lineD2 = (px - pts[0][0])**2 + (py - pts[0][1])**2;
+      } else {
+        for (let i = 0; i < pts.length - 1; i++) {
+          const d2 = this.distToSegmentSquared(px, py, pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1]);
+          if (d2 < lineD2) lineD2 = d2;
+        }
+      }
+      if (lineD2 <= STRICT_THRESHOLD_SQ) {
+        return true;
       }
     }
     return false;
   }
 
-  private addTranscriptionNote(p: {x: number, y: number}) {
-    if (!this.source) return;
+  get readingOrderLines(): { x1: number, y1: number, x2: number, y2: number }[] {
+    const segments: { x1: number, y1: number, x2: number, y2: number }[] = [];
+    const staffLines = this.currentCanvasTranscriptionAnnotations.filter(x => x.type === 'line');
+    const symbols = this.currentCanvasTranscriptionAnnotations.filter(x => x.type !== 'line');
+
+    for (const line of staffLines) {
+      // Find all symbols belonging to this line
+      const symbolsOnThisLine = symbols.filter(n => this.getClosestLineIdForSymbol(n) === line.id);
+      
+      // Sort them horizontally (by X coordinate)
+      symbolsOnThisLine.sort((a, b) => {
+        const ax = Number(a.points.split(',')[0]);
+        const bx = Number(b.points.split(',')[0]);
+        return ax - bx;
+      });
+
+      // Create segments between ordered symbols
+      for (let i = 0; i < symbolsOnThisLine.length - 1; i++) {
+        const [x1, y1] = symbolsOnThisLine[i].points.split(',').map(Number);
+        const [x2, y2] = symbolsOnThisLine[i+1].points.split(',').map(Number);
+        segments.push({ x1, y1, x2, y2 });
+      }
+    }
+    return segments;
+  }
+
+  private addTranscriptionSymbol(p: {x: number, y: number}) {
+    if (!this.source || !this.activeTranscriptionTool) return;
     if (!this.source.transcriptionAnnotations) this.source.transcriptionAnnotations = [];
     
     this.triggerBeforeChange();
     this.source.transcriptionAnnotations.push({
       id: 'ta_' + UUID(),
       folio: String(this.currentCanvasIndex),
-      type: 'note',
+      type: this.activeTranscriptionTool,
       points: `${p.x.toFixed(2)},${p.y.toFixed(2)}`
     });
     this.save();

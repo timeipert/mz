@@ -59,7 +59,7 @@ export interface AnnotationRegion {
   lineUUID?: string;
 }
 
-export type TranscriptionAnnotationType = 'line' | 'note';
+export type TranscriptionAnnotationType = 'line' | 'note' | 'clef_c' | 'clef_f' | 'accidental_flat' | 'accidental_sharp';
 
 export interface TranscriptionAnnotation {
   id: string;

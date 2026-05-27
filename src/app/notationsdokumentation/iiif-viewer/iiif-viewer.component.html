@@ -45,23 +45,9 @@
           <label class="btn btn-outline-secondary" for="layer3" title="Without Annotation"><i class="bi bi-eye-slash"></i></label>
         </div>
 
-        <!-- Transcription Tools -->
         <ng-container *ngIf="activeLayer === 'transcription'">
-          <div class="btn-group btn-group-sm me-3" role="group">
-            <input type="radio" class="btn-check" name="t_tool" id="ttool0" autocomplete="off" [checked]="activeTranscriptionTool === 'select'" (change)="activeTranscriptionTool = 'select'">
-            <label class="btn btn-outline-primary" for="ttool0" title="Select and Move"><i class="bi bi-cursor-fill"></i></label>
-
-            <input type="radio" class="btn-check" name="t_tool" id="ttool1" autocomplete="off" [checked]="activeTranscriptionTool === 'line'" (change)="activeTranscriptionTool = 'line'">
-            <label class="btn btn-outline-primary" for="ttool1"><i class="bi bi-share"></i> Staff Line</label>
-          
-            <input type="radio" class="btn-check" name="t_tool" id="ttool2" autocomplete="off" [checked]="activeTranscriptionTool === 'note'" (change)="activeTranscriptionTool = 'note'">
-            <label class="btn btn-outline-primary" for="ttool2"><i class="bi bi-circle-fill"></i> Note</label>
-          </div>
-          <span class="text-muted small me-2" *ngIf="activeTranscriptionTool === 'line'">
-            Click to draw polyline. Double-click/Enter to finish.
-          </span>
-          <span class="text-muted small me-2" *ngIf="activeTranscriptionTool === 'select'">
-            Click to select, drag to move, Del to delete.
+          <span class="text-muted small me-2">
+            Use the floating toolbar to select symbols. Click shapes to drag, Del to delete.
           </span>
         </ng-container>
 
@@ -175,14 +161,51 @@
     <div *ngIf="currentCanvasImage && !showGallery" class="iiif-body">
 
       <!-- Image viewport -->
+      <!-- Viewport area (absolute positioning container) -->
       <div #viewportRef class="iiif-viewport"
-           [class.cursor-crosshair]="!pendingRegionPoints && activeTranscriptionTool !== 'select'"
-           [class.cursor-default]="activeTranscriptionTool === 'select'"
+           [class.cursor-crosshair]="!pendingRegionPoints"
            (mousedown)="onMouseDown($event)"
            (dblclick)="onDoubleClick($event)"
            (mousemove)="onMouseMove($event)"
            (mouseup)="onMouseUp($event)"
-           (mouseleave)="onMouseLeave($event)">
+           (mouseleave)="onMouseLeave($event)"
+           (wheel)="onWheel($event)"
+           [class.panning]="isPanning">
+
+        <!-- Floating Transcription Toolbar -->
+        <div class="transcription-toolbar" *ngIf="activeLayer === 'transcription'">
+          <div class="toolbar-group">
+            <input type="radio" class="btn-check" name="t_tool" id="ttool_line" [checked]="activeTranscriptionTool === 'line'" (change)="setTranscriptionTool('line')">
+            <label class="toolbar-btn" for="ttool_line" title="Staff Line"><i class="bi bi-share"></i></label>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <div class="toolbar-group">
+            <input type="radio" class="btn-check" name="t_tool" id="ttool_clef_c" [checked]="activeTranscriptionTool === 'clef_c'" (change)="setTranscriptionTool('clef_c')">
+            <label class="toolbar-btn fw-bold" for="ttool_clef_c" title="C-Clef">𝄡</label>
+            
+            <input type="radio" class="btn-check" name="t_tool" id="ttool_clef_f" [checked]="activeTranscriptionTool === 'clef_f'" (change)="setTranscriptionTool('clef_f')">
+            <label class="toolbar-btn fw-bold" for="ttool_clef_f" title="F-Clef">𝄢</label>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <div class="toolbar-group">
+            <input type="radio" class="btn-check" name="t_tool" id="ttool_flat" [checked]="activeTranscriptionTool === 'accidental_flat'" (change)="setTranscriptionTool('accidental_flat')">
+            <label class="toolbar-btn fw-bold" for="ttool_flat" title="Flat">♭</label>
+
+            <input type="radio" class="btn-check" name="t_tool" id="ttool_sharp" [checked]="activeTranscriptionTool === 'accidental_sharp'" (change)="setTranscriptionTool('accidental_sharp')">
+            <label class="toolbar-btn fw-bold" for="ttool_sharp" title="Sharp">♯</label>
+          </div>
+
+          <div class="toolbar-divider"></div>
+
+          <div class="toolbar-group">
+            <input type="radio" class="btn-check" name="t_tool" id="ttool_note" [checked]="activeTranscriptionTool === 'note'" (change)="setTranscriptionTool('note')">
+            <label class="toolbar-btn" for="ttool_note" title="Note"><i class="bi bi-square-fill"></i></label>
+          </div>
+        </div>
 
         <!-- Loading spinner — outside the zoom/pan transform -->
         <div *ngIf="imageLoading && !imageError" class="iiif-image-loading">
@@ -275,27 +298,86 @@
                       stroke="#ffc107" 
                       [attr.stroke-width]="ta.id === selectedTranscriptionAnnotationId ? '1.5' : '1.0'" 
                       vector-effect="non-scaling-stroke"
-                      [style.cursor]="activeTranscriptionTool === 'select' ? 'pointer' : 'crosshair'"
+                      style="cursor: pointer;"
                       [style.filter]="ta.id === selectedTranscriptionAnnotationId ? 'drop-shadow(0px 0px 1px #ffc107)' : 'none'"
                       (mousedown)="startAnnotationDrag($event, ta)">
                     </polyline>
                   </ng-container>
-                  
-                  <ng-container *ngIf="ta.type === 'note'">
-                    <rect 
-                      [attr.x]="+ta.points.split(',')[0] - (noteSquareSize / 2)" 
-                      [attr.y]="+ta.points.split(',')[1] - (noteSquareSize / 2)" 
-                      [attr.width]="noteSquareSize" 
-                      [attr.height]="noteSquareSize" 
-                      [attr.rx]="noteSquareRadius" [attr.ry]="noteSquareRadius" 
-                      [attr.fill]="isNoteOnLine(ta) ? 'rgba(255, 193, 7, 0.7)' : 'rgba(144, 238, 144, 0.7)'" 
-                      [attr.stroke]="isNoteOnLine(ta) ? '#ffc107' : '#90ee90'" 
-                      [attr.stroke-width]="ta.id === selectedTranscriptionAnnotationId ? '0.6' : '0.3'" 
-                      vector-effect="non-scaling-stroke"
-                      [style.cursor]="activeTranscriptionTool === 'select' ? 'pointer' : 'crosshair'"
-                      [style.filter]="ta.id === selectedTranscriptionAnnotationId ? 'drop-shadow(0px 0px 1px white)' : 'none'"
-                      (mousedown)="startAnnotationDrag($event, ta)">
-                    </rect>
+
+                  <!-- Reading order lines (drawn once per canvas, not per note) -->
+                  <ng-container *ngIf="activeLayer === 'transcription'">
+                    <line *ngFor="let seg of readingOrderLines"
+                          [attr.x1]="seg.x1" [attr.y1]="seg.y1"
+                          [attr.x2]="seg.x2" [attr.y2]="seg.y2"
+                          stroke="rgba(255, 255, 255, 0.6)" stroke-width="0.3" stroke-dasharray="0.8 0.5"
+                          vector-effect="non-scaling-stroke"></line>
+                  </ng-container>
+
+                  <ng-container *ngIf="activeLayer === 'transcription'">
+                    <ng-container *ngFor="let ta of currentCanvasTranscriptionAnnotations">
+                      
+                      <ng-container *ngIf="ta.type === 'note'">
+                        <rect 
+                          [attr.x]="+ta.points.split(',')[0] - (noteSquareSize / 2)" 
+                          [attr.y]="+ta.points.split(',')[1] - (noteSquareSize / 2)" 
+                          [attr.width]="noteSquareSize" 
+                          [attr.height]="noteSquareSize" 
+                          [attr.rx]="noteSquareRadius" [attr.ry]="noteSquareRadius" 
+                          [attr.fill]="isSymbolOnLine(ta) ? 'rgba(255, 193, 7, 0.7)' : 'rgba(144, 238, 144, 0.7)'" 
+                          [attr.stroke]="isSymbolOnLine(ta) ? '#ffc107' : '#90ee90'" 
+                          [attr.stroke-width]="ta.id === selectedTranscriptionAnnotationId ? '0.6' : '0.3'" 
+                          vector-effect="non-scaling-stroke"
+                          style="cursor: pointer;"
+                          [style.filter]="ta.id === selectedTranscriptionAnnotationId ? 'drop-shadow(0px 0px 1px white)' : 'none'"
+                          (mousedown)="startAnnotationDrag($event, ta)">
+                        </rect>
+                      </ng-container>
+
+                      <!-- Clef C -->
+                      <ng-container *ngIf="ta.type === 'clef_c'">
+                        <text [attr.x]="+ta.points.split(',')[0]" 
+                              [attr.y]="+ta.points.split(',')[1] + (noteSquareSize)" 
+                              [attr.font-size]="noteSquareSize * 3"
+                              text-anchor="middle"
+                              [attr.fill]="isSymbolOnLine(ta) ? 'rgba(255, 193, 7, 0.9)' : 'rgba(144, 238, 144, 0.9)'" 
+                              [style.cursor]="'pointer'"
+                              (mousedown)="startAnnotationDrag($event, ta)">𝄡</text>
+                      </ng-container>
+
+                      <!-- Clef F -->
+                      <ng-container *ngIf="ta.type === 'clef_f'">
+                        <text [attr.x]="+ta.points.split(',')[0]" 
+                              [attr.y]="+ta.points.split(',')[1] + (noteSquareSize)" 
+                              [attr.font-size]="noteSquareSize * 3"
+                              text-anchor="middle"
+                              [attr.fill]="isSymbolOnLine(ta) ? 'rgba(255, 193, 7, 0.9)' : 'rgba(144, 238, 144, 0.9)'" 
+                              [style.cursor]="'pointer'"
+                              (mousedown)="startAnnotationDrag($event, ta)">𝄢</text>
+                      </ng-container>
+
+                      <!-- Flat -->
+                      <ng-container *ngIf="ta.type === 'accidental_flat'">
+                        <text [attr.x]="+ta.points.split(',')[0]" 
+                              [attr.y]="+ta.points.split(',')[1] + (noteSquareSize / 2)" 
+                              [attr.font-size]="noteSquareSize * 2"
+                              text-anchor="middle"
+                              [attr.fill]="isSymbolOnLine(ta) ? 'rgba(255, 193, 7, 0.9)' : 'rgba(144, 238, 144, 0.9)'" 
+                              [style.cursor]="'pointer'"
+                              (mousedown)="startAnnotationDrag($event, ta)">♭</text>
+                      </ng-container>
+
+                      <!-- Sharp -->
+                      <ng-container *ngIf="ta.type === 'accidental_sharp'">
+                        <text [attr.x]="+ta.points.split(',')[0]" 
+                              [attr.y]="+ta.points.split(',')[1] + (noteSquareSize / 2)" 
+                              [attr.font-size]="noteSquareSize * 2"
+                              text-anchor="middle"
+                              [attr.fill]="isSymbolOnLine(ta) ? 'rgba(255, 193, 7, 0.9)' : 'rgba(144, 238, 144, 0.9)'" 
+                              [style.cursor]="'pointer'"
+                              (mousedown)="startAnnotationDrag($event, ta)">♯</text>
+                      </ng-container>
+                      
+                    </ng-container>
                   </ng-container>
                   
                 </ng-container>
@@ -471,7 +553,6 @@
             </button>
           </div>
         </div>
-
       </div><!-- /tool panel -->
     </div><!-- /body -->
 
