@@ -5,7 +5,10 @@
     "types": ["node"]
   },
   "exclude": [
-    "src/test.ts",
-    "**/*.spec.ts"
+    "test.ts",
+    "**/*.spec.ts",
+    "**/*.worker.ts",
+    "app/**/*.worker.ts",
+    "environments/environment.prod.ts"
   ]
 }

@@ -229,6 +229,7 @@
                            [initialCanvasIndex]="currentFolioIndex"
                            [highlightedLineUUID]="highlightedLineUUID"
                            [activeRegionName]="activeLineName"
+                           (beforeChange)="handleIiifBeforeChange()"
                            (sourceChanged)="saveSourceData()"
                            (regionClicked)="handleIiifRegionClicked($event)"
                            (requestLineLink)="handleIiifRequestLineLink($event)">

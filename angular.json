@@ -40,7 +40,22 @@
             "sourceMap": true,
             "optimization": false,
             "namedChunks": true,
-            "webWorkerTsConfig": "tsconfig.worker.json"
+            "webWorkerTsConfig": "tsconfig.worker.json",
+            "allowedCommonJsDependencies": [
+              "content-type",
+              "canvg",
+              "raf",
+              "rgbcolor",
+              "html2canvas",
+              "cssesc",
+              "font-family-papandreou",
+              "lodash",
+              "lodash/fp",
+              "parsimmon",
+              "localforage",
+              "buffer",
+              "core-js"
+            ]
           },
           "configurations": {
             "production": {

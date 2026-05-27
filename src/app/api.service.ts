@@ -542,6 +542,7 @@ export interface Source {
   equivalents?: VM.EquivalentMetadata[];
   annotationRegions?: VM.AnnotationRegion[];
   annotationItems?: VM.AnnotationItem[];
+  transcriptionAnnotations?: VM.TranscriptionAnnotation[];
   custom?: { [key: string]: string };
 }
 
@@ -608,6 +609,7 @@ export interface SourceQuery {
   equivalents?: VM.EquivalentMetadata[] | undefined;
   annotationRegions?: VM.AnnotationRegion[] | undefined;
   annotationItems?: VM.AnnotationItem[] | undefined;
+  transcriptionAnnotations?: VM.TranscriptionAnnotation[] | undefined;
 }
 
 export function sanitizeSettings(settings: any): ProjectSettings {

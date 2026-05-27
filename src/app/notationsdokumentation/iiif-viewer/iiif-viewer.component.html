@@ -32,14 +32,47 @@
         <i class="bi" [class.bi-layout-sidebar]="leftSidebarCollapsed" [class.bi-layout-sidebar-inset]="!leftSidebarCollapsed"></i>
       </button>
       <ng-container *ngIf="!showGallery">
-        <!-- Regions mode -->
-        <ng-container *ngIf="viewMode === 'regions'">
+        
+        <!-- Layer Selector -->
+        <div class="btn-group btn-group-sm me-3" role="group">
+          <input type="radio" class="btn-check" name="layer" id="layer1" autocomplete="off" [checked]="activeLayer === 'notation'" (change)="activeLayer = 'notation'">
+          <label class="btn btn-outline-secondary" for="layer1" title="Notation Documentation"><i class="bi bi-box"></i></label>
+        
+          <input type="radio" class="btn-check" name="layer" id="layer2" autocomplete="off" [checked]="activeLayer === 'transcription'" (change)="activeLayer = 'transcription'">
+          <label class="btn btn-outline-secondary" for="layer2" title="Transcription Annotation"><i class="bi bi-vector-pen"></i></label>
+        
+          <input type="radio" class="btn-check" name="layer" id="layer3" autocomplete="off" [checked]="activeLayer === 'none'" (change)="activeLayer = 'none'">
+          <label class="btn btn-outline-secondary" for="layer3" title="Without Annotation"><i class="bi bi-eye-slash"></i></label>
+        </div>
+
+        <!-- Transcription Tools -->
+        <ng-container *ngIf="activeLayer === 'transcription'">
+          <div class="btn-group btn-group-sm me-3" role="group">
+            <input type="radio" class="btn-check" name="t_tool" id="ttool0" autocomplete="off" [checked]="activeTranscriptionTool === 'select'" (change)="activeTranscriptionTool = 'select'">
+            <label class="btn btn-outline-primary" for="ttool0" title="Select and Move"><i class="bi bi-cursor-fill"></i></label>
+
+            <input type="radio" class="btn-check" name="t_tool" id="ttool1" autocomplete="off" [checked]="activeTranscriptionTool === 'line'" (change)="activeTranscriptionTool = 'line'">
+            <label class="btn btn-outline-primary" for="ttool1"><i class="bi bi-share"></i> Staff Line</label>
+          
+            <input type="radio" class="btn-check" name="t_tool" id="ttool2" autocomplete="off" [checked]="activeTranscriptionTool === 'note'" (change)="activeTranscriptionTool = 'note'">
+            <label class="btn btn-outline-primary" for="ttool2"><i class="bi bi-circle-fill"></i> Note</label>
+          </div>
+          <span class="text-muted small me-2" *ngIf="activeTranscriptionTool === 'line'">
+            Click to draw polyline. Double-click/Enter to finish.
+          </span>
+          <span class="text-muted small me-2" *ngIf="activeTranscriptionTool === 'select'">
+            Click to select, drag to move, Del to delete.
+          </span>
+        </ng-container>
+
+        <!-- Regions mode (Only in Notation layer) -->
+        <ng-container *ngIf="activeLayer === 'notation' && viewMode === 'regions'">
           <span class="text-muted small">
             <i class="bi bi-pencil-square me-1"></i>Draw a box to mark a line region
           </span>
         </ng-container>
-        <!-- Items mode -->
-        <ng-container *ngIf="viewMode === 'items' && activeRegion">
+        <!-- Items mode (Only in Notation layer) -->
+        <ng-container *ngIf="activeLayer === 'notation' && viewMode === 'items' && activeRegion">
           <button class="btn btn-sm btn-outline-secondary me-2" (click)="backToRegions()">
             <i class="bi bi-arrow-left me-1"></i>Regions
           </button>
@@ -57,6 +90,11 @@
           </span>
         </ng-container>
       </ng-container>
+
+      <button *ngIf="!simpleMode" class="btn btn-sm btn-outline-secondary topbar-btn ms-auto"
+              title="Close image view" (click)="closeViewer()">
+        <i class="bi bi-x-lg"></i>
+      </button>
 
       <ng-container *ngIf="showGallery">
         <span class="fw-semibold small me-2">Gallery</span>
@@ -97,33 +135,30 @@
       Select a page to view the manuscript image
     </div>
 
-    <!-- ── Gallery ── -->
-    <div *ngIf="showGallery" class="gallery-grid">
-      <div *ngIf="galleryItems.length === 0" class="text-muted text-center py-5 w-100">
-        No annotated items yet.
-      </div>
-      <div *ngFor="let g of galleryItems" class="gallery-card" (click)="navigateToItem(g)"
-           [title]="(g.region?.name || '?') + ', p.' + (g.canvasIdx + 1)">
-
-        <!-- SVG cutout — padded viewBox shows context, polygon highlights the exact annotation -->
-        <div class="gallery-cutout-wrap">
-          <svg class="gallery-crop"
-               [attr.viewBox]="g.rect.x + ' ' + g.rect.y + ' ' + g.rect.w + ' ' + g.rect.h"
-               preserveAspectRatio="xMidYMid meet">
-            <image [attr.href]="g.imageUrl" x="0" y="0" width="100" height="100"
-                   preserveAspectRatio="none" referrerpolicy="no-referrer"></image>
-            <!-- Region outline (context) -->
-            <polygon *ngIf="g.region"
-                     [attr.points]="g.region.points"
-                     fill="none" stroke="#94a3b8" stroke-width="0.4"
-                     vector-effect="non-scaling-stroke" opacity="0.7"></polygon>
-            <!-- Item annotation highlight -->
-            <polygon [attr.points]="g.item.points"
-                     fill="rgba(37,99,235,0.18)" stroke="#2563eb" stroke-width="0.5"
-                     vector-effect="non-scaling-stroke"></polygon>
-          </svg>
-          <!-- HTML label overlay — positioned at top-left of the annotation -->
-          <div class="gallery-item-label">{{ itemDisplayId(g.item) }}</div>
+    <!-- ── Gallery view ── -->
+    <div *ngIf="showGallery" class="iiif-gallery">
+      <div *ngFor="let g of galleryItems; trackBy: galleryTrackBy"
+           class="gallery-item-card"
+           [class.gallery-active]="g.item.id === linkingItemId"
+           (click)="selectGalleryItem(g.item)">
+        <!-- Header -->
+        <div class="gallery-header">
+          <span class="gallery-pattern fw-bold">{{ g.item.pattern }}<span *ngIf="g.item.variant"> {{ g.item.variant }}</span></span>
+        </div>
+        <!-- Cropped Image -->
+        <div class="gallery-crop"
+             [style.background-image]="'url(' + g.imageUrl + ')'"
+             [style.background-position]="(-g.rect.x) + 'px ' + (-g.rect.y) + 'px'"
+             [style.width.px]="g.rect.w"
+             [style.height.px]="g.rect.h">
+           <!-- Inline SVG for the bounding box -->
+           <svg [attr.width]="g.rect.w" [attr.height]="g.rect.h" style="position: absolute; top:0; left:0; pointer-events:none;">
+             <polygon [attr.points]="translatePointsToCrop(g.item.points, g.rect, g.rawRect)"
+                      fill="rgba(13,110,253,0.15)" stroke="#0d6efd" stroke-width="2"
+                      vector-effect="non-scaling-stroke"></polygon>
+           </svg>
+           <!-- HTML label overlay — positioned at top-left of the annotation -->
+           <div class="gallery-item-label">{{ itemDisplayId(g.item) }}</div>
         </div>
 
         <!-- Footer -->
@@ -141,8 +176,10 @@
 
       <!-- Image viewport -->
       <div #viewportRef class="iiif-viewport"
-           [class.cursor-crosshair]="!pendingRegionPoints"
+           [class.cursor-crosshair]="!pendingRegionPoints && activeTranscriptionTool !== 'select'"
+           [class.cursor-default]="activeTranscriptionTool === 'select'"
            (mousedown)="onMouseDown($event)"
+           (dblclick)="onDoubleClick($event)"
            (mousemove)="onMouseMove($event)"
            (mouseup)="onMouseUp($event)"
            (mouseleave)="onMouseLeave($event)">
@@ -164,64 +201,111 @@
 
             <svg *ngIf="!imageLoading" class="iiif-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
 
-              <!-- REGION mode OR SIMPLE mode -->
-              <ng-container *ngIf="viewMode === 'regions' || simpleMode">
-                <g *ngFor="let region of currentRegions" class="region-group" (click)="enterItemMode(region)">
-                  <!-- Highlighted region (linked to focused line-change): bright orange pulsing border -->
-                  <ng-container *ngIf="region.id === highlightedRegionId">
-                    <polygon [attr.points]="region.points"
-                             fill="rgba(255,152,0,0.22)"
-                             stroke="#ff9800" stroke-width="2"
-                             stroke-dasharray="3 1"
-                             vector-effect="non-scaling-stroke"
-                             class="region-highlighted-pulse">
-                      <title>{{ region.name }} (linked line)</title>
+              <!-- NOTATION LAYER -->
+              <ng-container *ngIf="activeLayer === 'notation'">
+                <!-- REGION mode OR SIMPLE mode -->
+                <ng-container *ngIf="viewMode === 'regions' || simpleMode">
+                  <g *ngFor="let region of currentRegions" class="region-group" (click)="enterItemMode(region)">
+                    <!-- Highlighted region (linked to focused line-change): bright orange pulsing border -->
+                    <ng-container *ngIf="region.id === highlightedRegionId">
+                      <polygon [attr.points]="region.points"
+                               fill="rgba(255,152,0,0.22)"
+                               stroke="#ff9800" stroke-width="2"
+                               stroke-dasharray="3 1"
+                               vector-effect="non-scaling-stroke"
+                               class="region-highlighted-pulse">
+                        <title>{{ region.name }} (linked line)</title>
+                      </polygon>
+                    </ng-container>
+                    <!-- Normal / active-name region -->
+                    <ng-container *ngIf="region.id !== highlightedRegionId">
+                      <polygon [attr.points]="region.points"
+                               [attr.fill]="region.name === activeRegionName ? 'rgba(255,193,7,0.4)' : 'rgba(13,110,253,0.12)'"
+                               [attr.stroke]="region.name === activeRegionName ? '#ffc107' : '#0d6efd'"
+                               [attr.stroke-width]="region.name === activeRegionName ? '1' : '0.4'"
+                               vector-effect="non-scaling-stroke">
+                        <title>{{ region.name }}</title>
+                      </polygon>
+                    </ng-container>
+                    <!-- Label — shows chain icon if region is linked to a transcription line -->
+                    <text [attr.x]="+region.points.split(' ')[0].split(',')[0] + 0.4"
+                          [attr.y]="+region.points.split(' ')[0].split(',')[1] + 2.2"
+                          [attr.fill]="region.id === highlightedRegionId ? '#ff9800' : (region.name === activeRegionName ? '#ffc107' : '#0d6efd')"
+                          font-size="2" font-weight="700"
+                          vector-effect="non-scaling-stroke" pointer-events="none">
+                      {{ region.name }}{{ region.lineUUID ? ' 🔗' : '' }}
+                    </text>
+                  </g>
+                </ng-container>
+
+                <!-- ITEM mode: evenodd dim path (outer rect minus region hole) -->
+                <ng-container *ngIf="(viewMode === 'items' && activeRegion) || simpleMode">
+                  <path *ngIf="!simpleMode" [attr.d]="getDimPath()"
+                        fill="rgba(0,0,0,0.42)" fill-rule="evenodd" pointer-events="none"></path>
+                  <polygon *ngIf="!simpleMode" [attr.points]="activeRegion.points"
+                           fill="none" stroke="#0d6efd" stroke-width="0.6"
+                           vector-effect="non-scaling-stroke" pointer-events="none"></polygon>
+                  
+                  <g *ngFor="let item of (simpleMode ? currentCanvasItems : activeRegionItems)">
+                    <polygon [attr.points]="item.points"
+                             [class.item-linked]="!!item.uuid"
+                             fill="rgba(13,110,253,0.2)" stroke="#0d6efd"
+                             stroke-width="0.35" vector-effect="non-scaling-stroke"
+                             pointer-events="none">
+                      <title>{{ itemDisplayId(item) }}</title>
                     </polygon>
-                  </ng-container>
-                  <!-- Normal / active-name region -->
-                  <ng-container *ngIf="region.id !== highlightedRegionId">
-                    <polygon [attr.points]="region.points"
-                             [attr.fill]="region.name === activeRegionName ? 'rgba(255,193,7,0.4)' : 'rgba(13,110,253,0.12)'"
-                             [attr.stroke]="region.name === activeRegionName ? '#ffc107' : '#0d6efd'"
-                             [attr.stroke-width]="region.name === activeRegionName ? '1' : '0.4'"
-                             vector-effect="non-scaling-stroke">
-                      <title>{{ region.name }}</title>
-                    </polygon>
-                  </ng-container>
-                  <!-- Label — shows chain icon if region is linked to a transcription line -->
-                  <text [attr.x]="+region.points.split(' ')[0].split(',')[0] + 0.4"
-                        [attr.y]="+region.points.split(' ')[0].split(',')[1] + 2.2"
-                        [attr.fill]="region.id === highlightedRegionId ? '#ff9800' : (region.name === activeRegionName ? '#ffc107' : '#0d6efd')"
-                        font-size="2" font-weight="700"
-                        vector-effect="non-scaling-stroke" pointer-events="none">
-                    {{ region.name }}{{ region.lineUUID ? ' 🔗' : '' }}
-                  </text>
-                </g>
+                    <text [attr.x]="+item.points.split(' ')[0].split(',')[0] + 0.2"
+                          [attr.y]="+item.points.split(' ')[0].split(',')[1] + 2"
+                          fill="#0d6efd" font-size="1.6" font-weight="700"
+                          vector-effect="non-scaling-stroke" pointer-events="none">
+                      {{ itemDisplayId(item) }}
+                    </text>
+                  </g>
+                </ng-container>
               </ng-container>
 
-              <!-- ITEM mode: evenodd dim path (outer rect minus region hole) -->
-              <ng-container *ngIf="(viewMode === 'items' && activeRegion) || simpleMode">
-                <path *ngIf="!simpleMode" [attr.d]="getDimPath()"
-                      fill="rgba(0,0,0,0.42)" fill-rule="evenodd" pointer-events="none"></path>
-                <polygon *ngIf="!simpleMode" [attr.points]="activeRegion.points"
-                         fill="none" stroke="#0d6efd" stroke-width="0.6"
-                         vector-effect="non-scaling-stroke" pointer-events="none"></polygon>
-                
-                <g *ngFor="let item of (simpleMode ? currentCanvasItems : activeRegionItems)">
-                  <polygon [attr.points]="item.points"
-                           [class.item-linked]="!!item.uuid"
-                           fill="rgba(13,110,253,0.2)" stroke="#0d6efd"
-                           stroke-width="0.35" vector-effect="non-scaling-stroke"
-                           pointer-events="none">
-                    <title>{{ itemDisplayId(item) }}</title>
-                  </polygon>
-                  <text [attr.x]="+item.points.split(' ')[0].split(',')[0] + 0.2"
-                        [attr.y]="+item.points.split(' ')[0].split(',')[1] + 2"
-                        fill="#0d6efd" font-size="1.6" font-weight="700"
-                        vector-effect="non-scaling-stroke" pointer-events="none">
-                    {{ itemDisplayId(item) }}
-                  </text>
-                </g>
+              <!-- TRANSCRIPTION ANNOTATION LAYER -->
+              <ng-container *ngIf="activeLayer === 'transcription'">
+                <ng-container *ngFor="let ta of currentCanvasTranscriptionAnnotations">
+                  
+                  <ng-container *ngIf="ta.type === 'line'">
+                    <polyline 
+                      [attr.points]="ta.points" 
+                      fill="none" 
+                      stroke="#ffc107" 
+                      [attr.stroke-width]="ta.id === selectedTranscriptionAnnotationId ? '1.5' : '1.0'" 
+                      vector-effect="non-scaling-stroke"
+                      [style.cursor]="activeTranscriptionTool === 'select' ? 'pointer' : 'crosshair'"
+                      [style.filter]="ta.id === selectedTranscriptionAnnotationId ? 'drop-shadow(0px 0px 1px #ffc107)' : 'none'"
+                      (mousedown)="startAnnotationDrag($event, ta)">
+                    </polyline>
+                  </ng-container>
+                  
+                  <ng-container *ngIf="ta.type === 'note'">
+                    <rect 
+                      [attr.x]="+ta.points.split(',')[0] - (noteSquareSize / 2)" 
+                      [attr.y]="+ta.points.split(',')[1] - (noteSquareSize / 2)" 
+                      [attr.width]="noteSquareSize" 
+                      [attr.height]="noteSquareSize" 
+                      [attr.rx]="noteSquareRadius" [attr.ry]="noteSquareRadius" 
+                      [attr.fill]="isNoteOnLine(ta) ? 'rgba(255, 193, 7, 0.7)' : 'rgba(144, 238, 144, 0.7)'" 
+                      [attr.stroke]="isNoteOnLine(ta) ? '#ffc107' : '#90ee90'" 
+                      [attr.stroke-width]="ta.id === selectedTranscriptionAnnotationId ? '0.6' : '0.3'" 
+                      vector-effect="non-scaling-stroke"
+                      [style.cursor]="activeTranscriptionTool === 'select' ? 'pointer' : 'crosshair'"
+                      [style.filter]="ta.id === selectedTranscriptionAnnotationId ? 'drop-shadow(0px 0px 1px white)' : 'none'"
+                      (mousedown)="startAnnotationDrag($event, ta)">
+                    </rect>
+                  </ng-container>
+                  
+                </ng-container>
+
+                <!-- Pending line -->
+                <polyline *ngIf="pendingTranscriptionPoints.length > 0" 
+                          [attr.points]="pendingTranscriptionPoints.join(' ')" 
+                          fill="none" stroke="#ffc107" stroke-width="1.0" stroke-dasharray="2" 
+                          vector-effect="non-scaling-stroke">
+                </polyline>
               </ng-container>
 
               <!-- Draft box -->

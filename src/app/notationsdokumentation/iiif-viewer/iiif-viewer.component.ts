@@ -1,6 +1,6 @@
 import {
   Component, Input, Output, EventEmitter, OnChanges, SimpleChanges,
-  ViewChild, ElementRef, NgZone, OnDestroy, OnInit
+  ViewChild, ElementRef, NgZone, OnDestroy, OnInit, HostListener
 } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Source } from '../../api.service';
@@ -48,7 +48,10 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
    *  The document component should enter link-mode so the next line-change click links the line. */
   @Output() requestLineLink = new EventEmitter<{ regionId: string; regionName: string }>();
 
+  @Output() beforeChange = new EventEmitter<void>();
+
   private save() { this.sourceChanged.emit(); }
+  private triggerBeforeChange() { this.beforeChange.emit(); }
 
   // ViewChild via setter — attaches wheel listener the moment *ngIf renders the element
   private _viewportRef?: ElementRef<HTMLDivElement>;
@@ -121,6 +124,18 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   showGallery = false;
   galleryFilterPattern = '';
 
+  // Transcription Annotation Layers
+  activeLayer: 'notation' | 'transcription' | 'none' = 'notation';
+  activeTranscriptionTool: 'select' | 'line' | 'note' | null = null;
+  pendingTranscriptionPoints: string[] = []; // array of "x,y" coordinates for ongoing polyline
+  selectedTranscriptionAnnotationId: string | null = null;
+  
+  // Dragging state for transcription annotations
+  draggingAnnotationId: string | null = null;
+  dragStartX: number = 0;
+  dragStartY: number = 0;
+  dragOriginalPoints: string = '';
+
   // Folio filter — setter snaps to first visible entry when toggled
   private _onlyDocumentFolios = true;
   get onlyDocumentFolios() { return this._onlyDocumentFolios; }
@@ -138,6 +153,37 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     private navService: NavigationService,
     private zone: NgZone
   ) {}
+
+  @HostListener('document:keydown', ['$event'])
+  handleKeyboardEvent(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
+      if (this.activeLayer === 'transcription' && this.activeTranscriptionTool === 'line' && this.pendingTranscriptionPoints.length > 0) {
+        this.finishTranscriptionLine();
+      }
+    } else if (event.key === 'Escape') {
+      if (this.pendingTranscriptionPoints.length > 0) {
+        this.pendingTranscriptionPoints = [];
+      }
+      this.selectedTranscriptionAnnotationId = null;
+    } else if (event.key === 'Delete' || event.key === 'Backspace') {
+      if (this.selectedTranscriptionAnnotationId && !event.defaultPrevented) {
+        // Prevent backspace from navigating back in the browser if we're deleting an annotation
+        const isInput = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
+        if (!isInput) {
+          event.preventDefault();
+          this.deleteTranscriptionAnnotation(this.selectedTranscriptionAnnotationId);
+          this.selectedTranscriptionAnnotationId = null;
+        }
+      }
+    }
+  }
+
+  deleteTranscriptionAnnotation(id: string) {
+    if (!this.source || !this.source.transcriptionAnnotations) return;
+    this.triggerBeforeChange();
+    this.source.transcriptionAnnotations = this.source.transcriptionAnnotations.filter(ta => ta.id !== id);
+    this.save();
+  }
 
   ngOnInit(): void {
     // In simpleMode (document split-screen), keep the sidebar open so the user can navigate pages.
@@ -270,16 +316,6 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     this.scale = next;
   }
 
-  onMouseDown(e: MouseEvent) {
-    if (e.button === 1 || (e.button === 0 && e.altKey)) { this.startPan(e); return; }
-    if (e.button === 0) this.startBoxDraw(e);
-  }
-  onMouseMove(e: MouseEvent) {
-    if (this.isPanning) { this.doPan(e); return; }
-    if (this.isDraggingBox) this.updateBoxDraw(e);
-  }
-  onMouseUp(e: MouseEvent)    { if (this.isPanning) { this.endPan(); return; } if (this.isDraggingBox) this.finishBoxDraw(); }
-  onMouseLeave(e: MouseEvent) { if (this.isPanning) this.endPan(); if (this.isDraggingBox) this.finishBoxDraw(); }
 
   private startPan(e: MouseEvent) {
     this.isPanning = true; this.panStartX = e.clientX - this.translateX; this.panStartY = e.clientY - this.translateY; e.preventDefault();
@@ -302,7 +338,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     this.translateY = vpH / 2 - (rY + rH / 2) * ns;
   }
 
-  // ── box drawing ───────────────────────────────────────────────────────────
+  // ── box drawing & panning ───────────────────────────────────────────────────────────
   private getPct(e: MouseEvent) {
     const el = this.contentRef?.nativeElement; if (!el) return { x: 0, y: 0 };
     const r = el.getBoundingClientRect();
@@ -310,6 +346,160 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
       x: Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)),
       y: Math.max(0, Math.min(100, (e.clientY - r.top)  / r.height * 100))
     };
+  }
+
+  onMouseDown(e: MouseEvent) {
+    if (this.activeLayer === 'transcription' && this.activeTranscriptionTool) {
+      // If holding shift/ctrl/meta, maybe pan? Or just prevent default.
+      const p = this.getPct(e);
+      if (this.activeTranscriptionTool === 'note') {
+        this.addTranscriptionNote(p);
+      } else if (this.activeTranscriptionTool === 'line') {
+        this.pendingTranscriptionPoints.push(`${p.x.toFixed(2)},${p.y.toFixed(2)}`);
+      }
+      return;
+    }
+
+    if (this.viewMode === 'regions' && this.pendingRegionPoints) return;
+    if (this.viewMode === 'items' && !this.activePattern) return;
+    if (this.simpleMode) {
+      this.isPanning = true; this.panStartX = e.clientX; this.panStartY = e.clientY; return;
+    }
+    this.startBoxDraw(e);
+  }
+
+  onDoubleClick(e: MouseEvent) {
+    if (this.activeLayer === 'transcription' && this.activeTranscriptionTool === 'line') {
+      this.finishTranscriptionLine();
+    }
+  }
+
+  startAnnotationDrag(e: MouseEvent, ta: VM.TranscriptionAnnotation) {
+    if (this.activeLayer !== 'transcription') return;
+    e.stopPropagation();
+    this.selectedTranscriptionAnnotationId = ta.id;
+    if (this.activeTranscriptionTool === 'select') {
+      this.draggingAnnotationId = ta.id;
+      const p = this.getPct(e);
+      this.dragStartX = p.x;
+      this.dragStartY = p.y;
+      this.dragOriginalPoints = ta.points;
+    }
+  }
+
+  onMouseMove(e: MouseEvent) {
+    if (this.isPanning) {
+      this.translateX += e.clientX - this.panStartX;
+      this.translateY += e.clientY - this.panStartY;
+      this.panStartX = e.clientX;
+      this.panStartY = e.clientY;
+      return;
+    }
+    if (this.draggingAnnotationId && this.source?.transcriptionAnnotations) {
+      const ta = this.source.transcriptionAnnotations.find(x => x.id === this.draggingAnnotationId);
+      if (ta) {
+        const p = this.getPct(e);
+        const dx = p.x - this.dragStartX;
+        const dy = p.y - this.dragStartY;
+        ta.points = this.dragOriginalPoints.split(' ').map(pt => {
+          const [px, py] = pt.split(',').map(Number);
+          return `${(px + dx).toFixed(2)},${(py + dy).toFixed(2)}`;
+        }).join(' ');
+      }
+      return;
+    }
+    if (this.isDraggingBox) this.updateBoxDraw(e);
+  }
+
+  onMouseUp(e: MouseEvent) {
+    if (this.isPanning) { this.isPanning = false; return; }
+    if (this.draggingAnnotationId) {
+      this.triggerBeforeChange(); // Before saving
+      this.save();
+      this.draggingAnnotationId = null;
+      return;
+    }
+    if (this.isDraggingBox) this.finishBoxDraw();
+  }
+
+  onMouseLeave(e: MouseEvent) {
+    if (this.isPanning) this.isPanning = false;
+    if (this.draggingAnnotationId) {
+      this.triggerBeforeChange();
+      this.save();
+      this.draggingAnnotationId = null;
+    }
+    if (this.isDraggingBox) this.cancelBoxDraw();
+  }
+
+  get noteSquareSize() {
+    return 0.8 / Math.sqrt(this.scale || 1);
+  }
+  get noteSquareRadius() {
+    return 0.2 / Math.sqrt(this.scale || 1);
+  }
+
+  private distToSegmentSquared(px: number, py: number, vx: number, vy: number, wx: number, wy: number) {
+    const l2 = (wx - vx) * (wx - vx) + (wy - vy) * (wy - vy);
+    if (l2 === 0) return (px - vx) * (px - vx) + (py - vy) * (py - vy);
+    let t = ((px - vx) * (wx - vx) + (py - vy) * (wy - vy)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return (px - (vx + t * (wx - vx))) ** 2 + (py - (vy + t * (wy - vy))) ** 2;
+  }
+
+  isNoteOnLine(ta: VM.TranscriptionAnnotation): boolean {
+    if (ta.type !== 'note') return false;
+    const [px, py] = ta.points.split(',').map(Number);
+    const lines = this.currentCanvasTranscriptionAnnotations.filter(x => x.type === 'line');
+    
+    const THRESHOLD_SQ = 0.6 * 0.6; // 0.6% distance threshold squared
+    
+    for (const line of lines) {
+      const pts = line.points.split(' ').map(p => p.split(',').map(Number));
+      if (pts.length === 1) {
+        const d2 = (px - pts[0][0])**2 + (py - pts[0][1])**2;
+        if (d2 <= THRESHOLD_SQ) return true;
+      } else {
+        for (let i = 0; i < pts.length - 1; i++) {
+          const d2 = this.distToSegmentSquared(px, py, pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1]);
+          if (d2 <= THRESHOLD_SQ) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private addTranscriptionNote(p: {x: number, y: number}) {
+    if (!this.source) return;
+    if (!this.source.transcriptionAnnotations) this.source.transcriptionAnnotations = [];
+    
+    this.triggerBeforeChange();
+    this.source.transcriptionAnnotations.push({
+      id: 'ta_' + UUID(),
+      folio: String(this.currentCanvasIndex),
+      type: 'note',
+      points: `${p.x.toFixed(2)},${p.y.toFixed(2)}`
+    });
+    this.save();
+  }
+
+  private finishTranscriptionLine() {
+    if (this.pendingTranscriptionPoints.length < 2) {
+      this.pendingTranscriptionPoints = [];
+      return;
+    }
+    if (!this.source) return;
+    if (!this.source.transcriptionAnnotations) this.source.transcriptionAnnotations = [];
+    
+    this.triggerBeforeChange();
+    this.source.transcriptionAnnotations.push({
+      id: 'ta_' + UUID(),
+      folio: String(this.currentCanvasIndex),
+      type: 'line',
+      points: this.pendingTranscriptionPoints.join(' ')
+    });
+    this.pendingTranscriptionPoints = [];
+    this.save();
   }
 
   private startBoxDraw(e: MouseEvent) { const p = this.getPct(e); this.dragStartPct = p; this.dragCurrentPct = p; this.isDraggingBox = true; }
@@ -379,6 +569,8 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     const name = this.pendingRegionName.trim();
     if (!name || !this.pendingRegionPoints || !this.source) return;
     if (!this.source.annotationRegions) this.source.annotationRegions = [];
+    
+    this.triggerBeforeChange();
     const r: VM.AnnotationRegion = { id: 'r_' + UUID(), name, points: this.pendingRegionPoints, folio: String(this.currentCanvasIndex) };
     this.source.annotationRegions.push(r);
     this.pendingRegionPoints = null; this.pendingRegionName = '';
@@ -433,11 +625,15 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   linkLineToRegion(lineUUID: string) {
     if (!this.linkModeRegionId || !this.source) { this.linkModeRegionId = null; return; }
     const region = (this.source.annotationRegions ?? []).find(r => r.id === this.linkModeRegionId);
-    if (region) { region.lineUUID = lineUUID; this.save(); }
+    if (region) { 
+      this.triggerBeforeChange();
+      region.lineUUID = lineUUID; this.save(); 
+    }
     this.linkModeRegionId = null;
   }
 
   clearRegionLink(region: VM.AnnotationRegion) {
+    this.triggerBeforeChange();
     region.lineUUID = undefined;
     this.if_highlighted_clear(region.id);
     this.save();
@@ -456,14 +652,17 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     const name = this.renamingValue.trim();
     if (!name || !this.source) return;
     const r = (this.source.annotationRegions ?? []).find(x => x.id === this.renamingRegionId);
-    if (r) { r.name = name; this.save(); }
+    if (r) { 
+      this.triggerBeforeChange();
+      r.name = name; this.save(); 
+    }
     this.renamingRegionId = null; this.renamingValue = '';
   }
 
   cancelRename() { this.renamingRegionId = null; this.renamingValue = ''; }
-
   deleteRegion(id: string) {
     if (!this.source) return;
+    this.triggerBeforeChange();
     this.source.annotationRegions = (this.source.annotationRegions ?? []).filter(r => r.id !== id);
     this.source.annotationItems   = (this.source.annotationItems   ?? []).filter(i => i.regionId !== id);
     this.save();
@@ -479,8 +678,14 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   get currentCanvasItems(): VM.AnnotationItem[] {
-    const regionIds = new Set(this.currentRegions.map(r => r.id));
-    return (this.source?.annotationItems ?? []).filter(i => regionIds.has(i.regionId));
+    const cStr = String(this.currentCanvasIndex);
+    const rs = new Set((this.source?.annotationRegions ?? []).filter(r => r.folio === cStr).map(r => r.id));
+    return (this.source?.annotationItems ?? []).filter(i => rs.has(i.regionId));
+  }
+
+  get currentCanvasTranscriptionAnnotations(): VM.TranscriptionAnnotation[] {
+    const cStr = String(this.currentCanvasIndex);
+    return (this.source?.transcriptionAnnotations ?? []).filter(ta => ta.folio === cStr);
   }
 
   /**
@@ -551,6 +756,7 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
     const box = this.currentBoxRect; this.dragStartPct = null; this.dragCurrentPct = null;
     if (!box || box.w < 0.5 || box.h < 0.5 || !this.activePattern || !this.source || !this.activeRegion) return;
     if (!this.source.annotationItems) this.source.annotationItems = [];
+    this.triggerBeforeChange();
     const newItem: VM.AnnotationItem = {
       id: 'item_' + UUID(),
       regionId: this.activeRegion.id,
@@ -578,19 +784,28 @@ export class IiifViewerComponent implements OnInit, OnChanges, OnDestroy {
 
   doLink(cand: AnalyzedPattern) {
     const item = (this.source?.annotationItems ?? []).find(i => i.id === this.linkingItemId);
-    if (item) { item.uuid = cand.uuid; this.save(); }
+    if (item) {
+      this.triggerBeforeChange();
+      item.uuid = cand.uuid;
+      this.save();
+    }
     this.closeLinking();
   }
 
   clearLink(itemId: string) {
     const item = (this.source?.annotationItems ?? []).find(i => i.id === itemId);
-    if (item) { item.uuid = undefined; this.save(); }
+    if (item) {
+      this.triggerBeforeChange();
+      item.uuid = undefined;
+      this.save();
+    }
   }
 
   closeLinking() { this.linkingItemId = null; this.linkCandidates = []; }
 
   deleteItem(id: string) {
     if (!this.source) return;
+    this.triggerBeforeChange();
     this.source.annotationItems = (this.source.annotationItems ?? []).filter(i => i.id !== id);
     if (this.linkingItemId === id) this.closeLinking();
     this.save();

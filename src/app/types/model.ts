@@ -59,6 +59,15 @@ export interface AnnotationRegion {
   lineUUID?: string;
 }
 
+export type TranscriptionAnnotationType = 'line' | 'note';
+
+export interface TranscriptionAnnotation {
+  id: string;
+  folio: string;
+  type: TranscriptionAnnotationType;
+  points: string;
+}
+
 export interface AnnotationItem {
   id: string;
   regionId: string;

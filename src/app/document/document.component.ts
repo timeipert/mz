@@ -161,6 +161,11 @@ export class DocumentComponent implements OnInit {
     }
   }
 
+  /** Called right before a change in the IIIF viewer happens, to register an undo state */
+  handleIiifBeforeChange(): void {
+    this.undoService.beforeChange('IIIF Annotation Change');
+  }
+
   /** Called when the IIIF viewer emits requestLineLink — user clicked "Link" on a region. */
   handleIiifRequestLineLink(data: { regionId: string; regionName: string }): void {
     this.isLinkingMode = true;
@@ -1026,15 +1031,36 @@ export class DocumentComponent implements OnInit {
 
   getJsonString = (): string | undefined => {
     if (this.cont) {
-      return JSON.stringify(this.cont);
+      return JSON.stringify({
+        cont: this.cont,
+        sourceAnnotations: this.sourceData ? {
+          annotationRegions: this.sourceData.annotationRegions,
+          annotationItems: this.sourceData.annotationItems,
+          transcriptionAnnotations: this.sourceData.transcriptionAnnotations
+        } : undefined
+      });
     }
     return undefined;
   }
 
   undoChanges = (jsonString: string): void => {
-    const newCont: VM.RootContainer = JSON.parse(jsonString);
-    if (newCont) {
-      this.cont = newCont;
+    try {
+      const parsed = JSON.parse(jsonString);
+      if (parsed && parsed.cont) {
+        this.cont = parsed.cont;
+        if (this.sourceData && parsed.sourceAnnotations) {
+          this.sourceData.annotationRegions = parsed.sourceAnnotations.annotationRegions;
+          this.sourceData.annotationItems = parsed.sourceAnnotations.annotationItems;
+          this.sourceData.transcriptionAnnotations = parsed.sourceAnnotations.transcriptionAnnotations;
+          // Note: not saving to API immediately on undo, the user might save later or we can call saveSourceData
+          this.saveSourceData();
+        }
+      } else if (parsed) {
+        // Fallback for old history that only had the container object
+        this.cont = parsed;
+      }
+    } catch (e) {
+      console.error("Error parsing undo history", e);
     }
   }
 
