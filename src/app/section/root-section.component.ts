@@ -27,7 +27,27 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
   constructor(private toaster: ToastrService, private cdr: ChangeDetectorRef, private undoService: UndoService, private dragState: DragStateService, private navService: NavigationService) {
     super("Edition unit", {
       StaleCommentRemovealRequested: (e: any, oldIndex: number) => { Model.removeStaleComments(this.data); },
-      NewCommentRequested: (e: NewCommentRequested, oldIndex: number) => { this.undo.beforeChange(); this.data.comments = this.data.comments.concat([{ startUUID: e.startUUID, endUUID: e.endUUID, text: e.text }]); },
+      NewCommentRequested: (e: NewCommentRequested, oldIndex: number) => {
+        this.undo.beforeChange();
+        // Decide ordering using the *full* document, not a single line. This
+        // is the only place that has access to the whole RootContainer, so
+        // it is also the only place that can resolve UUIDs across lines.
+        let startUUID = e.startUUID;
+        let endUUID = e.endUUID;
+        if (e.endKind !== undefined && e.endKind !== Model.CommentPartKind.Syllable) {
+          const all = Model.getAllCommentableUUIDs(this.data);
+          const iStart = all.indexOf(startUUID);
+          const iEnd = all.indexOf(endUUID);
+          if (iStart >= 0 && iEnd >= 0 && iEnd < iStart) {
+            // user clicked an earlier note as their second pick — swap so
+            // that startUUID always precedes endUUID in document order
+            [startUUID, endUUID] = [endUUID, startUUID];
+          }
+        }
+        const newComment: Model.Comment = { startUUID, endUUID, text: e.text, commentType: 'text', emendation: false };
+        this.data.comments = this.data.comments.concat([newComment]);
+        this.onEvent.emit({ kind: 'OpenCommentModalRequested', comment: newComment });
+      },
       CommentDeletionRequested: (e: CommentDeletionRequested, oldIndex: number) => { this.undo.beforeChange(); this.data.comments = this.data.comments.filter(c => c !== e.comment); },
       NoFocusRequested: (e: Event, oldIndex: number) => { Model.removeFocus(this.data); setTimeout(() => cdr.detectChanges(), 0); },
       NewParatextRequested: (e: Event, oldIndex: number) => { this.undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), oldIndex + 1); },

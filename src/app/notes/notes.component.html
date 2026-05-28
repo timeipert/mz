@@ -10,15 +10,25 @@
 				<line x1=0 x2=9999 y1=70 y2=70 stroke=black />
 				<line x1=0 x2=9999 y1=80 y2=80 stroke=black />
 
-				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" fill="black" width="2px"
-					height="60px" fill="#A5A5A5" />
-				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" fill="black" width="10px"
-					height="2px" fill="#A5A5A5" />
+				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" width="2px"
+					height="60px" [attr.fill]="syllableBracketColor('start')" />
+				<rect *ngIf="!readOnly && isThisCommentStart()" [attr.x]="0" [attr.y]="30" width="10px"
+					height="2px" [attr.fill]="syllableBracketColor('start')" />
 
 				<g *ngIf="isNormal()" [attr.transform]="'translate(12, 0)'">
 					<g *ngFor="let drawable of getDrawables(i);trackBy:refOfDrawable"
 						[style.opacity]="drawable.ref && drawable.ref.isLatent ? 0.5 : 1"
 						(click)="drawableClicked(drawable, $event, i)">
+						<!-- Comment-creation visual marker for the picked START note (step 2). -->
+						<circle *ngIf="isPickedCommentStart(drawable)"
+							[attr.cx]="drawable.x + 6" [attr.cy]="drawable.y + 30"
+							r="16" fill="none" stroke="#f59f00" stroke-width="2.5"
+							stroke-dasharray="4 3" class="comment-start-marker"
+							style="pointer-events: none;" />
+						<text *ngIf="isPickedCommentStart(drawable)"
+							[attr.x]="drawable.x + 6" [attr.y]="drawable.y - 6"
+							text-anchor="middle" fill="#b8540a" font-size="9" font-weight="700"
+							style="font-family: system-ui, sans-serif; pointer-events: none;">START</text>
 						<image *ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Flat'"
 							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
 							[attr.height]="drawable.ref.liquescent ? 40 : 60"
@@ -123,19 +133,19 @@
 							fill="black" width="15px" height="1px" />
 
 						<rect *ngIf="!readOnly && isCommentStart(drawable)" [attr.x]="drawable.x" [attr.y]="30"
-							fill="black" width="2px" height="60px" fill="#A5A5A5" />
+							width="2px" height="60px" [attr.fill]="drawableBracketColor(drawable)" />
 						<rect *ngIf="!readOnly && isCommentStart(drawable)" [attr.x]="drawable.x" [attr.y]="30"
-							fill="black" width="10px" height="2px" fill="#A5A5A5" />
+							width="10px" height="2px" [attr.fill]="drawableBracketColor(drawable)" />
 						<rect *ngIf="!readOnly && isCommentEnd(drawable)" [attr.x]="drawable.x" [attr.y]="30"
-							fill="black" width="2px" height="60px" fill="#A5A5A5" />
+							width="2px" height="60px" [attr.fill]="drawableBracketColor(drawable)" />
 						<rect *ngIf="!readOnly && isCommentEnd(drawable)" [attr.x]="drawable.x -10" [attr.y]="30"
-							fill="black" width="10px" height="2px" fill="#A5A5A5" />
+							width="10px" height="2px" [attr.fill]="drawableBracketColor(drawable)" />
 					</g>
 				</g>
-				<rect *ngIf="!readOnly && isThisCommentEnd()" [attr.x]="getWidth()-2" [attr.y]="30" fill="black"
-					width="2px" height="60px" fill="#A5A5A5" />
-				<rect *ngIf="!readOnly && isThisCommentEnd()" [attr.x]="getWidth()-14" [attr.y]="30" fill="black"
-					width="10px" height="2px" fill="#A5A5A5" />
+				<rect *ngIf="!readOnly && isThisCommentEnd()" [attr.x]="getWidth()-2" [attr.y]="30"
+					width="2px" height="60px" [attr.fill]="syllableBracketColor('end')" />
+				<rect *ngIf="!readOnly && isThisCommentEnd()" [attr.x]="getWidth()-14" [attr.y]="30"
+					width="10px" height="2px" [attr.fill]="syllableBracketColor('end')" />
 
 			</g>
 			<g *ngIf="!isNormal() && !readOnly" [attr.transform]="'translate(' + ((getWidth() - 40)/2) + ', 0)'">

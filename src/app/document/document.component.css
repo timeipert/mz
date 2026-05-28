@@ -64,6 +64,288 @@ ul {
   display: none;
 }
 
+/* ── Comment creation mode ───────────────────────────────────────────────── */
+.comment-create-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, #fff8e1 0%, #fff3cd 100%);
+  border: 1px solid #ffd54f;
+  border-left: 4px solid #f59f00;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  color: #5b3a00;
+  animation: ccb-pulse 1.6s ease-in-out infinite;
+}
+
+/* Step indicator: 1 → 2 with active / done states */
+.ccb-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+}
+.ccb-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.45;
+  transition: opacity 0.2s;
+}
+.ccb-step.active { opacity: 1; }
+.ccb-step.done   { opacity: 0.85; }
+.ccb-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #d4a017;
+  color: #5b3a00;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+.ccb-step.active .ccb-step-num {
+  background: #f59f00;
+  color: #ffffff;
+  border-color: #f59f00;
+  box-shadow: 0 0 0 4px rgba(245, 159, 0, 0.25);
+}
+.ccb-step.done .ccb-step-num {
+  background: #d4a017;
+  color: #fff;
+  border-color: #d4a017;
+}
+.ccb-step.done .ccb-step-num::before {
+  content: "✓";
+  font-size: 0.9rem;
+}
+.ccb-step.done .ccb-step-num {
+  /* hide the digit when "done"; the ::before checkmark replaces it */
+  font-size: 0;
+}
+.ccb-step-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #5b3a00;
+}
+.ccb-step-sep {
+  width: 22px;
+  height: 2px;
+  background: #e2b878;
+  margin: 0 4px 16px 4px;
+  border-radius: 2px;
+}
+
+.comment-create-banner .ccb-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.comment-create-banner .ccb-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  color: #4a2c00;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ccb-emph-start, .ccb-emph-end {
+  display: inline-block;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  padding: 1px 8px;
+  margin-left: 4px;
+  border-radius: 4px;
+  background: #f59f00;
+  color: #fff;
+  font-size: 0.78rem;
+}
+.ccb-emph-end { background: #d97706; }
+
+.comment-create-banner .ccb-sub {
+  font-size: 0.8rem;
+  color: #6b4400;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+.comment-create-banner .ccb-cancel {
+  flex-shrink: 0;
+  border: 1px solid #d4a017;
+  background: #ffffff;
+  color: #5b3a00;
+  font-weight: 600;
+}
+.comment-create-banner .ccb-cancel:hover {
+  background: #fff3cd;
+}
+.comment-create-banner kbd {
+  font-size: 0.7rem;
+  background: #fff8e1;
+  color: #5b3a00;
+  border: 1px solid #d4a017;
+  border-radius: 3px;
+  padding: 0 5px;
+}
+
+@keyframes ccb-pulse {
+  0%, 100% { box-shadow: 0 1px 3px rgba(245,159,0,0.15); }
+  50%      { box-shadow: 0 2px 12px rgba(245,159,0,0.40); }
+}
+
+/* Subtle dashed highlight on the editor panel while picking the end note */
+.comment-create-target {
+  outline: 2px dashed #f59f00;
+  outline-offset: 2px;
+  cursor: crosshair !important;
+  transition: outline-color 0.2s;
+}
+.comment-create-target * {
+  cursor: crosshair !important;
+}
+
+/* Help card in sidebar */
+.comment-help-card {
+  background: #f8fbff;
+  border-color: #cfe2ff !important;
+}
+.comment-help-card kbd {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 0.72rem;
+  color: #475569;
+}
+
+/* ── Sidebar Comments tab — list & cards ──────────────────────────────────── */
+.comments-sidebar {
+  /* Tighter vertical rhythm than the rest of the sidebar */
+}
+.comments-summary {
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 4px;
+}
+
+.comment-card {
+  display: flex;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  margin-bottom: 6px;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s, background 0.12s;
+}
+.comment-card:hover {
+  border-color: #93c5fd;
+  background: #f8faff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08);
+}
+.comment-card.is-highlighted {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.comment-card-stripe {
+  width: 5px;
+  flex-shrink: 0;
+  background: #94a3b8;
+}
+.comment-card-stripe[data-type="text"]  { background: #3b82f6; }
+.comment-card-stripe[data-type="lines"] { background: #10b981; }
+.comment-card-stripe[data-type="tree"]  { background: #8b5cf6; }
+
+.comment-card-body {
+  flex: 1;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.comment-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.comment-index {
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: #475569;
+  background: #f1f5f9;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+}
+.comment-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.comment-type-badge[data-type="text"]  { background: #dbeafe; color: #1e40af; }
+.comment-type-badge[data-type="lines"] { background: #d1fae5; color: #065f46; }
+.comment-type-badge[data-type="tree"]  { background: #ede9fe; color: #5b21b6; }
+.comment-type-badge i { font-size: 0.7rem; }
+
+.emendation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: #fef3c7;
+  color: #92400e;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.emendation-badge i { font-size: 0.65rem; }
+
+.comment-lemma {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 3px;
+  font-family: 'Georgia', serif;
+}
+.comment-lemma i {
+  color: #3b82f6;
+  margin-right: 4px;
+  font-size: 0.75rem;
+}
+
+.comment-body-preview {
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── IIIF split-screen linking mode ──────────────────────────────────────── */
 .linking-mode-banner {
   display: flex;

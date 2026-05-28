@@ -95,3 +95,14 @@ svg .note {
 .section:not(.grouped-layout) .notes.voice-1 { order: 3; }
 .section:not(.grouped-layout) .noteText.voice-1 { order: 4; }
 .section:not(.grouped-layout) .syllableText { order: 5; }
+
+/* ── Comment-creation: animated dashed ring around the picked START note ──── */
+.comment-start-marker {
+  animation: comment-start-pulse 1.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes comment-start-pulse {
+  0%, 100% { opacity: 0.55; stroke-dashoffset: 0;  }
+  50%      { opacity: 1.00; stroke-dashoffset: -14; }
+}

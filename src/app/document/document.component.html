@@ -169,40 +169,102 @@
           </div>
 
           <!-- Tab Content: Comments -->
-          <div *ngIf="sidebarTab === 'comments'" class="d-flex flex-column gap-2">
+          <div *ngIf="sidebarTab === 'comments'" class="d-flex flex-column gap-2 h-100 comments-sidebar">
+
+            <!-- ① Verbose help card — shown only until dismissed, plus while in pick mode for clarity -->
+            <div *ngIf="!commentHelpDismissed && !isCommentCreationMode" class="comment-help-card border rounded-3 p-3 mb-1 position-relative">
+              <button type="button" class="btn-close btn-sm position-absolute" (click)="dismissCommentHelp()"
+                      style="top: 6px; right: 8px;" title="Don't show again"></button>
+              <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-info-circle text-primary mt-1"></i>
+                <div class="small text-muted lh-sm" style="padding-right: 18px;">
+                  <div class="fw-semibold text-dark mb-1">How to add a comment</div>
+                  <ol class="ps-3 mb-0" style="font-size: 0.78rem;">
+                    <li>Click <em>Add Comment</em> (or press <kbd>Ctrl</kbd>+<kbd>K</kbd>).</li>
+                    <li>Click the note where the comment should <em>begin</em>.</li>
+                    <li>Click the note where the comment should <em>end</em>.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            <!-- ② Add / Cancel button -->
+            <button *ngIf="!isCommentCreationMode" class="btn btn-primary btn-sm mb-1 d-flex align-items-center justify-content-center" (click)="startCommentCreation()">
+              <i class="bi bi-plus-lg me-1"></i>Add Comment
+              <kbd class="ms-2 bg-light text-dark border" style="font-size: 0.7rem;">Ctrl+K</kbd>
+            </button>
+            <button *ngIf="isCommentCreationMode" class="btn btn-warning btn-sm mb-1 d-flex align-items-center justify-content-center" (click)="cancelCommentCreation()">
+              <i class="bi bi-x-lg me-1"></i>Cancel comment creation
+              <kbd class="ms-2 bg-light text-dark border" style="font-size: 0.7rem;">Esc</kbd>
+            </button>
+
+            <!-- ③ Tiny "how does this work?" link once the help card is dismissed -->
+            <button *ngIf="commentHelpDismissed && !isCommentCreationMode"
+                    class="btn btn-link btn-sm text-decoration-none text-muted p-0 mb-2 align-self-start"
+                    (click)="reopenCommentHelp()"
+                    style="font-size: 0.75rem;">
+              <i class="bi bi-question-circle me-1"></i>How does adding a comment work?
+            </button>
+
+            <!-- ④ Compact summary header above the list -->
+            <div *ngIf="cont?.comments && cont!.comments.length > 0" class="comments-summary d-flex justify-content-between align-items-center px-1 mt-1 mb-1">
+              <span class="text-uppercase fw-semibold text-muted" style="font-size: 0.7rem; letter-spacing: 0.05em;">
+                {{cont!.comments.length}} {{cont!.comments.length === 1 ? 'comment' : 'comments'}}
+              </span>
+            </div>
+
+            <!-- ⑤ Empty state -->
             <div *ngIf="!cont?.comments || cont!.comments.length === 0" class="text-muted text-center py-4">
               <i class="bi bi-chat-left-dots fs-3 mb-2 d-block"></i>
-              <span class="small">No comments in this document yet.</span>
+              <span class="small">No comments yet. Add your first comment with <kbd>Ctrl</kbd>+<kbd>K</kbd>.</span>
             </div>
-            
-            <div *ngFor="let comment of cont?.comments; let idx = index" 
-                 class="card border shadow-sm cursor-pointer comment-item hover-shadow"
-                 style="transition: all 0.2s ease; cursor: pointer; background: #fff;"
+
+            <!-- ⑥ Comment cards -->
+            <div *ngFor="let comment of cont?.comments; let idx = index"
+                 class="comment-card"
+                 [class.is-highlighted]="isCommentHighlighted(comment)"
                  (click)="openComment(comment)">
-              <div class="card-body p-3">
-                <div class="d-flex justify-content-between align-items-center mb-1">
-                  <span class="badge bg-secondary fw-semibold">Comment [{{idx + 1}}]</span>
-                  <span *ngIf="comment.emendation" class="badge bg-warning text-dark text-uppercase font-monospace" style="font-size: 0.7rem;">Emendation</span>
+              <!-- Stripe color matches the SVG bracket color of this comment
+                   so users can pair sidebar cards with their brackets at a
+                   glance — especially helpful when a single note has multiple
+                   comments. -->
+              <div class="comment-card-stripe"
+                   [attr.data-type]="getCommentType(comment)"
+                   [style.background]="commentColor(comment)"></div>
+              <div class="comment-card-body">
+                <div class="comment-card-meta">
+                  <span class="comment-index">#{{idx + 1}}</span>
+                  <span class="comment-type-badge" [attr.data-type]="getCommentType(comment)">
+                    <i class="bi" [ngClass]="{
+                      'bi-text-paragraph': getCommentType(comment) === 'text',
+                      'bi-music-note-list': getCommentType(comment) === 'lines',
+                      'bi-grid-3x3-gap': getCommentType(comment) === 'tree'
+                    }"></i>
+                    {{getCommentType(comment) === 'text' ? 'Text' : (getCommentType(comment) === 'lines' ? 'Staff' : 'Grid')}}
+                  </span>
+                  <span *ngIf="comment.emendation" class="emendation-badge" title="Emendation">
+                    <i class="bi bi-pencil-fill"></i>Emend.
+                  </span>
                 </div>
-                
-                <!-- Spanned text preview -->
-                <div class="small fw-semibold text-truncate mb-1" style="color: #495057;" *ngIf="getCommentPreview(comment)">
-                  <i class="bi bi-quote me-1 text-primary"></i>{{getCommentPreview(comment)}}
+
+                <!-- Spanned text preview (the lemma) -->
+                <div class="comment-lemma" *ngIf="getCommentPreview(comment)">
+                  <i class="bi bi-quote"></i>{{getCommentPreview(comment)}}
                 </div>
-                
-                <!-- Comment text snippet -->
-                <p class="card-text text-muted mb-0 small text-truncate" *ngIf="getCommentType(comment) === 'text' && comment.text">
+
+                <!-- Body preview -->
+                <div class="comment-body-preview" *ngIf="getCommentType(comment) === 'text' && comment.text">
                   {{comment.text}}
-                </p>
-                <p class="card-text text-muted mb-0 small text-truncate" *ngIf="getCommentType(comment) === 'tree'">
-                  {{getCommentTreeText(comment.tree) || '[Tree Layout]'}}
-                </p>
-                <p class="card-text text-muted mb-0 small text-truncate" *ngIf="getCommentType(comment) === 'lines'">
-                  <i class="bi bi-music-note-list me-1"></i>(Staff Lines)
-                </p>
-                <p class="card-text text-muted mb-0 small italic" *ngIf="getCommentType(comment) === 'text' && !comment.text">
-                  (Empty comment)
-                </p>
+                </div>
+                <div class="comment-body-preview" *ngIf="getCommentType(comment) === 'tree'">
+                  {{getCommentTreeText(comment.tree) || '[Grid layout]'}}
+                </div>
+                <div class="comment-body-preview" *ngIf="getCommentType(comment) === 'lines'">
+                  Alternative staff line reading
+                </div>
+                <div class="comment-body-preview text-muted fst-italic" *ngIf="getCommentType(comment) === 'text' && !comment.text">
+                  (no content yet — click to edit)
+                </div>
               </div>
             </div>
           </div>
@@ -247,7 +309,50 @@
 
       <!-- Right Column: Content -->
       <div *ngIf="viewMode === 'transcription' || viewMode === 'split'" [ngClass]="viewMode === 'split' ? '' : (sidebarVisible ? 'col-lg-8 col-md-7' : 'col')" [style.flex]="viewMode === 'split' ? '1 1 0%' : ''" style="min-width: 0;">
-        <div class="border rounded-3 bg-white mb-5" [ngClass]="viewMode === 'split' ? 'p-1' : 'p-3'">
+        <!-- Comment-creation persistent banner: explains the 2-step pick workflow.
+             Step 1 (CommentPickStart): pick start. Step 2 (CommentCreate): pick end. -->
+        <div *ngIf="isCommentCreationMode" class="comment-create-banner shadow-sm" role="status" aria-live="polite">
+          <!-- Step indicator pills -->
+          <div class="ccb-steps">
+            <div class="ccb-step" [class.active]="isPickingCommentStart" [class.done]="isPickingCommentEnd">
+              <span class="ccb-step-num">1</span>
+              <span class="ccb-step-label">Start</span>
+            </div>
+            <div class="ccb-step-sep"></div>
+            <div class="ccb-step" [class.active]="isPickingCommentEnd">
+              <span class="ccb-step-num">2</span>
+              <span class="ccb-step-label">End</span>
+            </div>
+          </div>
+
+          <div class="ccb-text">
+            <ng-container *ngIf="isPickingCommentStart">
+              <div class="ccb-title">
+                <i class="bi bi-arrow-right-circle-fill me-1"></i>
+                Click the note where the comment should <span class="ccb-emph-start">START</span>
+              </div>
+              <div class="ccb-sub">
+                Step <strong>1 of 2</strong> — your next click on any note will mark the beginning of the commented range.
+              </div>
+            </ng-container>
+            <ng-container *ngIf="isPickingCommentEnd">
+              <div class="ccb-title">
+                <i class="bi bi-arrow-right-circle-fill me-1"></i>
+                Now click the note where the comment should <span class="ccb-emph-end">END</span>
+              </div>
+              <div class="ccb-sub">
+                Step <strong>2 of 2</strong> — the orange dashed ring marks your START note. Click another note to close the range.
+              </div>
+            </ng-container>
+          </div>
+
+          <button type="button" class="btn btn-sm btn-light ccb-cancel" (click)="cancelCommentCreation()" title="Cancel (Esc)">
+            <i class="bi bi-x-lg me-1"></i>Cancel
+            <kbd class="ms-2">Esc</kbd>
+          </button>
+        </div>
+
+        <div class="border rounded-3 bg-white mb-5" [ngClass]="viewMode === 'split' ? 'p-1' : 'p-3'" [class.comment-create-target]="isCommentCreationMode">
           <!-- Linking-mode highlight ring on the editor panel -->
           <div *ngIf="splitScreen && isLinkingMode" class="linking-mode-editor-hint">
             <i class="bi bi-hand-index me-1"></i> Click a line-change below to link it

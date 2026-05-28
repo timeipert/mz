@@ -453,36 +453,46 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
   startComment(startUUID: string) {
     if (this.focusService.mode.kind === 'Normal') {
       this.focusService.mode = { kind: 'CommentCreate', startNoteUUID: startUUID };
-      this.toastr.info('Selektieren Sie den Endpunkt für den Kommentar');
+      this.toastr.info('Now click the note (or other element) where the comment should end.', 'Pick the end of the comment');
     }
   }
 
+  /**
+   * Called when the user clicks a note (or other commentable element) while
+   * the document is in one of the comment-creation modes.
+   *
+   * Two-step flow:
+   *   • Step 1 — `CommentPickStart` mode: the click designates the *start*
+   *     note. We transition to `CommentCreate` mode and wait for the end.
+   *   • Step 2 — `CommentCreate` mode: the click designates the *end* note.
+   *     We bubble a `NewCommentRequested` event up to the root section,
+   *     which (a) has access to the full RootContainer and (b) can correctly
+   *     decide whether to swap start/end so they appear in document order.
+   *
+   * In `Normal` mode this method is a no-op — the click was just a normal
+   * focus action.
+   */
   endComment(endUUID: string, kind: Model.CommentPartKind) {
-    if (this.focusService.mode.kind === 'CommentCreate') {
-      this.undo.beforeChange();
-      const firstUUID = this.focusService.mode.startNoteUUID;
-      const text = window.prompt('Bitte geben Sie den Kommentar text ein:');
-      if (text) {
-
-        let t: string[] = Model.getAllCommentableUUIDs(this.data);
-        let indexStart = t.indexOf(firstUUID);
-        let indexEnd = t.indexOf(endUUID);
-
-        console.log(kind);
-        console.log(indexStart);
-        console.log(indexEnd);
-
-        if (kind !== Model.CommentPartKind.Syllable && indexEnd < indexStart) {
-          this.onEvent.emit(
-            { startUUID: endUUID, endUUID: firstUUID, text: text, kind: 'NewCommentRequested' }
-          )
-        } else {
-          this.onEvent.emit(
-            { startUUID: firstUUID, endUUID: endUUID, text: text, kind: 'NewCommentRequested' }
-          )
-        }
+    const mode = this.focusService.mode;
+    if (mode.kind === 'CommentPickStart') {
+      // Step 1 → 2: record the start, keep the user in pick mode.
+      this.focusService.mode = { kind: 'CommentCreate', startNoteUUID: endUUID };
+      return;
+    }
+    if (mode.kind === 'CommentCreate') {
+      // Don't let the user pick the SAME note as both start and end.
+      if (mode.startNoteUUID === endUUID) {
+        this.toastr.info('Pick a *different* note as the end of the comment.', 'Same note');
+        return;
       }
-      this.focusService.mode = { kind: "Normal" }
+      this.onEvent.emit({
+        kind: 'NewCommentRequested',
+        startUUID: mode.startNoteUUID,
+        endUUID: endUUID,
+        text: '',
+        endKind: kind,
+      });
+      this.focusService.mode = { kind: "Normal" };
     }
   }
 

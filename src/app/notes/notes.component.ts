@@ -14,7 +14,7 @@ import { FocusService } from '../focus.service';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { handleTextInputMove, Focusable, Focus, FocusChange } from '../types/Focus';
 import { CommentComponent } from '../comment/comment.component';
-import { ReplaySubject } from 'rxjs';
+import { ReplaySubject, Subscription } from 'rxjs';
 import { UndoService } from '../undoService';
 
 declare const $: any;
@@ -101,7 +101,15 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     this.noteTextElements.changes.subscribe(() => {
       setTimeout(() => this.notesToText(), 0);
     });
+    // Re-render this OnPush component whenever the globally-selected note
+    // changes, so palette-coloured brackets in this syllable can light up
+    // (or fade back to gray) without depending on local focus.
+    this.focusedNoteSub = this.focusService.focusedNoteUUID$.subscribe(() => {
+      this.cdr.markForCheck();
+    });
   }
+
+  private focusedNoteSub?: Subscription;
 
   @HostListener('window:focus')
   onWindowFocus() {
@@ -121,6 +129,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
 
   ngOnDestroy() {
     this.undoService.deregisterNotesCallbacks(this.model.uuid);
+    this.focusedNoteSub?.unsubscribe();
     setTimeout(() => this.toolsService.remove(this), 0);
   }
 
@@ -273,7 +282,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
       comments = this.getActiveComments();
     }
     rp.subscribe(originals => {
-      const modalRef = this.modalService.open(CommentComponent, { size: 'xl', fullscreen: true });
+      // Use the same modal options as document.openComment() for a
+      // consistent look-and-feel across every route into the comment dialog.
+      const modalRef = this.modalService.open(CommentComponent, { size: 'lg', centered: true, backdrop: 'static', windowClass: 'comment-modal-window' });
       modalRef.componentInstance.comments = JSON.parse(JSON.stringify(comments));
       modalRef.componentInstance.originals = JSON.parse(JSON.stringify(originals));
       modalRef.componentInstance.saveEvent.subscribe((newComments: (VM.Comment | null)[]) => {
@@ -406,14 +417,10 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     const oldText = this.model.text;
     const newText = (this.syllableTextElement.nativeElement as HTMLElement).textContent || '';
 
-    if ((e.altKey || e.metaKey) && e.key === 'k') {
-      //Trigger comment
-      this.request.emit({ kind: "StartCommentRequested", startKind: VM.CommentPartKind.Syllable, startUUID: this.model.uuid });
-    } else {
-      if (oldText !== newText) {
-        this.undoService.beforeChange('Edit Note');
-        this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
-        if (e.key === '-') {
+    if (oldText !== newText) {
+      this.undoService.beforeChange('Edit Note');
+      this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+      if (e.key === '-') {
           e.stopPropagation();
           const text = (this.syllableTextElement.nativeElement as HTMLElement).textContent;
           if (text) {
@@ -427,7 +434,6 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
           this.model.text = newContent;
         }
       }
-    }
     this.recalculateWidths();
   }
 
@@ -572,7 +578,6 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     else if (e.key === ' ') { this.insertNear(); }
     else if (e.key === 'Enter') { this.insertFar(); }
     else if (e.key === 'j') { this.request.emit({ kind: 'LineChangeRequested', after: true }); }
-    else if (e.key === 'k') { this.startComment(); }
     else if (e.key === 'c') { this.request.emit({ kind: 'NewClefRequested' }); }
     else if (e.key === '-') { this.request.emit({ kind: 'NewSegmentRequested', syllableType: this.model.syllableType, text: '' }); }
     else if (e.key === 'i') { this.request.emit({ kind: 'LineChangeRequested', after: false }); }
@@ -742,11 +747,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     });
   }
 
-  startComment(): void {
-    this.withFocus(f => {
-      this.request.emit({ kind: "StartCommentRequested", startKind: VM.CommentPartKind.Note, startUUID: f.uuid });
-    });
-  }
+
 
   changePitch(producer: (n: VM.Note) => VM.Note): void {
     this.withFocus(f => {
@@ -906,6 +907,11 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
       this.addNoteTools();
       this.focusService.registerFocus(() => { VM.removeFocusFromLinePart(this.model); this.cdr.markForCheck(); });
       VM.focusOne(this.getVoices()[voiceIndex], d.ref);
+      // Track the selected note globally so brackets in *other* syllables
+      // can light up in palette colors keyed to the comments touching this
+      // note. Cleared only when the user picks a different note or clicks
+      // away (see setDivFocus blur).
+      this.focusService.focusedNoteUUID = d.ref.uuid;
       setTimeout(() => this.cdr.markForCheck(), 0);
       this.request.emit({ kind: "EndCommentRequested", endKind: VM.CommentPartKind.Note, endUUID: d.ref.uuid });
     }
@@ -1004,6 +1010,71 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
 
   isThisCommentEnd(): boolean {
     return this.comments.some(c => c.endUUID === this.model.uuid);
+  }
+
+  /** Palette of distinguishable hues used to color comment brackets and the
+   *  matching sidebar card stripes. Keep this list in sync with
+   *  DocumentComponent.COMMENT_PALETTE. */
+  private static readonly COMMENT_PALETTE = [
+    '#2563eb', '#16a34a', '#f59e0b', '#a855f7',
+    '#ec4899', '#0891b2', '#dc2626', '#84cc16',
+  ];
+
+  /** Default neutral color when nothing is selected. */
+  private static readonly NEUTRAL = '#A5A5A5';
+
+  /** Returns the palette color assigned to a given comment, based on its
+   *  position in the document's comment list. Order-stable. */
+  commentColor(c: VM.Comment | undefined): string {
+    if (!c) return NotesComponent.NEUTRAL;
+    const idx = this.comments.indexOf(c);
+    if (idx < 0) return NotesComponent.NEUTRAL;
+    return NotesComponent.COMMENT_PALETTE[idx % NotesComponent.COMMENT_PALETTE.length];
+  }
+
+  /** True when palette colors should currently be shown — i.e., the user has
+   *  selected a note somewhere in the document. */
+  get useBracketColors(): boolean {
+    return !!this.focusService.focusedNoteUUID;
+  }
+
+  /** Color for the syllable-level outer bracket. `role` picks start vs end. */
+  syllableBracketColor(role: 'start' | 'end'): string {
+    if (!this.useBracketColors) return NotesComponent.NEUTRAL;
+    const c = this.comments.find(c => role === 'start'
+      ? c.startUUID === this.model.uuid
+      : c.endUUID === this.model.uuid);
+    return this.commentColor(c);
+  }
+
+  /** Color for the per-note bracket drawn by a DCommentStart / DCommentEnd. */
+  drawableBracketColor(d: Drawable): string {
+    if (!this.useBracketColors) return NotesComponent.NEUTRAL;
+    if (d instanceof DCommentStart) {
+      return this.commentColor(this.comments.find(c => c.startUUID === d.ref.uuid));
+    }
+    if (d instanceof DCommentEnd) {
+      return this.commentColor(this.comments.find(c => c.endUUID === d.ref.uuid));
+    }
+    return NotesComponent.NEUTRAL;
+  }
+
+  /** True if the document is in step 1 of the comment-creation flow
+   *  (waiting for the user to pick the start note). */
+  get isPickingCommentStart(): boolean {
+    return this.focusService.mode.kind === 'CommentPickStart';
+  }
+
+  /** True if the document is in step 2 (waiting for the end note). */
+  get isPickingCommentEnd(): boolean {
+    return this.focusService.mode.kind === 'CommentCreate';
+  }
+
+  /** True if the given drawable's note IS the currently-picked start note. */
+  isPickedCommentStart(d: Drawable): boolean {
+    if (this.focusService.mode.kind !== 'CommentCreate') return false;
+    if (!(d instanceof DNote)) return false;
+    return d.ref.uuid === this.focusService.mode.startNoteUUID;
   }
 
   refOfDrawable(_: number, d: Drawable): any {

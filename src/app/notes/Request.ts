@@ -71,6 +71,10 @@ export interface NewCommentRequested {
   startUUID: string;
   endUUID: string;
   text: string;
+  /** Optional: kind of the end element. Used by the root section to decide
+   *  whether to swap start/end so that startUUID precedes endUUID in
+   *  linearised document order. */
+  endKind?: VM.CommentPartKind;
 }
 
 export interface CommentDeletionRequested {

@@ -1,3 +1,4 @@
+import { FocusService } from '../focus.service';
 import { ViewChild, ElementRef, Component, OnInit, HostListener } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Location } from '@angular/common';
@@ -52,7 +53,27 @@ export class DocumentComponent implements OnInit {
   /** True if a save was requested while an HTTP request was already ongoing */
   private savePending = false;
   sidebarTab: 'metadata' | 'comments' = 'metadata';
+  activeSidebarComment: VM.Comment | null = null;
+  activeSidebarOriginal: VM.ZeileContainer | null = null;
+
   sidebarVisible = true;
+
+  /** Whether the inline "How to add a comment" help card is collapsed.
+   *  Persisted in localStorage so a user only sees the verbose card once. */
+  commentHelpDismissed: boolean = (() => {
+    try { return localStorage.getItem('monodi_comment_help_dismissed') === '1'; }
+    catch { return false; }
+  })();
+
+  dismissCommentHelp(): void {
+    this.commentHelpDismissed = true;
+    try { localStorage.setItem('monodi_comment_help_dismissed', '1'); } catch {}
+  }
+
+  reopenCommentHelp(): void {
+    this.commentHelpDismissed = false;
+    try { localStorage.removeItem('monodi_comment_help_dismissed'); } catch {}
+  }
 
   // ── IIIF split-screen two-way connection ──────────────────────────────────
   /** UUID of the line-change last clicked; passed to IIIF viewer to highlight the linked region. */
@@ -98,7 +119,7 @@ export class DocumentComponent implements OnInit {
     private toolService: ToolsService,
     private dragState: DragStateService,
     private navService: NavigationService,
-    private pageTitle: PageTitleService) {
+    private pageTitle: PageTitleService, public focusService: FocusService) {
   }
 
   test() {
@@ -132,6 +153,10 @@ export class DocumentComponent implements OnInit {
 
   /** Receives events bubbled up from app-root-section (via the Section base class onEvent output). */
   handleRootEvent(e: any): void {
+    if (e.kind === 'OpenCommentModalRequested') {
+      this.openComment(e.comment);
+      return;
+    }
     if (e.kind === 'HighlightRegionRequested') {
       if (this.isLinkingMode && this.linkModeRegionId && this.sourceData) {
         // Link mode: bind the clicked line UUID to the pending region
@@ -1440,8 +1465,16 @@ export class DocumentComponent implements OnInit {
 
   @HostListener('window:keydown', ['$event'])
   keyEvent(event: KeyboardEvent) {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+      event.preventDefault();
+      this.startCommentCreation();
+    }
     if (event.ctrlKey && event.key === 'z') {
       this.undoService.undo();
+    }
+    if (event.key === 'Escape' && this.isCommentCreationMode) {
+      event.preventDefault();
+      this.cancelCommentCreation();
     }
   }
 
@@ -1558,23 +1591,164 @@ export class DocumentComponent implements OnInit {
     if (!this.cont) return;
     this.undoService.beforeChange('Edit Comment');
     const original = VM.extractComment(this.cont, comment);
-    
-    const modalRef = this.modalService.open(CommentComponent, { size: 'xl', fullscreen: true });
-    modalRef.componentInstance.comments = [JSON.parse(JSON.stringify(comment))];
-    modalRef.componentInstance.originals = [JSON.parse(JSON.stringify(original))];
+
+    const modalRef = this.modalService.open(CommentComponent, { size: 'lg', centered: true, backdrop: 'static', windowClass: 'comment-modal-window' });
+    modalRef.componentInstance.comments = [comment];
+    modalRef.componentInstance.originals = [original];
+
+    /** Tracks whether the user pressed Delete inside the modal (the modal
+     *  sets its slot to null in that case). Used by the close handler to
+     *  actually remove the comment from `cont.comments`. */
+    let deletedInModal = false;
+
     modalRef.componentInstance.saveEvent.subscribe((newComments: (VM.Comment | null)[]) => {
-      const nc = newComments[0];
-      if (nc === null) {
+      // newComments mirrors the modal's internal array. A null entry means
+      // the user clicked Delete on that comment. Apply the deletion to the
+      // real document so it sticks after the modal closes.
+      if (Array.isArray(newComments) && newComments.length > 0 && newComments[0] === null) {
+        deletedInModal = true;
         this.cont!.comments = this.cont!.comments.filter(c => c !== comment);
         VM.removeStaleComments(this.cont!);
-      } else {
-        comment.emendation = nc.emendation;
-        comment.lines = nc.lines;
-        comment.tree = nc.tree;
-        comment.text = nc.text;
       }
       this.save();
     });
+
+    const onModalClose = () => {
+      // If the user added a comment and then dismissed without typing
+      // anything (and didn't switch to lines/tree), treat it as an
+      // accidental creation and drop it.
+      if (!deletedInModal && comment.text === '' && comment.commentType === 'text') {
+        this.cont!.comments = this.cont!.comments.filter(c => c !== comment);
+        VM.removeStaleComments(this.cont!);
+      }
+      this.save();
+    };
+
+    modalRef.result.then(onModalClose).catch(onModalClose);
+  }
+
+
+
+  getFocusedNoteUUID(): string | null {
+    if (!this.cont) return null;
+    const syllables = VM.getSyllables(this.cont);
+    for (const s of syllables) {
+      if (s.notes) {
+        const focused = VM.getFocused(s.notes);
+        if (focused) return focused.uuid;
+        if (s.additionalMelodies) {
+          for (const am of s.additionalMelodies) {
+            const f = VM.getFocused(am);
+            if (f) return f.uuid;
+          }
+        }
+      }
+    }
+    return null;
+  }
+  /**
+   * Begins the two-click "make a comment" workflow.
+   *
+   * Always goes through the explicit pick-start → pick-end sequence so the
+   * user is never confused about which note becomes the start. Any
+   * previously-focused note is intentionally ignored.
+   */
+  startCommentCreation(): void {
+    if (!this.cont) return;
+    if (this.focusService.mode.kind !== 'Normal') return; // already in a pick mode
+    // Clear any lingering note focus so the previous selection can't be
+    // mistaken for the start of the new comment. We walk the tree
+    // defensively because some containers may not have a fully-initialized
+    // children array (VM.removeFocus crashes in that case).
+    this.clearAllFocus(this.cont);
+    this.focusService.mode = { kind: 'CommentPickStart' };
+  }
+
+  /** Defensive variant of VM.removeFocus that tolerates partially-formed
+   *  containers (e.g. a Formteil whose `children` array is missing). */
+  private clearAllFocus(node: any): void {
+    if (!node) return;
+    if (node.focus === true) node.focus = false;
+    // Notes are nested inside Syllable.notes.spaced[].nonSpaced[].grouped[]
+    if (node.kind === 'Syllable' && node.notes && Array.isArray(node.notes.spaced)) {
+      for (const sp of node.notes.spaced) {
+        for (const ns of (sp?.nonSpaced ?? [])) {
+          for (const n of (ns?.grouped ?? [])) {
+            if (n) n.focus = false;
+          }
+        }
+      }
+      if (Array.isArray(node.additionalMelodies)) {
+        for (const am of node.additionalMelodies) {
+          for (const sp of (am?.spaced ?? [])) {
+            for (const ns of (sp?.nonSpaced ?? [])) {
+              for (const n of (ns?.grouped ?? [])) {
+                if (n) n.focus = false;
+              }
+            }
+          }
+        }
+      }
+    }
+    if (Array.isArray(node.children)) {
+      for (const c of node.children) this.clearAllFocus(c);
+    }
+  }
+
+  /** True if we're somewhere in the 2-step comment-creation flow. */
+  get isCommentCreationMode(): boolean {
+    return this.focusService.mode.kind === 'CommentPickStart'
+        || this.focusService.mode.kind === 'CommentCreate';
+  }
+
+  /** True when waiting for the user to pick the START note (step 1). */
+  get isPickingCommentStart(): boolean {
+    return this.focusService.mode.kind === 'CommentPickStart';
+  }
+
+  /** True when waiting for the user to pick the END note (step 2). */
+  get isPickingCommentEnd(): boolean {
+    return this.focusService.mode.kind === 'CommentCreate';
+  }
+
+  cancelCommentCreation(): void {
+    if (this.isCommentCreationMode) {
+      this.focusService.mode = { kind: 'Normal' };
+    }
+  }
+
+  /** Same palette as NotesComponent — keep them in sync. */
+  private static readonly COMMENT_PALETTE = [
+    '#2563eb', '#16a34a', '#f59e0b', '#a855f7',
+    '#ec4899', '#0891b2', '#dc2626', '#84cc16',
+  ];
+
+  /** Hex color assigned to a comment based on its position in
+   *  `cont.comments`. Used to color both the SVG bracket and the matching
+   *  sidebar card stripe so the user can easily pair them up. */
+  commentColor(c: VM.Comment): string {
+    if (!this.cont) return '#94a3b8';
+    const idx = this.cont.comments.indexOf(c);
+    if (idx < 0) return '#94a3b8';
+    return DocumentComponent.COMMENT_PALETTE[idx % DocumentComponent.COMMENT_PALETTE.length];
+  }
+
+  isCommentHighlighted(comment: VM.Comment): boolean {
+    if (!this.cont) return false;
+    const focusedNote = this.getFocusedNoteUUID();
+    if (!focusedNote) return false;
+    
+    const uuids = VM.getAllCommentableUUIDs(this.cont);
+    const startIdx = uuids.indexOf(comment.startUUID);
+    const endIdx = uuids.indexOf(comment.endUUID);
+    const focusIdx = uuids.indexOf(focusedNote);
+    
+    if (startIdx !== -1 && endIdx !== -1 && focusIdx !== -1) {
+        const min = Math.min(startIdx, endIdx);
+        const max = Math.max(startIdx, endIdx);
+        return focusIdx >= min && focusIdx <= max;
+    }
+    return comment.startUUID === focusedNote || comment.endUUID === focusedNote;
   }
   getCommentType(c: VM.Comment): string {
     if (c.commentType) return c.commentType;

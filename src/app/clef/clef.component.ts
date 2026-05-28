@@ -140,7 +140,7 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   startComment(): void {
     if (this.focusService.mode.kind === "Normal") {
       this.focusService.mode = { kind: "CommentCreate", startNoteUUID: this.model.uuid };
-      this.toastr.info("Selektieren Sie die Endnote für den Kommentar");
+      this.toastr.info("Now click the note where the comment should end.", "Pick the end note");
     }
   }
 
@@ -153,11 +153,17 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   clicked(): void {
     this.focusService.preferredFocus = Focus.Notes;
     if (this.focusService.mode.kind == "CommentCreate") {
-      const text = window.prompt("Bitte geben Sie den Kommetar text ein:");
-      if (text) {
-        this.request.emit({ startUUID: this.focusService.mode.startNoteUUID, endUUID: this.model.uuid, text: text, kind: "NewCommentRequested" });
-        this.focusService.mode = { kind: "Normal" };
-      }
+      // Pass endKind so the root section can swap start/end correctly when
+      // the user picked an earlier element as their second click. Clef is
+      // treated like Note for ordering purposes (non-Syllable).
+      this.request.emit({
+        startUUID: this.focusService.mode.startNoteUUID,
+        endUUID: this.model.uuid,
+        text: "",
+        kind: "NewCommentRequested",
+        endKind: VM.CommentPartKind.Note,
+      });
+      this.focusService.mode = { kind: "Normal" };
     } else {
       this.addNoteTools();
       this.model.focus = true;

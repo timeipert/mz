@@ -1,43 +1,90 @@
 <div class="modal-header">
-  <h4 class="modal-title" id="modal-basic-title">Comments</h4>
-  <button type="button" class="close" aria-label="Close" (click)="activeModal.close('Cross click')">
-    <span aria-hidden="true">&times;</span>
-  </button>
+  <h4 class="modal-title fw-bold mb-0">
+    <i class="bi bi-chat-square-text"></i>
+    Edit Comment
+    <span class="header-sub" *ngIf="activeComments().length > 0">
+      ({{activeComments().length}} {{activeComments().length === 1 ? 'entry' : 'entries'}})
+    </span>
+  </h4>
+  <button type="button" class="btn-close" aria-label="Close" (click)="activeModal.dismiss()"></button>
 </div>
 <div class="modal-body">
   <app-comment-info />
-  <div *ngFor="let comment of activeComments(); index as i" class="note-comment">
-    <label>Comment<img (click)="deleteComment(comment)" src="assets/icons/delete.svg" style="cursor: pointer; margin-left: 10px;" /></label>
 
-    <ul class="nav nav-pills mb-3 mt-2" style="font-size: 0.9rem;">
+  <div *ngFor="let comment of activeComments(); index as i" class="note-comment">
+
+    <!-- Header row: index pill + delete -->
+    <div class="card-header-row">
+      <span class="index-pill">
+        <i class="bi bi-chat-left-quote"></i>
+        Comment {{i + 1}}
+      </span>
+      <button type="button" class="delete-btn" (click)="deleteComment(comment)" title="Delete this comment">
+        <i class="bi bi-trash3 me-1"></i>Delete
+      </button>
+    </div>
+
+    <!-- Content type switcher -->
+    <label class="mb-1">Content Type</label>
+    <ul class="nav nav-pills type-switcher">
       <li class="nav-item">
-        <a class="nav-link" [class.active]="comment.commentType === 'text'" (click)="setCommentType(comment, 'text')" style="cursor: pointer;">Text</a>
+        <a class="nav-link" [class.active]="comment.commentType === 'text'" (click)="setCommentType(comment, 'text')">
+          <i class="bi bi-text-paragraph me-1"></i>Text
+        </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" [class.active]="comment.commentType === 'lines'" (click)="setCommentType(comment, 'lines')" style="cursor: pointer;">Staff Line</a>
+        <a class="nav-link" [class.active]="comment.commentType === 'lines'" (click)="setCommentType(comment, 'lines')">
+          <i class="bi bi-music-note-list me-1"></i>Staff Line
+        </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" [class.active]="comment.commentType === 'tree'" (click)="setCommentType(comment, 'tree')" style="cursor: pointer;">Grid</a>
+        <a class="nav-link" [class.active]="comment.commentType === 'tree'" (click)="setCommentType(comment, 'tree')">
+          <i class="bi bi-grid-3x3-gap me-1"></i>Grid
+        </a>
       </li>
     </ul>
 
-    <div *ngIf="comment.commentType === 'text'" class="mb-3">
-      <textarea [(ngModel)]="comment.text"></textarea>
+    <!-- Text editor with undo/redo -->
+    <div *ngIf="comment.commentType === 'text'" class="position-relative">
+      <label>Comment Text</label>
+      <div class="undo-redo-bar">
+        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" (click)="undoText(comment)"
+                [disabled]="!canUndo(comment)" title="Undo">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Undo
+        </button>
+        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" (click)="redoText(comment)"
+                [disabled]="!canRedo(comment)" title="Redo">
+          Redo<i class="bi bi-arrow-clockwise ms-1"></i>
+        </button>
+      </div>
+      <textarea class="form-control p-3" rows="6"
+                [ngModel]="comment.text"
+                (ngModelChange)="onTextChange(comment, $event)"
+                placeholder="Enter your comment here…"
+                style="resize: vertical;"></textarea>
     </div>
 
-    <div class="mb-3">
-      <label for="emendation" class="me-2">Emendation</label>
-      <input type="checkbox" [(ngModel)]="comment.emendation" id="emendation" name="emendation" />
+    <!-- Emendation flag (always visible) -->
+    <div class="emendation-row form-check form-switch p-0">
+      <input class="form-check-input" type="checkbox"
+             [ngModel]="comment.emendation"
+             (ngModelChange)="onEmendationChange(comment, $event)"
+             [id]="'emendation-' + i" />
+      <label [for]="'emendation-' + i">
+        Mark as Emendation
+        <div class="emendation-hint">Editorial correction of the source — shown with a distinct symbol in the published edition.</div>
+      </label>
     </div>
 
-    <div *ngIf="comment.commentType === 'lines' && comment.lines">
-      <label>Lemma</label>
-      <div class="original">
+    <!-- Staff line (lemma + reading) -->
+    <div *ngIf="comment.commentType === 'lines' && comment.lines" class="panel">
+      <div class="panel-label">Lemma</div>
+      <div class="original mb-3 bg-white border rounded p-2">
         <app-zeile-section [documentType]="'Gesang'" [readOnly]="false" [data]="getOriginal(i)" [comments]="[]"
           [zipper]="[0]"></app-zeile-section>
         <div class="hider"></div>
       </div>
-      <label>Reading</label>
+      <div class="panel-label">Reading</div>
       <div *ngFor="let line of comment.lines; index as j" class="line-comment">
         <app-zeile-section #sub [documentType]="documentType" [readOnly]="false" (onEvent)="handleEvent($event, i, j)"
           *ngIf="line.kind === 'ZeileContainer'" [data]="line" [comments]="[]" [zipper]="[0]"></app-zeile-section>
@@ -47,18 +94,16 @@
       </div>
     </div>
 
-    <div *ngIf="comment.commentType === 'tree'">
+    <!-- Tree / grid -->
+    <div *ngIf="comment.commentType === 'tree'" class="panel">
       <app-comment-tree *ngIf="comment.tree" [tree]="comment.tree" (treeEvent)="handleCommentTreeEvent($event, comment)"
         [originalCreator]="originalCreator(comment)" />
     </div>
   </div>
-  <div *ngIf="comments.length > 0">
-    <button type="button" class="btn btn-primary" (click)="onSave()">
-      Apply
-    </button>
-  </div>
-  <div *ngIf="comments.length === 0">
-    No comments for this note.
-    <button type="button" class="btn btn-primary" (click)="onExit()">Ok</button>
+
+  <div *ngIf="activeComments().length === 0" class="empty-state">
+    <i class="bi bi-chat-square-dots"></i>
+    <h5>No comments to edit</h5>
+    <p class="small mb-0">All comments on this span have been deleted.</p>
   </div>
 </div>

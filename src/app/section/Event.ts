@@ -13,7 +13,8 @@ export type Event =
   StaleCommentRemovealRequested |
   PasteRequested |
   ViewIiifRequested |
-  HighlightRegionRequested;
+  HighlightRegionRequested |
+  OpenCommentModalRequested;
 
 export interface NewNoteLineRequsted {
   kind: "NewNoteLineRequsted";
@@ -43,6 +44,18 @@ export interface NewCommentRequested {
   startUUID: string;
   endUUID: string;
   text: string;
+  /**
+   * Kind of the end element that the user clicked on. Used at the root level
+   * to decide if start/end should be swapped (so that startUUID always
+   * appears before endUUID in the linearised document order). Optional for
+   * backwards compatibility — when absent, no swap is performed.
+   */
+  endKind?: VM.CommentPartKind;
+}
+
+export interface OpenCommentModalRequested {
+  kind: "OpenCommentModalRequested";
+  comment: VM.Comment;
 }
 
 export interface StaleCommentRemovealRequested {
