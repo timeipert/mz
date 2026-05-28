@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { EditSyllableTextComponent } from './edit-syllable-text.component';
 
@@ -6,7 +6,7 @@ describe('EditSyllableTextComponent', () => {
   let component: EditSyllableTextComponent;
   let fixture: ComponentFixture<EditSyllableTextComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ EditSyllableTextComponent ]
     })

@@ -30,6 +30,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
       NewCommentRequested: (e: NewCommentRequested, oldIndex: number) => { this.undo.beforeChange(); this.data.comments = this.data.comments.concat([{ startUUID: e.startUUID, endUUID: e.endUUID, text: e.text }]); },
       CommentDeletionRequested: (e: CommentDeletionRequested, oldIndex: number) => { this.undo.beforeChange(); this.data.comments = this.data.comments.filter(c => c !== e.comment); },
       NoFocusRequested: (e: Event, oldIndex: number) => { Model.removeFocus(this.data); setTimeout(() => cdr.detectChanges(), 0); },
+      NewParatextRequested: (e: Event, oldIndex: number) => { this.undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), oldIndex + 1); },
       NewFormteilRequested: (e: Event, oldIndex: number) => { this.newFormteilAt(oldIndex + 1); },
       DeletionRequested: (e: Event, oldIndex: number) => { this.undo.beforeChange(); this.data.children.splice(oldIndex, 1); Model.removeStaleComments(this.data); },
       MoveRequested: (e: MoveRequested, oldIndex: number) => {
@@ -64,6 +65,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
 
     this.actionHandlers = {
       '+ L1': () => this.newFormteilAt(0),
+      '+ Text': () => { this.undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), 0); },
       'Paste after': () => { this.undo.beforeChange(); this.insert([], false, false) },
       'Paste after (discard notes)': () => { this.undo.beforeChange(); this.insert([], true, false) },
       'Paste after (discard text)': () => { this.undo.beforeChange(); this.insert([], false, true) }
@@ -99,6 +101,15 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
     const newData = Model.emptyFormteilContainer(this.data.documentType, [0]);
     this.data.children.splice(oldIndex, 0, newData);
     setTimeout(() => this.children.toArray().find(p => p.getData() === newData)!.focus({ focusLast: false }), 0);
+  }
+
+  newAt(child: any, newIndex: number) {
+    this.undo.beforeChange();
+    this.data.children.splice(newIndex, 0, child);
+    setTimeout(() => {
+      const focusTarget = this.children.toArray().find(sft => sft.getData() === child);
+      if (focusTarget) focusTarget.focus({ focusLast: false });
+    }, 0);
   }
 
   canBeDeleted(): boolean {

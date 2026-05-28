@@ -37,13 +37,50 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
     super('Notenzeile', {}, undoService);
   }
 
-  ngOnInit(): void {
+  updateActionHandlers() {
     this.actionHandlers = {
       '+ Line': () => this.onEvent.emit({ 'kind': 'NewNoteLineRequsted', container: Model.emptyZeileContainer() }),
       'Edit Notes': () => this.editText({ 'kind': 'EditNotesTextReqested' }),
       'Edit Syllables': () => this.editText({ 'kind': 'EditSyllableTextReqested' }),
-      '+ Text': () => this.onEvent.emit({ 'kind': 'NewParatextRequested' })
+      '+ Text': () => this.onEvent.emit({ 'kind': 'NewParatextRequested' }),
+      [this.data.voiceCount === 2 ? 'Remove Voice 2' : 'Add Voice 2']: () => this.toggleVoice2(),
+      'Toggle Layout (V1/V2)': () => {
+         (window as any).groupedLayout = !(window as any).groupedLayout;
+         this.children.forEach(c => { if ((c as any).refresh) (c as any).refresh(); });
+         this.changeRef.detectChanges();
+      }
     };
+  }
+
+  ngOnInit(): void {
+    this.updateActionHandlers();
+  }
+
+  toggleVoice2(): void {
+    this.undo.beforeChange();
+    this.data.voiceCount = (this.data.voiceCount === 2) ? 1 : 2;
+    if (this.data.voiceCount === 2) {
+      this.data.children.forEach(child => {
+        if (child.kind === 'Syllable') {
+          if (!child.additionalMelodies) {
+            child.additionalMelodies = [];
+          }
+          if (child.additionalMelodies.length === 0) {
+            const emptyNotes = JSON.parse(JSON.stringify(Model.emptySyllable(this.data.voiceCount).notes));
+            child.additionalMelodies.push(emptyNotes);
+          }
+        }
+      });
+    } else {
+      this.data.children.forEach(child => {
+        if (child.kind === 'Syllable') {
+          child.additionalMelodies = undefined;
+        }
+      });
+    }
+    this.updateActionHandlers();
+    this.children.forEach(c => { if ((c as any).refresh) (c as any).refresh(); });
+    this.changeRef.detectChanges();
   }
 
   ngOnDestroy(): void {
@@ -114,7 +151,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
     }
     if (newNotesIndex < newNotesArray.length) {
       for (let i = newNotesIndex; i < newNotesArray.length; i++) {
-        const newData = Model.emptySyllable();
+        const newData = Model.emptySyllable(this.data.voiceCount);
         try {
           newData.notes = musicLanguage.Spaced.tryParse(newNotesArray[i]);
         } catch (e) {
@@ -188,7 +225,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
     if (syllableCounter < syllableArray.length) {
       for (let k = syllableCounter; k < syllableArray.length; k++) {
         if (syllableArray[k] !== '') {
-          const newData = Model.emptySyllable();
+          const newData = Model.emptySyllable(this.data.voiceCount);
           newData.text = syllableArray[k].trim();
           this.data.children.push(newData);
         }
@@ -204,7 +241,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
   splitSyllable(syllable: Model.Syllable): Model.Syllable {
     this.undo.beforeChange();
     let syll: Model.Syllable = JSON.parse(JSON.stringify(syllable));
-    let newSyll = Model.emptySyllable();
+    let newSyll = Model.emptySyllable(this.data.voiceCount);
     newSyll.notes.spaced = [];
     let splitSyl: number = syll.notes.spaced.findIndex(s => s.nonSpaced.findIndex(n => n.grouped.findIndex(g => g.focus === true) >= 0) >= 0);
 
@@ -267,7 +304,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
         this.data.children.length = childIndex + 1;
         copy.children.splice(0, childIndex + 1);
 
-        let secondHalf = Model.emptySyllable()
+        let secondHalf = Model.emptySyllable(this.data.voiceCount)
         if (child.kind === "Syllable") {
           secondHalf = this.splitSyllable(child);
           copy.children.unshift(secondHalf);
@@ -278,8 +315,8 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
       case 'NewSegmentRequested': {
         this.undo.beforeChange();
         const oldIndex = this.data.children.indexOf(child);
-        const newData = Model.trueEmptySyllable();
-        //const newData = Model.emptySyllable();
+        const newData = Model.trueEmptySyllable(this.data.voiceCount);
+        //const newData = Model.emptySyllable(this.data.voiceCount);
         if (r.text) {
           newData.text = r.text;
         }
@@ -367,13 +404,13 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
         if (nextData) {
           if (nextData.kind === 'Syllable') {
             if (nextData.notes.spaced[0].nonSpaced.length === 0) {
-              const newSyll = Model.emptySyllable();
+              const newSyll = Model.emptySyllable(this.data.voiceCount);
               newSyll.notes.spaced[0].nonSpaced[0].grouped[0] = Model.copyNote(r.note);
               newSyll.text = nextData.text;
               this.data.children[oldIndex + 1] = newSyll;
               setTimeout(() => this.focusChild(this.data.children[oldIndex + 1], undefined), 0);
             } else if (nextData.notes.spaced[0].nonSpaced[0].grouped.length === 0) {
-              const newSyll = Model.emptySyllable();
+              const newSyll = Model.emptySyllable(this.data.voiceCount);
               newSyll.notes.spaced[0].nonSpaced[0].grouped[0] = Model.copyNote(r.note);
               newSyll.text = nextData.text;
               this.data.children[oldIndex + 1] = newSyll;
@@ -382,7 +419,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
           }
         } else {
           //const oldIndex = this.data.children.indexOf(child);
-          const newData = Model.trueEmptySyllable();
+          const newData = Model.trueEmptySyllable(this.data.voiceCount);
           newData.notes.spaced[0].nonSpaced[0].grouped[0] = Model.copyNote(r.note);
           this.data.children.push(newData);
           setTimeout(() => this.focusChild(newData, undefined), 0);

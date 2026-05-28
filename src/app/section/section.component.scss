@@ -241,10 +241,6 @@ span.segment-type {
 
 /* ── Read-only mode ──────────────────────────────── */
 .read-only {
-    .type-identifier {
-        display: none;
-    }
-
     .app-container {
         min-height: 0px;
     }
@@ -256,6 +252,10 @@ span.segment-type {
 
 /* ── Print ───────────────────────────────────────── */
 @media print {
+    .type-identifier {
+        display: none !important;
+    }
+
     .child {
         padding-left: 20px !important;
         margin-left: 10px !important;

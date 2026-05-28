@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { LineChangeComponent } from './line-change.component';
 
@@ -6,7 +6,7 @@ describe('LineChangeComponent', () => {
   let component: LineChangeComponent;
   let fixture: ComponentFixture<LineChangeComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ LineChangeComponent ]
     })

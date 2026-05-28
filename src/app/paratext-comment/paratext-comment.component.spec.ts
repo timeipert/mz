@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { ParatextCommentComponent } from './paratext-comment.component';
 
@@ -6,7 +6,7 @@ describe('ParatextCommentComponent', () => {
   let component: ParatextCommentComponent;
   let fixture: ComponentFixture<ParatextCommentComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ ParatextCommentComponent ]
     })

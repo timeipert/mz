@@ -1,9 +1,9 @@
 import {
-  ChangeDetectorRef, Component, OnInit,
-  OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, Output, Input, EventEmitter
+  ChangeDetectorRef, Component, OnInit, QueryList, ViewChildren,
+  OnDestroy, ChangeDetectionStrategy, ElementRef, ViewChild, Output, Input, EventEmitter, AfterViewInit, HostListener
 } from '@angular/core';
 import * as VM from '../types/model';
-import { fromSpaced, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
+import { fromSpaced, fromSpaceds, Drawable, DNote, DTie, DCommentStart, DCommentEnd, DHelperLine } from './Drawables';
 import { ToolsService } from '../tools.service';
 import { musicLanguage } from './language';
 import { assertNever, maxOf, textWidth, focusContentEditable } from '../../utils';
@@ -25,10 +25,10 @@ declare const $: any;
   styleUrls: ['./notes.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class NotesComponent implements OnDestroy, OnInit, Focusable {
-  @ViewChild('noteText', { static: true }) noteTextElement!: ElementRef;
+export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewInit {
+  @ViewChildren('noteText') noteTextElements!: QueryList<ElementRef>;
   @ViewChild('syllableText', { static: true }) syllableTextElement!: ElementRef;
-  @ViewChild('notesDiv', { static: true }) notesDiv!: ElementRef;
+  @ViewChildren('notesDiv') notesDivElements!: QueryList<ElementRef>;
   @ViewChild('commentModal', { static: true }) commentModal!: ElementRef;
 
   @Input()
@@ -47,13 +47,22 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
   noteTextWidth = 0;
   syllTextWidth = 0;
   svgWidth = 0;
-  hasFocus = false;
+  hasFocus: boolean[] = [];
+  focusedVoiceIndex = 0;
   timeoutF: any = undefined;
-  drawablesCache: Drawable[] = [];
+  drawablesCache: Drawable[][] = [];
   lastModelString = '';
 
+  getVoices(): VM.Spaced[] {
+    const voices = [this.model.notes];
+    if (this.model.additionalMelodies) {
+      voices.push(...this.model.additionalMelodies);
+    }
+    return voices;
+  }
+
   getActiveComments(): VM.Comment[] {
-    const focusedNote = VM.getFocused(this.model.notes);
+    const focusedNote = VM.getFocused(this.getVoices()[this.focusedVoiceIndex]);
     if (focusedNote) {
       return this.comments.filter(c => c.endUUID === focusedNote.uuid || c.startUUID === focusedNote.uuid);
     }
@@ -77,10 +86,28 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     private modalService: NgbModal) {
   }
 
+  refresh() { this.cdr.detectChanges(); this.notesToText(); }
+
   ngOnInit() {
     this.notesToText();
     (this.syllableTextElement.nativeElement as HTMLElement).textContent = this.model.text;
     this.recalculateWidths();
+  }
+
+  ngAfterViewInit() {
+    // Populate contenteditable fields now that ViewChildren are available
+    // (ngOnInit runs before ViewChildren are resolved, so we must do it here)
+    setTimeout(() => this.notesToText(), 0);
+    this.noteTextElements.changes.subscribe(() => {
+      setTimeout(() => this.notesToText(), 0);
+    });
+  }
+
+  @HostListener('window:focus')
+  onWindowFocus() {
+    // When the user returns from another app, Angular CD may have cleared the
+    // imperatively-managed contenteditable textContent. Re-sync from model.
+    setTimeout(() => this.notesToText(), 0);
   }
 
   undoCallback = async () => {
@@ -101,32 +128,98 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     this.request.emit({ kind: 'CommentDeletionRequested', comment: c });
   }
 
-  hasCurrentFocus(d: Drawable) {
-    return this.hasFocus && (d.ref as any).focus;
+  hasCurrentFocus(d: Drawable, voiceIndex: number) {
+    return this.hasFocus[voiceIndex] && (d.ref as any).focus;
   }
 
-  setDivFocus(focus: boolean) {
-    this.hasFocus = focus;
-    if (focus && (VM.getFocused(this.model.notes) || this.model.syllableType !== VM.SyllableType.Normal)) {
+  setDivFocus(focus: boolean, voiceIndex: number) {
+    this.hasFocus[voiceIndex] = focus;
+    this.focusedVoiceIndex = voiceIndex;
+    if (focus) {
+      this.focusService.preferredVoiceIndex = voiceIndex;
+      // Re-sync contenteditable from model after Angular CD may have cleared it
+      // (happens when browser window loses and regains focus)
+      setTimeout(() => this.notesToText(), 0);
+    }
+    const notes = this.getVoices()[voiceIndex];
+    if (focus && (VM.getFocused(notes) || this.model.syllableType !== VM.SyllableType.Normal)) {
       this.addNoteTools();
     } else {
+      // Discard latent notes on blur
+      if (!focus) {
+        const focusedNote = VM.getFocused(notes);
+        if (focusedNote && focusedNote.isLatent) {
+           this.discardLatentNote(voiceIndex);
+        }
+      }
       this.timeoutF = setTimeout(() => this.toolsService.remove(this), 200);
     }
   }
 
+  discardLatentNote(voiceIndex: number) {
+    if (voiceIndex === 0) {
+      this.model.notes.spaced = [];
+    } else {
+      if (this.model.additionalMelodies) {
+         this.model.additionalMelodies[voiceIndex - 1].spaced = [];
+      }
+    }
+    this.notesToText();
+    this.recalculateWidths();
+    this.cdr.markForCheck();
+    this.cdr.detectChanges();
+  }
+
   focus(change: FocusChange): void {
     const level = change.preferredLevel || this.focusService.preferredFocus;
+    this.focusedVoiceIndex = this.focusService.preferredVoiceIndex || 0;
+    
+    // Safety check: if preferredVoiceIndex is out of bounds, reset to 0
+    if (this.focusedVoiceIndex >= this.getVoices().length) {
+        this.focusedVoiceIndex = 0;
+    }
+    
     switch (level) {
       case Focus.Notes:
-        if (this.model.notes.spaced.length > 0 && this.model.notes.spaced[0].nonSpaced.length === 0) {
-          this.requestFocusShift(level, change.focusLast, +1);
+        const voice = this.getVoices()[this.focusedVoiceIndex];
+        if (voice.spaced.length === 0 || (voice.spaced.length > 0 && voice.spaced[0].nonSpaced.length === 0) || (voice.spaced.length > 0 && voice.spaced[0].nonSpaced.length > 0 && voice.spaced[0].nonSpaced[0].grouped.length === 0)) {
+          // If moving right (+1) into empty syllable, or we just want to focus it, create latent note
+          if (!change.focusLast) {
+              const emptyNotes = JSON.parse(JSON.stringify(VM.emptySyllable().notes));
+              const newNote = emptyNotes.spaced[0].nonSpaced[0].grouped[0];
+              if (this.focusService.lastPitch) {
+                newNote.base = this.focusService.lastPitch.base;
+                newNote.octave = this.focusService.lastPitch.octave;
+              } else {
+                newNote.base = VM.BaseNote.C;
+                newNote.octave = 4;
+              }
+              newNote.isLatent = true;
+              newNote.focus = true;
+              if (this.focusedVoiceIndex === 0) {
+                this.model.notes = emptyNotes;
+              } else {
+                if (!this.model.additionalMelodies) this.model.additionalMelodies = [];
+                this.model.additionalMelodies[this.focusedVoiceIndex - 1] = emptyNotes;
+              }
+              this.notesToText();
+              this.recalculateWidths();
+              this.cdr.markForCheck();
+              if (this.notesDivElements) {
+                setTimeout(() => {
+                  (this.notesDivElements.toArray()[this.focusedVoiceIndex].nativeElement as HTMLElement).focus();
+                }, 0);
+              }
+          } else {
+             this.requestFocusShift(level, change.focusLast, -1);
+          }
         } else {
           if (change.focusLast) { this.focusLast(); } else { this.focusFirst(); }
         }
         break;
       case Focus.Code:
         this.focusService.registerFocus(() => { VM.removeFocusFromLinePart(this.model); this.cdr.markForCheck(); });
-        focusContentEditable(this.noteTextElement.nativeElement as HTMLElement, change.focusLast);
+        focusContentEditable(this.noteTextElements.toArray()[this.focusedVoiceIndex].nativeElement as HTMLElement, change.focusLast);
         break;
       case Focus.Text:
         this.focusService.registerFocus(() => { VM.removeFocusFromLinePart(this.model); this.cdr.markForCheck(); });
@@ -141,25 +234,32 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
   }
 
   private focusFirst(): void {
-    VM.focusFirst(this.model.notes);
-    (this.notesDiv.nativeElement as HTMLElement).focus();
+    VM.focusFirst(this.getVoices()[this.focusedVoiceIndex]);
+    if (this.notesDivElements) {
+        (this.notesDivElements.toArray()[this.focusedVoiceIndex].nativeElement as HTMLElement).focus();
+    }
   }
 
   private focusLast(): void {
-    VM.focusLast(this.model.notes);
-    (this.notesDiv.nativeElement as HTMLElement).focus();
+    VM.focusLast(this.getVoices()[this.focusedVoiceIndex]);
+    if (this.notesDivElements) {
+        (this.notesDivElements.toArray()[this.focusedVoiceIndex].nativeElement as HTMLElement).focus();
+    }
   }
 
-  changeNoteText(event: KeyboardEvent) {
-    const oldNoteText = spacedToString(this.model.notes);
-    const newNoteText = (this.noteTextElement.nativeElement as HTMLElement).textContent || '';
+  changeNoteText(event: KeyboardEvent, voiceIndex: number) {
+    this.focusedVoiceIndex = voiceIndex;
+    const voices = this.getVoices();
+    const oldNoteText = spacedToString(voices[voiceIndex]);
+    const el = this.noteTextElements.toArray()[voiceIndex].nativeElement as HTMLElement;
+    const newNoteText = el.textContent || '';
     //Do not call function if nothing changes thus adding empty changes to undoService
     if (oldNoteText !== newNoteText) {
       this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       event.stopPropagation();
       event.preventDefault();
-      this.textToNotes();
+      this.textToNotes(voiceIndex);
       this.recalculateWidths();
     }
   }
@@ -221,6 +321,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       event.preventDefault();
       this.focusService.preferredFocus = Focus.Code;
+      this.focusedVoiceIndex = this.getVoices().length - 1; // bottom-most voice
       this.focus({ focusLast: false });
     }
     if (event.ctrlKey && event.key === 'z') {
@@ -230,13 +331,29 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     }
   }
 
-  onNoteTextDown(event: KeyboardEvent): void {
-    handleTextInputMove(this.noteTextElement.nativeElement, event, e => this.request.emit(e));
+  onNoteTextDown(event: KeyboardEvent, voiceIndex: number): void {
+    this.focusedVoiceIndex = voiceIndex;
+    const el = this.noteTextElements.toArray()[voiceIndex].nativeElement as HTMLElement;
+    handleTextInputMove(el, event, e => this.request.emit(e));
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      this.focusService.preferredFocus = Focus.Text;
-      this.focus({ focusLast: false });
-      focusContentEditable(this.syllableTextElement.nativeElement, 2);
+      if (this.focusedVoiceIndex < this.getVoices().length - 1) {
+         this.focusedVoiceIndex++;
+         this.focusService.preferredFocus = Focus.Code;
+         this.focus({ focusLast: false });
+      } else {
+         this.focusService.preferredFocus = Focus.Text;
+         this.focus({ focusLast: false });
+         focusContentEditable(this.syllableTextElement.nativeElement, 2);
+      }
+    }
+    if (event.key === 'ArrowUp') {
+      if (this.focusedVoiceIndex > 0) {
+         event.preventDefault();
+         this.focusedVoiceIndex--;
+         this.focusService.preferredFocus = Focus.Code;
+         this.focus({ focusLast: false });
+      }
     }
     if (event.ctrlKey && event.key === 'z') {
       event.stopPropagation();
@@ -245,7 +362,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     }
   }
 
-  splitAndCreateNewSegments(text: string): void {
+  splitAndCreateNewSegments(text: string): boolean {
     let newTextSegments: string[] = [];
     if (text) {
       newTextSegments = text.split(/(?=\-)/);
@@ -258,13 +375,17 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
         }
       })
       newTextSegments = newTextSegments.filter(t => t.length > 0)
-      for (let i = newTextSegments.length - 1; i > 0; i--) {
-        this.request.emit({ kind: 'NewSegmentRequested', syllableType: this.model.syllableType, text: newTextSegments[i] });
+      if (newTextSegments.length > 1) {
+        for (let i = newTextSegments.length - 1; i > 0; i--) {
+          this.request.emit({ kind: 'NewSegmentRequested', syllableType: this.model.syllableType, text: newTextSegments[i] });
+        }
+        const thisNewText = newTextSegments[0];
+        (this.syllableTextElement.nativeElement as HTMLElement).textContent = thisNewText;
+        this.model.text = thisNewText;
+        return true;
       }
-      const thisNewText = newTextSegments[0];
-      (this.syllableTextElement.nativeElement as HTMLElement).textContent = thisNewText;
-      this.model.text = thisNewText;
     }
+    return false;
   }
 
   pasteSyllableText(e: ClipboardEvent) {
@@ -290,18 +411,18 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
       this.request.emit({ kind: "StartCommentRequested", startKind: VM.CommentPartKind.Syllable, startUUID: this.model.uuid });
     } else {
       if (oldText !== newText) {
+        this.undoService.beforeChange('Edit Note');
+        this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
         if (e.key === '-') {
           e.stopPropagation();
-          e.preventDefault();
-          this.undoService.beforeChange('Edit Note');
           const text = (this.syllableTextElement.nativeElement as HTMLElement).textContent;
           if (text) {
-            this.splitAndCreateNewSegments(text);
+            const splitOccurred = this.splitAndCreateNewSegments(text);
+            if (!splitOccurred) {
+              this.model.text = text;
+            }
           }
         } else {
-          this.undoService.beforeChange('Edit Note');
-          this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
-          this.model.uuid
           const newContent = (this.syllableTextElement.nativeElement as HTMLElement).textContent || '';
           this.model.text = newContent;
         }
@@ -310,14 +431,22 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     this.recalculateWidths();
   }
 
-  clickOn(e: MouseEvent): void {
+  clickOn(e: MouseEvent, voiceIndex: number): void {
+    this.focusedVoiceIndex = voiceIndex;
     e.preventDefault();
     e.stopPropagation();
-    if (this.model.notes.spaced[0].nonSpaced.length === 0) {
+    const voices = this.getVoices();
+    if (voices[voiceIndex].spaced[0].nonSpaced.length === 0) {
       this.undoService.beforeChange('Edit Note');
-      this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
-      this.model.notes = VM.emptySyllable().notes;
-      this.model.notes.spaced[0].nonSpaced[0].grouped[0] = this.getNoteByClickPos(e.offsetY);
+      this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+      const emptyNotes = JSON.parse(JSON.stringify(VM.emptySyllable().notes));
+      emptyNotes.spaced[0].nonSpaced[0].grouped[0] = this.getNoteByClickPos(e.offsetY);
+      if (voiceIndex === 0) {
+        this.model.notes = emptyNotes;
+      } else {
+        if (!this.model.additionalMelodies) this.model.additionalMelodies = [];
+        this.model.additionalMelodies[voiceIndex - 1] = emptyNotes;
+      }
       this.focus({ focusLast: true });
     } else {
       this.insertNoteNear(this.getNoteByClickPos(e.offsetY));
@@ -374,10 +503,36 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     };
   }
 
-  keyDown(e: KeyboardEvent): void {
+  switchVoice(delta: number): void {
+    const newIndex = this.focusedVoiceIndex + delta;
+    if (newIndex >= 0 && newIndex < this.getVoices().length) {
+      // Unfocus current
+      const focused = VM.getFocused(this.getVoices()[this.focusedVoiceIndex]);
+      if (focused) focused.focus = false;
+
+      // Update preferred voice
+      this.focusedVoiceIndex = newIndex;
+      this.focusService.preferredVoiceIndex = newIndex;
+
+      // Focus the new voice's first note
+      const notes = this.getVoices()[newIndex];
+      const newFocus = VM.getFocused(notes);
+      if (!newFocus && notes.spaced.length > 0 && notes.spaced[0].nonSpaced.length > 0 && notes.spaced[0].nonSpaced[0].grouped.length > 0) {
+         notes.spaced[0].nonSpaced[0].grouped[0].focus = true;
+      }
+      this.notesToText();
+      this.cdr.detectChanges();
+    }
+  }
+
+  keyDown(e: KeyboardEvent, voiceIndex: number): void {
+    this.focusedVoiceIndex = voiceIndex;
+    this.focusService.preferredVoiceIndex = voiceIndex;
     e.preventDefault();
     e.stopPropagation();
-    if (e.key === 'ArrowUp') { this.changePitch(VM.nextNote); }
+    if (e.altKey && e.key === 'ArrowDown') { this.switchVoice(1); }
+    else if (e.altKey && e.key === 'ArrowUp') { this.switchVoice(-1); }
+    else if (e.key === 'ArrowUp') { this.changePitch(VM.nextNote); }
     else if (e.altKey && e.key === 't') { this.request.emit({ kind: 'EditSyllableTextReqested' }); }
     else if (e.altKey && e.key === 'n') { this.request.emit({ kind: 'EditNotesTextReqested' }); }
     else if (e.altKey && e.key === 'ArrowRight') { this.insertOrShiftRight(); }
@@ -386,8 +541,24 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     else if (e.ctrlKey && e.key === '.') { this.request.emit({ kind: 'ChangeToBoxRequested' }); }
     else if (e.altKey && e.key === '.') { this.request.emit({ kind: 'ChangeToBoxRequested' }); }
     else if (e.key === 'ArrowDown') { this.changePitch(VM.previousNote); }
-    else if (e.key === 'ArrowLeft') { this.focusOther(VM.getLeftOf, () => this.requestFocusShift(undefined, true, -1)); }
-    else if (e.key === 'ArrowRight') { this.focusOther(VM.getRightOf, () => this.requestFocusShift(undefined, false, +1)); }
+    else if (e.key === 'ArrowLeft') {
+      const focused = VM.getFocused(this.getVoices()[this.focusedVoiceIndex]);
+      if (focused && focused.isLatent) {
+        this.discardLatentNote(this.focusedVoiceIndex);
+        this.requestFocusShift(undefined, true, -1);
+      } else {
+        this.focusOther(VM.getLeftOf, () => this.requestFocusShift(undefined, true, -1));
+      }
+    }
+    else if (e.key === 'ArrowRight') {
+      const focused = VM.getFocused(this.getVoices()[this.focusedVoiceIndex]);
+      if (focused && focused.isLatent) {
+        delete focused.isLatent;
+        this.notesToText();
+        this.cdr.markForCheck();
+      }
+      this.focusOther(VM.getRightOf, () => this.requestFocusShift(undefined, false, +1));
+    }
     else if (e.key === 's') { this.toggleNoteType(VM.NoteType.Sharp); }
     else if (e.key === 'n') { this.toggleNoteType(VM.NoteType.Natural); }
     else if (e.key === 'f') { this.toggleNoteType(VM.NoteType.Flat); }
@@ -541,7 +712,12 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
           nextNote.focus = true;
         } else {
           if (s.spaced.length === 0) {
-            this.request.emit({ kind: 'DeletionRequested', focusLast });
+            // Do not delete the syllable! Just move focus.
+            if (focusLast) {
+               this.requestFocusShift(undefined, true, -1);
+            } else {
+               this.requestFocusShift(undefined, false, +1);
+            }
           } else {
             this.requestFocusShift(undefined, focusLast, -1);
           }
@@ -576,6 +752,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     this.withFocus(f => {
       this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
+      if (f.isLatent) {
+        delete f.isLatent;
+      }
       const newNote = producer(f);
       f.octave = newNote.octave;
       f.base = newNote.base;
@@ -583,7 +762,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
   }
 
   focusOther(selector: (s: VM.Spaced, f: VM.Note) => VM.Note | undefined, notFoundAction: () => void): void {
-    this.withOther(f => selector(this.model.notes, f), (focused, other) => {
+    this.withOther(f => selector(this.getVoices()[this.focusedVoiceIndex], f), (focused, other) => {
       focused.focus = false;
       other.focus = true;
     }, notFoundAction);
@@ -604,7 +783,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
   }
 
   withPath<A>(f: (s: VM.Spaced, ns: VM.NonSpaced, gr: VM.Grouped, no: VM.Note) => A): A | undefined {
-    const path = VM.getFocusedPath(this.model.notes);
+    const path = VM.getFocusedPath(this.getVoices()[this.focusedVoiceIndex]);
     if (path !== undefined) {
       const [s, ns, gr, no] = path;
       return f(s, ns, gr, no);
@@ -612,29 +791,36 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
   }
 
   withFocus(f: (focused: VM.Note) => void): void {
-    const focused = VM.getFocused(this.model.notes);
-    if (focused) f(focused);
-  }
-
-  getDrawables(): Drawable[] {
-    const newModelString = JSON.stringify([this.model, this.comments]);
-    if (this.lastModelString === newModelString) {
-      return this.drawablesCache;
-    } else {
-      this.lastModelString = newModelString;
-      this.drawablesCache = fromSpaced(this.model.notes, this.comments);
-      return this.drawablesCache;
+    const focused = VM.getFocused(this.getVoices()[this.focusedVoiceIndex]);
+    if (focused) {
+      if (!focused.isLatent) {
+        this.focusService.lastPitch = { base: focused.base, octave: focused.octave };
+      }
+      f(focused);
     }
   }
 
-  textToNotes(): void {
-    const text = (this.noteTextElement.nativeElement as HTMLElement).textContent || '';
+  getDrawables(voiceIndex: number): Drawable[] {
+    const newModelString = JSON.stringify([this.model, this.comments]);
+    if (this.lastModelString === newModelString) {
+      return this.drawablesCache[voiceIndex] || [];
+    } else {
+      this.lastModelString = newModelString;
+      this.drawablesCache = fromSpaceds(this.getVoices(), this.comments);
+      return this.drawablesCache[voiceIndex] || [];
+    }
+  }
+
+  textToNotes(voiceIndex: number): void {
+    const el = this.noteTextElements.toArray()[voiceIndex].nativeElement as HTMLElement;
+    const text = el.textContent || '';
+    const voices = this.getVoices();
     try {
       this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
       this.lastModelString = '';
       const newNotes = musicLanguage.Spaced.tryParse(text);
-      const uuidInfo = VM.copyUuids(this.model.notes, newNotes);
+      const uuidInfo = VM.copyUuids(voices[voiceIndex], newNotes);
       const commentsToUpdate = this.comments.filter(c => uuidInfo.lostUUIDs.find(u => c.startUUID === u || c.endUUID === u));
 
       if (commentsToUpdate.length > 0 && uuidInfo.fallbackUUID === undefined) {
@@ -651,14 +837,28 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
           }
         }
       }
-      this.model.notes = newNotes;
+      
+      if (voiceIndex === 0) {
+        this.model.notes = newNotes;
+      } else {
+        if (!this.model.additionalMelodies) this.model.additionalMelodies = [];
+        this.model.additionalMelodies[voiceIndex - 1] = newNotes;
+      }
+
     } catch (e) {
       return;
     }
   }
 
   notesToText(): void {
-    (this.noteTextElement.nativeElement as HTMLElement).textContent = spacedToString(this.model.notes);
+    if (!this.noteTextElements) return;
+    const elements = this.noteTextElements.toArray();
+    const voices = this.getVoices();
+    for (let i = 0; i < voices.length; i++) {
+      if (elements[i]) {
+        elements[i].nativeElement.textContent = spacedToString(voices[i]);
+      }
+    }
   }
 
   addSyllableTool() {
@@ -685,7 +885,8 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     }
   }
 
-  setCodeAsPreferredFocus(): void {
+  setCodeAsPreferredFocus(voiceIndex: number = 0): void {
+    this.focusedVoiceIndex = voiceIndex;
     this.focusService.preferredFocus = Focus.Code;
   }
 
@@ -694,7 +895,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     this.request.emit({ kind: "EndCommentRequested", endKind: VM.CommentPartKind.Syllable, endUUID: this.model.uuid });
   }
 
-  drawableClicked(d: Drawable, me: MouseEvent): void {
+  drawableClicked(d: Drawable, me: MouseEvent, voiceIndex: number): void {
+    this.focusedVoiceIndex = voiceIndex;
+    this.focusService.preferredVoiceIndex = voiceIndex;
     me.preventDefault();
     me.stopPropagation();
     this.focusService.preferredFocus = Focus.Notes;
@@ -702,7 +905,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     if (d instanceof DNote || d instanceof DCommentStart || d instanceof DCommentEnd) {
       this.addNoteTools();
       this.focusService.registerFocus(() => { VM.removeFocusFromLinePart(this.model); this.cdr.markForCheck(); });
-      VM.focusOne(this.model.notes, d.ref);
+      VM.focusOne(this.getVoices()[voiceIndex], d.ref);
       setTimeout(() => this.cdr.markForCheck(), 0);
       this.request.emit({ kind: "EndCommentRequested", endKind: VM.CommentPartKind.Note, endUUID: d.ref.uuid });
     }
@@ -757,16 +960,30 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
 
 
   refocus(): void {
-    (this.notesDiv.nativeElement as HTMLElement).focus();
+    if (this.notesDivElements) {
+        (this.notesDivElements.toArray()[this.focusedVoiceIndex].nativeElement as HTMLElement).focus();
+    }
   }
 
   calculateWidth(): number {
-    const noteText = this.noteTextElement.nativeElement.textContent || '';
-    const syllableText = this.syllableTextElement.nativeElement.textContent || '';
-
-    this.noteTextWidth = textWidth(noteText);
+    let maxNoteTextWidth = 0;
+    if (this.noteTextElements) {
+        this.noteTextElements.forEach(el => {
+            const w = textWidth(el.nativeElement.textContent || '');
+            if (w > maxNoteTextWidth) maxNoteTextWidth = w;
+        });
+    }
+    const syllableText = this.syllableTextElement ? (this.syllableTextElement.nativeElement.textContent || '') : '';
+    this.noteTextWidth = maxNoteTextWidth;
     this.syllTextWidth = textWidth(syllableText);
-    this.svgWidth = (maxOf(this.getDrawables().map(d => d.x)) || 0) + 4;
+    
+    let maxSvgWidth = 0;
+    const voices = this.getVoices();
+    for (let i = 0; i < voices.length; i++) {
+        const w = (maxOf(this.getDrawables(i).map(d => d.x)) || 0) + 4;
+        if (w > maxSvgWidth) maxSvgWidth = w;
+    }
+    this.svgWidth = maxSvgWidth;
 
     return Math.max(40, this.noteTextWidth, this.syllTextWidth, this.svgWidth) + 20;
   }
@@ -803,6 +1020,12 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
     }
   }
 
+  trackByIndex(index: number, obj: any): any {
+    return index;
+  }
+  isGroupedLayout(): boolean {
+    return !!(window as any).groupedLayout;
+  }
   isNormal(): boolean { return this.model.syllableType === VM.SyllableType.Normal; }
   isWithoutNotes(): boolean { return this.model.syllableType === VM.SyllableType.WithoutNotes; }
   isSourceEllipsis(): boolean { return this.model.syllableType === VM.SyllableType.SourceEllipsis; }
@@ -828,13 +1051,30 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable {
 }
 
 export function spacedToString(spaced: VM.Spaced): string {
-  let noteToString = (note: VM.Note) => {
+    let noteToString = (note: VM.Note) => {
+    let baseStr = note.base as string;
+    let explicitOctave = note.octave;
+
+    if (note.octave === 3 && (note.base === 'A' || note.base === 'B')) {
+        baseStr = note.base;
+        explicitOctave = -1;
+    } else if (note.octave === 4 && (note.base !== 'A' && note.base !== 'B')) {
+        baseStr = note.base;
+        explicitOctave = -1;
+    } else if (note.octave === 4 && (note.base === 'A' || note.base === 'B')) {
+        baseStr = note.base.toLowerCase();
+        explicitOctave = -1;
+    } else if (note.octave === 5 && (note.base !== 'A' && note.base !== 'B')) {
+        baseStr = note.base.toLowerCase();
+        explicitOctave = -1;
+    }
+
     let modifierString =
-      (note.octave !== 4 ? note.octave : '') +
+      (explicitOctave !== -1 ? explicitOctave : '') +
       (note.noteType !== VM.NoteType.Normal ? VM.noteTypeToString(note.noteType) : '') +
       (note.liquescent ? 'l' : '');
 
-    return note.base + (modifierString !== '' ? (`[${modifierString}]`) : '');
+    return baseStr + (modifierString !== '' ? (`[` + modifierString + `]`) : '');
   }
 
   return spaced.spaced.map(nonSpaced =>

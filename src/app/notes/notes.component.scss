@@ -78,3 +78,20 @@ svg .note {
         height: 90px;
     }
 }
+
+.section {
+  display: inline-flex;
+  flex-direction: column;
+}
+.section.grouped-layout .notes.voice-0 { order: 1; }
+.section.grouped-layout .notes.voice-1 { order: 2; }
+.section.grouped-layout .noteText.voice-0 { order: 3; margin-top: 10px; }
+.section.grouped-layout .noteText.voice-1 { order: 4; }
+.section.grouped-layout .syllableText { order: 5; margin-top: 5px; }
+
+/* default interleaved layout */
+.section:not(.grouped-layout) .notes.voice-0 { order: 1; }
+.section:not(.grouped-layout) .noteText.voice-0 { order: 2; }
+.section:not(.grouped-layout) .notes.voice-1 { order: 3; }
+.section:not(.grouped-layout) .noteText.voice-1 { order: 4; }
+.section:not(.grouped-layout) .syllableText { order: 5; }

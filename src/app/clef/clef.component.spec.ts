@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { ClefComponent } from './clef.component';
 
@@ -6,7 +6,7 @@ describe('ClefComponent', () => {
   let component: ClefComponent;
   let fixture: ComponentFixture<ClefComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ ClefComponent ]
     })

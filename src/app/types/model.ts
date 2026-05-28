@@ -88,6 +88,7 @@ export interface EquivalentMetadata {
 export interface ZeileContainer {
   "kind": ContainerKind.ZeileContainer;
   uuid: string;
+  voiceCount?: number;
   children: LinePart[];
 }
 
@@ -172,6 +173,7 @@ export interface Note {
   liquescent: boolean;
   octave: number;
   focus: boolean;
+  isLatent?: boolean;
 }
 
 export interface Spaced {
@@ -236,6 +238,7 @@ export interface Syllable {
   uuid: string;
   text: string;
   notes: Spaced;
+  additionalMelodies?: Spaced[];
   syllableType: SyllableType;
 }
 
@@ -483,50 +486,63 @@ export function emptyParatextContainer(): ParatextContainer {
   };
 }
 
-export function emptyZeileContainer(): ZeileContainer {
+export function emptyZeileContainer(voiceCount: number = 1): ZeileContainer {
   return {
     uuid: UUID(),
     kind: ContainerKind.ZeileContainer,
-    children: [emptySyllable()]
+    voiceCount: voiceCount,
+    children: [emptySyllable(voiceCount)]
   };
 }
 
-export function emptySyllable(): Syllable {
+export function emptySyllable(voiceCount: number = 1): Syllable {
+  const notes = {
+    spaced: [{
+      nonSpaced: [{
+        grouped: [{
+          uuid: UUID(),
+          base: BaseNote.A,
+          liquescent: false,
+          noteType: NoteType.Normal,
+          octave: 4,
+          focus: false
+        }]
+      }]
+    }]
+  };
+  const additionalMelodies: Spaced[] = [];
+  for (let i = 1; i < voiceCount; i++) {
+    additionalMelodies.push(JSON.parse(JSON.stringify(notes)));
+  }
   return {
     uuid: UUID(),
     kind: LinePartKind.Syllable,
     text: "",
     syllableType: SyllableType.Normal,
-    notes: {
-      spaced: [{
-        nonSpaced: [{
-          grouped: [{
-            uuid: UUID(),
-            base: BaseNote.A,
-            liquescent: false,
-            noteType: NoteType.Normal,
-            octave: 4,
-            focus: false
-          }]
-        }]
-      }]
-    }
+    notes: notes,
+    additionalMelodies: additionalMelodies.length > 0 ? additionalMelodies : undefined
   };
 }
 
-export function trueEmptySyllable(): Syllable {
+export function trueEmptySyllable(voiceCount: number = 1): Syllable {
+  const notes = {
+    spaced: [{
+      nonSpaced: [{
+        grouped: []
+      }]
+    }]
+  };
+  const additionalMelodies: Spaced[] = [];
+  for (let i = 1; i < voiceCount; i++) {
+    additionalMelodies.push(JSON.parse(JSON.stringify(notes)));
+  }
   return {
     uuid: UUID(),
     kind: LinePartKind.Syllable,
     text: "",
     syllableType: SyllableType.Normal,
-    notes: {
-      spaced: [{
-        nonSpaced: [{
-          grouped: []
-        }]
-      }]
-    }
+    notes: notes,
+    additionalMelodies: additionalMelodies.length > 0 ? additionalMelodies : undefined
   };
 }
 
@@ -763,7 +779,17 @@ export function move(root: RootContainer, movedZ: number[], afterZ: number[]): s
     }
     case ContainerKind.ParatextContainer: switch (moved.kind) {
       case ContainerKind.RootContainer: return "The Edition unit cannot be moved.";
-      case ContainerKind.FormteilContainer: return "Ein Formteil kann nicht hinter einem Paratext eingefügt werden.";
+      case ContainerKind.FormteilContainer: {
+        if (afterZ.length === movedZ.length) {
+          remove(root, moved);
+          const parent = parentOf(root, after);
+          const children = getContainerChildren(parent!);
+          children.splice(children.indexOf(after) + 1, 0, moved);
+          return undefined;
+        } else {
+          return "Diese Operation würde die Hierarchiestufen verletzen.";
+        }
+      }
       case ContainerKind.ParatextContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
       case ContainerKind.ZeileContainer: { remove(root, moved); const parent = parentOf(root, after); getContainerChildren(parent!).splice(getContainerChildren(parent!).indexOf(after) + 1, 0, moved); return undefined; }
       case ContainerKind.MiscContainer: return "Der Misc Container kann nicht verschoben werden.";

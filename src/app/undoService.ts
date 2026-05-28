@@ -18,7 +18,20 @@ export class UndoService {
     private notesCallback: Map<string, (() => void)> = new Map();
     private HISTORY_SIZE: number = 10;
     private throttledFunc: (() => void) | undefined;
+    private throttledAfterChange: (() => void) | undefined;
+    private onAutosave: (() => void) | undefined;
     private nextActionName: string = 'Edit';
+
+    registerAutosave(callback: () => void) {
+        this.onAutosave = callback;
+        this.throttledAfterChange = debounce(() => {
+            if (this.onAutosave) this.onAutosave();
+        }, 1500, { 'leading': false, 'trailing': true });
+    }
+
+    triggerSave() {
+        if (this.onAutosave) this.onAutosave();
+    }
 
     //register call to get JsonString for document
     async registerUnDo(getCallback: () => string | undefined, setCallback: (jsonString: string) => void): Promise<void> {
@@ -78,6 +91,8 @@ export class UndoService {
         this.nextActionName = actionName;
         if (this.throttledFunc)
             this.throttledFunc();
+        if (this.throttledAfterChange)
+            this.throttledAfterChange();
     }
 
     //call to set last change

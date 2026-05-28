@@ -39,6 +39,33 @@ export function fromSpaced(sd: Spaced, comments: Comment[]): Drawable[] {
   return flatten(spacedWith(35, mapped));
 }
 
+export function fromSpaceds(sds: Spaced[], comments: Comment[]): Drawable[][] {
+  const maxNeumes = maxOf(sds.map(s => s.spaced.length)) || 0;
+  const mapped: Drawable[][][] = sds.map(s => s.spaced.map(x => fromNonSpaced(x, comments)));
+  const aligned: Drawable[][][] = sds.map(() => []);
+
+  let offset = 0;
+  for (let i = 0; i < maxNeumes; i++) {
+    let maxWidth = 0;
+    
+    for (let m = 0; m < sds.length; m++) {
+      if (mapped[m][i]) {
+        maxWidth = Math.max(maxWidth, getWidth(mapped[m][i]));
+      }
+    }
+    
+    for (let m = 0; m < sds.length; m++) {
+      if (mapped[m][i]) {
+        aligned[m].push(mapped[m][i].map(d => d.addOffset(offset)));
+      }
+    }
+    
+    offset += 35 + maxWidth;
+  }
+  
+  return aligned.map(a => flatten(a));
+}
+
 function fromNonSpaced(ns: NonSpaced, comments: Comment[]): Drawable[] {
   const mapped = ns.nonSpaced.map(x => fromGrouped(x, comments));
   return flatten(spacedWith(17, mapped));

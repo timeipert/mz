@@ -590,14 +590,23 @@ export class DocumentComponent implements OnInit {
               const sec = part.querySelector('.section') as HTMLElement;
               if (!sec) continue;
               
-              const svg = sec.querySelector('svg');
+              const svgs = sec.querySelectorAll('svg');
               const textEl = sec.querySelector('.syllableText:not(.dnone)') as HTMLElement;
               
-              const rawWidth = svg ? parseFloat(svg.getAttribute('width') || '50') : 50;
-              const rawHeight = svg ? (svg.getBoundingClientRect().height || 80) : 80;
+              let maxRawWidth = 50;
+              let totalRawHeight = 0;
+              for (let v = 0; v < svgs.length; v++) {
+                 const s = svgs[v];
+                 const w = parseFloat(s.getAttribute('width') || '50');
+                 if (w > maxRawWidth) maxRawWidth = w;
+                 totalRawHeight += (s.getBoundingClientRect().height || 80);
+              }
+              if (svgs.length === 0) {
+                 totalRawHeight = 80;
+              }
               
-              const svgWidth = rawWidth * SCALE;
-              const secHeight = rawHeight * SCALE;
+              const svgWidth = maxRawWidth * SCALE;
+              const secHeight = totalRawHeight * SCALE;
               
               let txt = "";
               let textWidth = 0;
@@ -628,8 +637,12 @@ export class DocumentComponent implements OnInit {
                   // Peek at the next syllable's width to see if it would trigger a wrap
                   const nextSec = nextPart.querySelector('.section') as HTMLElement;
                   if (nextSec) {
-                    const nextSvgEl = nextSec.querySelector('svg');
-                    const nextRawW = nextSvgEl ? parseFloat(nextSvgEl.getAttribute('width') || '50') : 50;
+                    const nextSvgEls = nextSec.querySelectorAll('svg');
+                    let nextRawW = 50;
+                    for (let v = 0; v < nextSvgEls.length; v++) {
+                        const w = parseFloat(nextSvgEls[v].getAttribute('width') || '50');
+                        if (w > nextRawW) nextRawW = w;
+                    }
                     const nextSvgW = nextRawW * SCALE;
                     const nextTextEl = nextSec.querySelector('.syllableText:not(.dnone)') as HTMLElement;
                     let nextTxtW = 0;
@@ -719,20 +732,25 @@ export class DocumentComponent implements OnInit {
               
               lineMaxHeight = Math.max(lineMaxHeight, secHeight);
               
-              // Draw SVG
-              if (svg) {
-                const originalViewBox = svg.getAttribute('viewBox');
-                if (!originalViewBox) {
-                  // Use finalSecWidth (possibly extended to right margin) as the viewport width;
-                  // the staff lines (x2="9999") will be naturally clipped to this viewBox
-                  const finalRawWidth = finalSecWidth / SCALE;
-                  svg.setAttribute('viewBox', `0 0 ${finalRawWidth} ${rawHeight}`);
-                }
-                
-                await doc.svg(svg, { x: cursorX, y: cursorY, width: finalSecWidth, height: secHeight });
-                
-                if (!originalViewBox) {
-                  svg.removeAttribute('viewBox');
+              // Draw SVGs
+              if (svgs.length > 0) {
+                let currentSvgY = cursorY;
+                for (let v = 0; v < svgs.length; v++) {
+                  const svg = svgs[v];
+                  const rawHeight = svg.getBoundingClientRect().height || 80;
+                  const svgSecHeight = rawHeight * SCALE;
+                  const originalViewBox = svg.getAttribute('viewBox');
+                  if (!originalViewBox) {
+                    const finalRawWidth = finalSecWidth / SCALE;
+                    svg.setAttribute('viewBox', `0 0 ${finalRawWidth} ${rawHeight}`);
+                  }
+                  
+                  await doc.svg(svg, { x: cursorX, y: currentSvgY, width: finalSecWidth, height: svgSecHeight });
+                  currentSvgY += svgSecHeight;
+                  
+                  if (!originalViewBox) {
+                    svg.removeAttribute('viewBox');
+                  }
                 }
               }
               
@@ -1076,6 +1094,9 @@ export class DocumentComponent implements OnInit {
 
   ngOnInit(): void {
     this.undoService.registerUnDo(this.getJsonString, this.undoChanges);
+    this.undoService.registerAutosave(() => {
+      this.save();
+    });
     this.subs.push(combineLatest([this.userService.user, this.route.paramMap]).subscribe(([user, params]) => {
       this.user = user;
       if (this.user) {
@@ -1426,7 +1447,7 @@ export class DocumentComponent implements OnInit {
 
   hasChanges(): boolean {
     if (this.contJsonClone)
-      return !(this.contJsonClone.replace(/"focus":true/, '"focus":false') === JSON.stringify(this.cont).replace(/"focus":true/, '"focus":false')
+      return !(this.contJsonClone.replace(/"focus":true/g, '"focus":false') === JSON.stringify(this.cont).replace(/"focus":true/g, '"focus":false')
         && this.documentJsonClone === JSON.stringify(this.document));
     return false;
   }

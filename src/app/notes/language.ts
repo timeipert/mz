@@ -16,7 +16,7 @@ interface MusicLang {
 
 const lang = {
     BaseNote: function (r: MusicLang) {
-        return P.regexp(/[A-G]/).desc("Note erwartet") as P.Parser<BaseNote>;
+        return P.regexp(/[A-Ga-g]/).desc("Note erwartet") as P.Parser<BaseNote>;
     },
     Octave: function (r: MusicLang) {
         return P.regexp(/[0-9]/).map(Number).desc("Zahl erwartet");
@@ -38,6 +38,10 @@ const lang = {
     },
     Note: function (r: MusicLang) {
         return P.seq(r.BaseNote, r.ModifierGroup.atMost(1)).map((value): Note => {
+            const rawBase = value[0] as unknown as string;
+            const isLower = rawBase === rawBase.toLowerCase();
+            const baseNote = rawBase.toUpperCase() as BaseNote;
+
             let groupOctave:   number | undefined = undefined;
             let groupNoteType: NoteType | undefined = undefined;
 
@@ -46,10 +50,25 @@ const lang = {
                 groupNoteType = value[1][0].noteType;
             }
 
+            let defaultOctave = 4;
+            if (isLower) {
+                if (baseNote === 'A' || baseNote === 'B') {
+                    defaultOctave = 4;
+                } else {
+                    defaultOctave = 5;
+                }
+            } else {
+                if (baseNote === 'A' || baseNote === 'B') {
+                    defaultOctave = 3;
+                } else {
+                    defaultOctave = 4;
+                }
+            }
+
             return {
                 uuid: UUID(),
-                base: value[0],
-                octave: (groupOctave !== undefined)? groupOctave : 4,
+                base: baseNote,
+                octave: (groupOctave !== undefined)? groupOctave : defaultOctave,
                 noteType: (groupNoteType !== undefined)? groupNoteType : NoteType.Normal,
                 focus: false,
                 liquescent: (value[1].length > 0)? value[1][0].liquescent : false

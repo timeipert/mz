@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Focus } from './types/Focus';
+import * as VM from './types/model';
 
 @Injectable({
   providedIn: 'root'
@@ -22,6 +23,9 @@ export class FocusService {
   mode: Mode = { kind: "Normal" }
 
   preferredFocus: Focus = Focus.Notes;
+  preferredVoiceIndex: number = 0;
+  
+  lastPitch?: { base: VM.BaseNote, octave: number };
 }
 
 type Mode = NormalMode | CommentCreateMode

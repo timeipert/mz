@@ -1,12 +1,12 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { SselectComponent } from './sselect.component';
 
 describe('SselectComponent', () => {
-  let component: SselectComponent;
-  let fixture: ComponentFixture<SselectComponent>;
+  let component: SselectComponent<any>;
+  let fixture: ComponentFixture<SselectComponent<any>>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ SselectComponent ]
     })

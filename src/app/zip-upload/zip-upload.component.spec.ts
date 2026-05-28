@@ -1,4 +1,4 @@
-import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { ZipUploadComponent } from './zip-upload.component';
 
@@ -6,7 +6,7 @@ describe('ZipUploadComponent', () => {
   let component: ZipUploadComponent;
   let fixture: ComponentFixture<ZipUploadComponent>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
       declarations: [ ZipUploadComponent ]
     })

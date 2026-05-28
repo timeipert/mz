@@ -25,26 +25,22 @@
   <!-- Tabs -->
   <ul class="nav nav-tabs mb-4">
     <li class="nav-item">
-      <a class="nav-link cursor-pointer" [class.active]="activeTab === 'quick'"
-         (click)="activeTab = 'quick'">
+      <a class="nav-link cursor-pointer" [class.active]="activeTab === 'quick'" (click)="activeTab = 'quick'">
         <i class="bi bi-search me-1"></i>Quick Search
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link cursor-pointer" [class.active]="activeTab === 'sources'"
-         (click)="activeTab = 'sources'">
+      <a class="nav-link cursor-pointer" [class.active]="activeTab === 'sources'" (click)="activeTab = 'sources'">
         <i class="bi bi-journal-text me-1"></i>Sources
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link cursor-pointer" [class.active]="activeTab === 'documents'"
-         (click)="activeTab = 'documents'">
+      <a class="nav-link cursor-pointer" [class.active]="activeTab === 'documents'" (click)="activeTab = 'documents'">
         <i class="bi bi-file-earmark-music me-1"></i>Documents
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link cursor-pointer" [class.active]="activeTab === 'melody'"
-         (click)="activeTab = 'melody'">
+      <a class="nav-link cursor-pointer" [class.active]="activeTab === 'melody'" (click)="activeTab = 'melody'">
         <i class="bi bi-music-note-beamed me-1"></i>Melody
       </a>
     </li>
@@ -58,17 +54,17 @@
     <div class="card shadow-sm mb-4">
       <div class="card-body">
         <p class="text-muted small mb-3">
-          Search across <strong>all text fields</strong> in sources and documents at once.
-          Results include both — click any row to open it.
+          Search across <strong>all metadata fields</strong> and <strong>chant syllable text</strong>
+          in sources and documents at once.
         </p>
         <div class="input-group input-group-lg">
           <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
           <input class="form-control"
-                 placeholder="Enter any text — source siglum, text incipit, institution, feast day…"
+                 placeholder="Source siglum, text incipit, institution, feast day, syllable text…"
                  [(ngModel)]="quickText"
                  (keydown.enter)="searchQuick()" />
           <button class="btn btn-outline-secondary" type="button" *ngIf="quickText"
-                  (click)="quickText = ''; quickResults = []; quickSearched = false;" title="Clear">
+                  (click)="quickText = ''; quickResults = []; quickSearched = false;">
             <i class="bi bi-x-lg"></i>
           </button>
           <button class="btn btn-primary" type="button" (click)="searchQuick()"
@@ -83,8 +79,7 @@
           <div class="d-flex align-items-center gap-2 flex-wrap">
             <span class="text-muted small">Recent:</span>
             <button *ngFor="let r of recentSearches"
-                    class="btn btn-sm btn-outline-secondary"
-                    (click)="applyRecent(r)">{{r}}</button>
+                    class="btn btn-sm btn-outline-secondary" (click)="applyRecent(r)">{{r}}</button>
             <button class="btn btn-sm btn-link text-muted p-0" (click)="clearRecent()">Clear</button>
           </div>
         </div>
@@ -101,17 +96,12 @@
         <div class="d-flex align-items-center justify-content-between mb-2">
           <span class="fw-semibold small text-muted">{{quickResults.length}} result(s)</span>
           <div class="d-flex gap-2">
-            <span class="badge bg-primary-subtle text-primary">
-              {{countQuickResults('source')}} source(s)
-            </span>
-            <span class="badge bg-success-subtle text-success">
-              {{countQuickResults('document')}} document(s)
-            </span>
+            <span class="badge bg-primary-subtle text-primary">{{countQuickResults('source')}} source(s)</span>
+            <span class="badge bg-success-subtle text-success">{{countQuickResults('document')}} document(s)</span>
           </div>
         </div>
         <div class="list-group shadow-sm">
-          <button *ngFor="let r of quickResults"
-                  type="button"
+          <button *ngFor="let r of quickResults" type="button"
                   class="list-group-item list-group-item-action"
                   (click)="goToQuickResult(r)">
             <div class="d-flex align-items-start gap-3">
@@ -125,6 +115,13 @@
                 <div class="fw-semibold">{{r.title}}</div>
                 <div class="text-muted small">{{r.subtitle}}</div>
                 <div class="text-muted small opacity-75">{{r.extra}}</div>
+                <!-- Text snippet from transcription -->
+                <div *ngIf="r.snippet" class="snippet-box mt-1">
+                  <i class="bi bi-file-text text-muted me-1" style="font-size:0.75rem;"></i>
+                  <span class="snippet-text">
+                    <span class="text-muted">{{r.snippet.before}}</span><mark class="snippet-mark">{{r.snippet.match}}</mark><span class="text-muted">{{r.snippet.after}}</span>
+                  </span>
+                </div>
               </div>
               <i class="bi bi-chevron-right text-muted mt-1"></i>
             </div>
@@ -145,86 +142,66 @@
         <div class="row g-3">
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Source Siglum</label>
-            <input class="form-control" [(ngModel)]="sourceQuery.quellensigle"
-                   (keydown.enter)="searchSources()" />
+            <input class="form-control" [(ngModel)]="sourceQuery.quellensigle" (keydown.enter)="searchSources()" />
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Dating</label>
-            <input class="form-control" [(ngModel)]="sourceQuery.datierung"
-                   (keydown.enter)="searchSources()" />
+            <input class="form-control" [(ngModel)]="sourceQuery.datierung" (keydown.enter)="searchSources()" />
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Region of Origin</label>
             <div class="input-group">
-              <input class="form-control" list="list-herkunftsregion" [(ngModel)]="sourceQuery.herkunftsregion"
-                     (keydown.enter)="searchSources()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('herkunftsregion', sourceQuery.herkunftsregion)" title="Save to options">
-                <i class="bi bi-plus-lg"></i>
-              </button>
+              <input class="form-control" list="list-herkunftsregion" [(ngModel)]="sourceQuery.herkunftsregion" (keydown.enter)="searchSources()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('herkunftsregion', sourceQuery.herkunftsregion)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Place of Origin</label>
             <div class="input-group">
-              <input class="form-control" list="list-herkunftsort" [(ngModel)]="sourceQuery.herkunftsort"
-                     (keydown.enter)="searchSources()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('herkunftsort', sourceQuery.herkunftsort)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-herkunftsort" [(ngModel)]="sourceQuery.herkunftsort" (keydown.enter)="searchSources()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('herkunftsort', sourceQuery.herkunftsort)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Institution of Origin</label>
             <div class="input-group">
-              <input class="form-control" list="list-herkunftsinstitution" [(ngModel)]="sourceQuery.herkunftsinstitution"
-                     (keydown.enter)="searchSources()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('herkunftsinstitution', sourceQuery.herkunftsinstitution)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-herkunftsinstitution" [(ngModel)]="sourceQuery.herkunftsinstitution" (keydown.enter)="searchSources()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('herkunftsinstitution', sourceQuery.herkunftsinstitution)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Order Tradition</label>
             <div class="input-group">
-              <input class="form-control" list="list-ordenstradition" [(ngModel)]="sourceQuery.ordenstradition"
-                     (keydown.enter)="searchSources()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('ordenstradition', sourceQuery.ordenstradition)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-ordenstradition" [(ngModel)]="sourceQuery.ordenstradition" (keydown.enter)="searchSources()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('ordenstradition', sourceQuery.ordenstradition)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Source Type</label>
             <div class="input-group">
-              <input class="form-control" list="list-quellentyp" [(ngModel)]="sourceQuery.quellentyp"
-                     (keydown.enter)="searchSources()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('quellentyp', sourceQuery.quellentyp)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-quellentyp" [(ngModel)]="sourceQuery.quellentyp" (keydown.enter)="searchSources()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('quellentyp', sourceQuery.quellentyp)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Library Location</label>
             <div class="input-group">
-              <input class="form-control" list="list-bibliotheksort" [(ngModel)]="sourceQuery.bibliotheksort"
-                     (keydown.enter)="searchSources()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('bibliotheksort', sourceQuery.bibliotheksort)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-bibliotheksort" [(ngModel)]="sourceQuery.bibliotheksort" (keydown.enter)="searchSources()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('bibliotheksort', sourceQuery.bibliotheksort)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Library</label>
             <div class="input-group">
-              <input class="form-control" list="list-bibliothek" [(ngModel)]="sourceQuery.bibliothek"
-                     (keydown.enter)="searchSources()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('bibliothek', sourceQuery.bibliothek)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-bibliothek" [(ngModel)]="sourceQuery.bibliothek" (keydown.enter)="searchSources()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('bibliothek', sourceQuery.bibliothek)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Library Signature</label>
             <div class="input-group">
-              <input class="form-control" list="list-bibliothekssignatur" [(ngModel)]="sourceQuery.bibliothekssignatur"
-                     (keydown.enter)="searchSources()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('bibliothekssignatur', sourceQuery.bibliothekssignatur)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-bibliothekssignatur" [(ngModel)]="sourceQuery.bibliothekssignatur" (keydown.enter)="searchSources()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('bibliothekssignatur', sourceQuery.bibliothekssignatur)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-12 mt-2 d-flex justify-content-between align-items-center">
@@ -233,15 +210,13 @@
             </button>
             <button class="btn btn-primary" (click)="searchSources()" [disabled]="sourceSearching">
               <span *ngIf="sourceSearching" class="spinner-border spinner-border-sm me-1"></span>
-              <i *ngIf="!sourceSearching" class="bi bi-search me-1"></i>
-              Search Sources
+              <i *ngIf="!sourceSearching" class="bi bi-search me-1"></i>Search Sources
             </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Source results -->
     <div *ngIf="sourceSearched && sourceResults.length === 0" class="text-center text-muted py-4">
       <i class="bi bi-inbox" style="font-size:2rem;"></i>
       <p class="mt-2">No sources match the criteria.</p>
@@ -251,7 +226,7 @@
         <span class="fw-semibold small">{{sourceResults.length}} source(s)</span>
         <div class="d-flex gap-2 align-items-center">
           <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                  (click)="exportSourcesCSV()" title="Export visible columns as CSV">
+                  (click)="exportSourcesCSV()">
             <i class="bi bi-download"></i> CSV
           </button>
           <div class="position-relative">
@@ -280,12 +255,9 @@
           <table class="table table-hover mb-0">
             <thead class="table-light">
               <tr>
-                <th *ngFor="let col of visibleSrcCols; let first = first"
-                    [class.ps-3]="first"
-                    class="sortable-th"
-                    (click)="sortBy(col.key.toString(), 'src')">
-                  {{col.label}}
-                  <i [class]="sortIcon(col.key.toString(), 'src')"></i>
+                <th *ngFor="let col of visibleSrcCols; let first = first" [class.ps-3]="first"
+                    class="sortable-th" (click)="sortBy(col.key.toString(), 'src')">
+                  {{col.label}} <i [class]="sortIcon(col.key.toString(), 'src')"></i>
                 </th>
               </tr>
             </thead>
@@ -314,64 +286,51 @@
         <div class="row g-3">
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Document ID</label>
-            <input class="form-control" [(ngModel)]="documentQuery.dokumenten_id"
-                   (keydown.enter)="searchDocuments()" />
+            <input class="form-control" [(ngModel)]="documentQuery.dokumenten_id" (keydown.enter)="searchDocuments()" />
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Text Incipit</label>
-            <input class="form-control" [(ngModel)]="documentQuery.textinitium"
-                   (keydown.enter)="searchDocuments()" />
+            <input class="form-control" [(ngModel)]="documentQuery.textinitium" (keydown.enter)="searchDocuments()" />
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Genre 1</label>
             <div class="input-group">
-              <input class="form-control" list="list-gattung1" [(ngModel)]="documentQuery.gattung1"
-                     (keydown.enter)="searchDocuments()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('gattung1', documentQuery.gattung1)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-gattung1" [(ngModel)]="documentQuery.gattung1" (keydown.enter)="searchDocuments()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('gattung1', documentQuery.gattung1)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Genre 2</label>
             <div class="input-group">
-              <input class="form-control" list="list-gattung2" [(ngModel)]="documentQuery.gattung2"
-                     (keydown.enter)="searchDocuments()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('gattung2', documentQuery.gattung2)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-gattung2" [(ngModel)]="documentQuery.gattung2" (keydown.enter)="searchDocuments()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('gattung2', documentQuery.gattung2)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Feast Day</label>
             <div class="input-group">
-              <input class="form-control" list="list-festtag" [(ngModel)]="documentQuery.festtag"
-                     (keydown.enter)="searchDocuments()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('festtag', documentQuery.festtag)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-festtag" [(ngModel)]="documentQuery.festtag" (keydown.enter)="searchDocuments()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('festtag', documentQuery.festtag)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Celebration</label>
             <div class="input-group">
-              <input class="form-control" list="list-feier" [(ngModel)]="documentQuery.feier"
-                     (keydown.enter)="searchDocuments()" />
-              <button class="btn btn-outline-secondary" type="button"
-                      (click)="addToSettings('feier', documentQuery.feier)"><i class="bi bi-plus-lg"></i></button>
+              <input class="form-control" list="list-feier" [(ngModel)]="documentQuery.feier" (keydown.enter)="searchDocuments()" />
+              <button class="btn btn-outline-secondary" type="button" (click)="addToSettings('feier', documentQuery.feier)"><i class="bi bi-plus-lg"></i></button>
             </div>
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Bibliographic Reference</label>
-            <input class="form-control" [(ngModel)]="documentQuery.bibliographischerverweis"
-                   (keydown.enter)="searchDocuments()" />
+            <input class="form-control" [(ngModel)]="documentQuery.bibliographischerverweis" (keydown.enter)="searchDocuments()" />
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Print Edition</label>
-            <input class="form-control" [(ngModel)]="documentQuery.druckausgabe"
-                   (keydown.enter)="searchDocuments()" />
+            <input class="form-control" [(ngModel)]="documentQuery.druckausgabe" (keydown.enter)="searchDocuments()" />
           </div>
           <div class="col-md-4">
             <label class="form-label text-muted small mb-1">Comment</label>
-            <input class="form-control" [(ngModel)]="documentQuery.kommentar"
-                   (keydown.enter)="searchDocuments()" />
+            <input class="form-control" [(ngModel)]="documentQuery.kommentar" (keydown.enter)="searchDocuments()" />
           </div>
           <div class="col-12 mt-2 d-flex justify-content-between align-items-center">
             <button class="btn btn-sm btn-outline-secondary" type="button" (click)="clearDocumentQuery()">
@@ -379,15 +338,13 @@
             </button>
             <button class="btn btn-primary" (click)="searchDocuments()" [disabled]="documentSearching">
               <span *ngIf="documentSearching" class="spinner-border spinner-border-sm me-1"></span>
-              <i *ngIf="!documentSearching" class="bi bi-search me-1"></i>
-              Search Documents
+              <i *ngIf="!documentSearching" class="bi bi-search me-1"></i>Search Documents
             </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Document results -->
     <div *ngIf="documentSearched && documentResults.length === 0" class="text-center text-muted py-4">
       <i class="bi bi-inbox" style="font-size:2rem;"></i>
       <p class="mt-2">No documents match the criteria.</p>
@@ -397,7 +354,7 @@
         <span class="fw-semibold small">{{documentResults.length}} document(s)</span>
         <div class="d-flex gap-2 align-items-center">
           <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                  (click)="exportDocumentsCSV()" title="Export visible columns as CSV">
+                  (click)="exportDocumentsCSV()">
             <i class="bi bi-download"></i> CSV
           </button>
           <div class="position-relative">
@@ -426,12 +383,9 @@
           <table class="table table-hover mb-0">
             <thead class="table-light">
               <tr>
-                <th *ngFor="let col of visibleDocCols; let first = first"
-                    [class.ps-3]="first"
-                    class="sortable-th"
-                    (click)="sortBy(col.key.toString(), 'doc')">
-                  {{col.label}}
-                  <i [class]="sortIcon(col.key.toString(), 'doc')"></i>
+                <th *ngFor="let col of visibleDocCols; let first = first" [class.ps-3]="first"
+                    class="sortable-th" (click)="sortBy(col.key.toString(), 'doc')">
+                  {{col.label}} <i [class]="sortIcon(col.key.toString(), 'doc')"></i>
                 </th>
               </tr>
             </thead>
@@ -457,7 +411,8 @@
   <div *ngIf="activeTab === 'melody'">
     <div class="card shadow-sm mb-4">
       <div class="card-body">
-        <!-- Search type selector -->
+
+        <!-- Search type -->
         <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
           <div class="d-flex align-items-center gap-2">
             <span class="text-muted small fw-semibold">Search by:</span>
@@ -477,8 +432,7 @@
             </div>
           </div>
           <div class="form-check form-switch mb-0" *ngIf="melodySearchType === 'pitch'">
-            <input class="form-check-input" type="checkbox" id="withOctave"
-                   [(ngModel)]="melodyWithOctave" />
+            <input class="form-check-input" type="checkbox" id="withOctave" [(ngModel)]="melodyWithOctave" />
             <label class="form-check-label small" for="withOctave">Include octave (e.g. C4)</label>
           </div>
         </div>
@@ -498,45 +452,43 @@
                   (click)="searchMelody()"
                   [disabled]="melodySearching || !melodyPattern.trim()">
             <span *ngIf="melodySearching" class="spinner-border spinner-border-sm me-1"></span>
-            <i *ngIf="!melodySearching" class="bi bi-search me-1"></i>
-            Search
+            <i *ngIf="!melodySearching" class="bi bi-search me-1"></i>Search
           </button>
         </div>
 
         <!-- Help text -->
         <div class="alert alert-light border small mb-0 py-2">
           <ng-container *ngIf="melodySearchType === 'pitch'">
-            <strong>Pitch name search:</strong> enter space-separated note letters (A – G, case-insensitive).
+            <strong>Pitch name search:</strong> enter space-separated note letters (A–G, case-insensitive).
             <ng-container *ngIf="!melodyWithOctave">
               <br>Examples: <code>C D E F G</code> &nbsp;|&nbsp; <code>g f e d c</code> &nbsp;|&nbsp; <code>A G A B C</code>
               <br>Octave is <em>ignored</em> — <code>C</code> matches any C regardless of register.
             </ng-container>
             <ng-container *ngIf="melodyWithOctave">
               <br>Examples: <code>C4 D4 E4 F4</code> &nbsp;|&nbsp; <code>G3 A3 B3 C4</code>
-              <br>Octave number is required and must match exactly.
             </ng-container>
-            <br>The pattern matches any consecutive sequence of that many notes in the chant.
+            <br>Results show the matching notes (orange) with surrounding context on a mini staff.
           </ng-container>
           <ng-container *ngIf="melodySearchType === 'contour'">
-            <strong>Contour search:</strong> describe melodic <em>intervals</em> between consecutive notes.
-            <br>Use: <code>u</code> = up &nbsp;|&nbsp; <code>d</code> = down &nbsp;|&nbsp; <code>r</code> = same pitch — space-separated.
-            <br>Examples:
-            <br>&nbsp;· Ascending scale: <code>u u u u</code>
-            <br>&nbsp;· Wave: <code>u u d d u u d d</code>
-            <br>&nbsp;· Note that a pattern of N letters matches N+1 consecutive notes.
+            <strong>Contour search:</strong> describe melodic direction between consecutive notes.
+            <br>Use: <code>u</code> = up &nbsp;|&nbsp; <code>d</code> = down &nbsp;|&nbsp; <code>r</code> = same pitch
+            <br>Examples: <code>u u u u</code> (4-step ascent) &nbsp;|&nbsp; <code>u u d d u u d d</code> (wave)
+            <br>A pattern of N letters matches N+1 consecutive notes.
           </ng-container>
         </div>
       </div>
     </div>
 
-    <!-- Melody results -->
+    <!-- Melody searching spinner -->
     <div *ngIf="melodySearching" class="text-center py-5 text-muted">
       <div class="spinner-border" role="status"></div>
-      <p class="mt-3">Scanning all transcriptions for the pattern…</p>
+      <p class="mt-3">Scanning all transcriptions…</p>
     </div>
 
+    <!-- Melody results -->
     <div *ngIf="melodySearched && !melodySearching">
-      <!-- Scan stats bar -->
+
+      <!-- Scan stats -->
       <div class="d-flex align-items-center gap-3 mb-3 small text-muted">
         <span><i class="bi bi-file-earmark-music me-1"></i>{{melodyScanned}} document(s) scanned</span>
         <span>·</span>
@@ -550,44 +502,43 @@
         <i class="bi bi-music-note-list" style="font-size:2rem;"></i>
         <p class="mt-2">No chants found containing that melodic pattern.</p>
         <p class="small" *ngIf="melodyWithNotes > 0">
-          Try a shorter pattern, or check that note names are A–G (uppercase or lowercase).
+          Try a shorter pattern, or check that note names are A–G.
         </p>
       </div>
 
       <div *ngIf="melodyResults.length > 0">
         <div class="d-flex align-items-center justify-content-between mb-2">
-          <span class="fw-semibold small text-muted">{{melodyResults.length}} chant(s) match</span>
+          <span class="fw-semibold small text-muted">{{melodyResults.length}} match(es)</span>
           <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                   (click)="exportMelodyCSV()">
             <i class="bi bi-download"></i> CSV
           </button>
         </div>
-        <div class="card shadow-sm">
-          <div class="card-body p-0">
-            <table class="table table-hover mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th class="ps-3">Source Siglum</th>
-                  <th>Document ID</th>
-                  <th>Text Incipit</th>
-                  <th>Genre</th>
-                  <th>Feast Day</th>
-                  <th class="text-end pe-3">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let r of melodyResults"
-                    class="cursor-pointer"
-                    (click)="goToDocument(r.document.quelle_id, r.document.id)">
-                  <td class="ps-3 fw-medium text-accent">{{r.sourceSigle}}</td>
-                  <td>{{r.document.dokumenten_id}}</td>
-                  <td>{{r.document.textinitium}}</td>
-                  <td>{{r.document.gattung1}}<span *ngIf="r.document.gattung2" class="text-muted"> / {{r.document.gattung2}}</span></td>
-                  <td>{{r.document.festtag}}</td>
-                  <td class="text-end pe-3 text-muted small">{{r.noteCount}}</td>
-                </tr>
-              </tbody>
-            </table>
+
+        <!-- Result cards with embedded SVG -->
+        <div class="melody-results">
+          <div *ngFor="let r of melodyResults"
+               class="melody-card card shadow-sm mb-3 cursor-pointer"
+               (click)="goToDocument(r.document.quelle_id, r.document.id)">
+            <div class="card-body py-2 px-3">
+              <div class="d-flex align-items-start justify-content-between gap-3">
+                <!-- Metadata -->
+                <div style="min-width: 180px;">
+                  <div class="fw-semibold text-accent">{{r.sourceSigle}}</div>
+                  <div class="small fw-medium">{{r.document.textinitium || r.document.dokumenten_id}}</div>
+                  <div class="text-muted" style="font-size:0.78rem;">
+                    {{r.document.gattung1}}<span *ngIf="r.document.gattung2"> / {{r.document.gattung2}}</span>
+                  </div>
+                  <div class="text-muted" style="font-size:0.78rem;">{{r.document.festtag}}</div>
+                  <div class="text-muted mt-1" style="font-size:0.72rem;">{{r.noteCount}} notes total</div>
+                </div>
+
+                <!-- SVG snippet — full width, horizontally scrollable -->
+                <div class="svg-scroll flex-grow-1" [innerHTML]="r.svg"></div>
+
+                <i class="bi bi-chevron-right text-muted mt-1 flex-shrink-0"></i>
+              </div>
+            </div>
           </div>
         </div>
       </div>
