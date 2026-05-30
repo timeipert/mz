@@ -1,5 +1,6 @@
 import { BrowserModule } from '@angular/platform-browser';
-import { NgModule } from '@angular/core';
+import { NgModule, isDevMode } from '@angular/core';
+import { ServiceWorkerModule } from '@angular/service-worker';
 import { FormsModule } from '@angular/forms';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { RouterModule } from '@angular/router';
@@ -137,5 +138,10 @@ import { NotationsdokumentationModule } from './notationsdokumentation/notations
                 path: '**',
                 component: WelcomeComponent
             }
-        ], { useHash: true })], providers: [ConfirmDeactivateGuard, provideHttpClient(withInterceptorsFromDi())] })
+        ], { useHash: true }),
+        ServiceWorkerModule.register('ngsw-worker.js', {
+          enabled: !isDevMode(),
+          registrationStrategy: 'registerWhenStable:30000'
+        })
+    ], providers: [ConfirmDeactivateGuard, provideHttpClient(withInterceptorsFromDi())] })
 export class AppModule { }

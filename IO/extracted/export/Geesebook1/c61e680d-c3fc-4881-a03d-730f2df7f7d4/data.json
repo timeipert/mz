@@ -1,0 +1,52 @@
+{
+    "kind": "RootContainer",
+    "uuid": "7b0ec840-0a35-456f-a2fc-90f2cd33933d",
+    "children": [
+        {
+            "kind": "FormteilContainer",
+            "uuid": "856e9826-3bfe-4493-80c4-e85811b50640",
+            "children": [
+                {
+                    "kind": "ZeileContainer",
+                    "uuid": "1a484299-0d3b-4d09-a682-2228c3e59d9d",
+                    "children": [
+                        {
+                            "uuid": "a48230f1-a219-4285-82c8-71c89de10178",
+                            "kind": "Syllable",
+                            "text": "De",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "91f2f984-10a5-4710-972a-7f5222cfda2d"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        }
+                    ]
+                }
+            ],
+            "data": [
+                {
+                    "name": "Signatur",
+                    "data": ""
+                }
+            ]
+        }
+    ],
+    "comments": [],
+    "documentType": "Level1"
+}

@@ -1,0 +1,1534 @@
+{
+    "kind": "RootContainer",
+    "uuid": "2eaf5e16-a563-4b1c-a353-1b6795e39c01",
+    "children": [
+        {
+            "kind": "FormteilContainer",
+            "uuid": "1c55f623-d0a8-41f8-8695-d8faeb1f5131",
+            "children": [
+                {
+                    "kind": "ZeileContainer",
+                    "uuid": "5818bae5-20a2-4104-8e17-704715068e90",
+                    "children": [
+                        {
+                            "uuid": "b6fa4dfc-7159-46ba-9b0b-7609a2af6126",
+                            "kind": "Clef",
+                            "focus": false,
+                            "base": "C",
+                            "octave": 5,
+                            "shape": "C"
+                        },
+                        {
+                            "uuid": "3353ef41-5e00-479c-9dec-f8435b47b512",
+                            "kind": "Syllable",
+                            "text": "Au-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "2be2e5ef-99c0-4a8a-9acc-58ebb277fe95"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "D",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "d385cd31-76ab-4576-ab8b-15fea691e4f1"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "ed3eb2cd-f465-4442-933d-1a99566b3627",
+                            "kind": "Syllable",
+                            "text": "fer",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "D",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "64ce5df0-c836-4670-aa47-67c17d32976c"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "F",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "271f5241-7233-4887-a337-c76812773875"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "8c422ea2-bc45-461a-91b1-155cea1867a7",
+                            "kind": "Syllable",
+                            "text": "a",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "D",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "67d2fb2f-7c4a-4a44-beca-b6257859ad67"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "774dfb2f-167a-410f-b940-4e6556a1db3b",
+                            "kind": "Syllable",
+                            "text": "me",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "989b341b-b9f6-406b-8039-4ac6c6a44b95"
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "D",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "28d1d424-7874-40ec-b8fa-f6ecdceccb42"
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "E",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "053f6ee7-eca5-4307-8d94-395f7356fa52"
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "F",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "847c0321-896c-407c-9deb-76857c1f463f"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "D",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "f0c125c6-fa4a-45fa-ab88-64eb962ad017"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "7ceae470-c908-43ff-93f3-533b27743d50",
+                            "kind": "Syllable",
+                            "text": "op-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "ab4ec7df-60c7-45d9-9ffa-852bdfa7e1c2"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "145854d6-1137-49e1-b564-aa86de653062",
+                            "kind": "Syllable",
+                            "text": "pro-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "E",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "9163699b-f3ec-4520-989a-3e02b857f517"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "fb5f89ac-98fd-4c29-bb8b-87e36a6e949a",
+                            "kind": "Syllable",
+                            "text": "bri",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "D",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "e4c77af2-b2c5-4819-9ee5-413b98926b86"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        }
+                    ]
+                },
+                {
+                    "kind": "ZeileContainer",
+                    "uuid": "87d70997-b675-4ed2-9e22-baca2d154438",
+                    "children": [
+                        {
+                            "uuid": "59fd14a4-eea5-4e12-9d84-483c9a793497",
+                            "kind": "Clef",
+                            "focus": false,
+                            "base": "C",
+                            "octave": 5,
+                            "shape": "C"
+                        },
+                        {
+                            "uuid": "d424c612-ad10-466d-bff1-486d61bd5813",
+                            "kind": "Clef",
+                            "focus": false,
+                            "base": "C",
+                            "octave": 5,
+                            "shape": "C"
+                        },
+                        {
+                            "uuid": "7135a64a-c7e5-44bd-9105-2c38b6cdcdc5",
+                            "kind": "Syllable",
+                            "text": "um",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "6cfafddf-727a-4c5f-809a-e3520fecd8fe"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "43a6f33d-2ddb-423a-9664-34b80a10be44",
+                            "kind": "Syllable",
+                            "text": "et",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "f56f3252-3c87-4ee1-98c3-84d3721a685d"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "E",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "b3ca17b3-5acf-4456-b872-b7515f1e952c"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "2f0d8060-c5be-4d73-b4a4-62fa5ae7c209",
+                            "kind": "Syllable",
+                            "text": "con-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "D",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "c652ae24-7912-4d2c-9692-c6f58c93e708"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "9af3da90-6c4f-4d28-95f2-7455b7076885",
+                            "kind": "Syllable",
+                            "text": "temp-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "D",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "105adbca-6cbd-4862-b2f8-73698a99db47"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "4b41bf85-7429-4431-bb99-bc50f6d396ae",
+                            "kind": "Syllable",
+                            "text": "tum",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "e78f6956-7328-42e9-a83a-3362c9e543c7"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "07a9413c-af79-42dc-96a7-18b8dce7028b",
+                            "kind": "Syllable",
+                            "text": "qui-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "347214df-9d23-479c-bf11-afdb238fae87"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "8ff8d5fe-8af2-4f34-802a-19f274439e59",
+                            "kind": "Syllable",
+                            "text": "a",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "34840d2e-9b01-4fc1-9da5-07a39d50bb3c"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "F",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "5e450313-7795-4ee7-923a-a41d0367dfdf"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "6197468b-7dfa-4c7f-8570-23b0f56d4f01",
+                            "kind": "Syllable",
+                            "text": "man-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "5c41ee07-5bb4-4e7a-9328-f853aff34497"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "42d02189-4aa5-4270-9814-54099c799590"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "1275f492-9f7c-4c31-9c02-607a24c15bbc",
+                            "kind": "Syllable",
+                            "text": "da-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "4d0b5fbb-60b2-4c83-952c-e2096a9d3857"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "560b9bba-c09f-4e69-8f4a-bb39c2849eb1",
+                            "kind": "Syllable",
+                            "text": "ta",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "4c291aea-781a-4b7d-a402-75e49e2de05c"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "d7a4b2a4-4356-4176-ae39-e3e2ef1de889",
+                            "kind": "Syllable",
+                            "text": "tu",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "f19a8da2-de0a-470f-b33d-588ae4b4af3a"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "D",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "c9b8b2ec-7256-4287-a94a-54e6b3717d81"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "a10451d5-0ebd-4ceb-afe7-ab7dd315b568"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        }
+                    ]
+                },
+                {
+                    "kind": "ZeileContainer",
+                    "uuid": "efc6be66-bba5-4054-8125-6950dfb4d66a",
+                    "children": [
+                        {
+                            "uuid": "dcf9c852-f98d-4e97-aceb-916e8d352e72",
+                            "kind": "Clef",
+                            "focus": false,
+                            "base": "C",
+                            "octave": 5,
+                            "shape": "C"
+                        },
+                        {
+                            "uuid": "42376935-0568-486f-8837-a374a39a9bcb",
+                            "kind": "Clef",
+                            "focus": false,
+                            "base": "C",
+                            "octave": 5,
+                            "shape": "C"
+                        },
+                        {
+                            "uuid": "4138e9a3-1744-4f9b-834e-5c4a00db80ad",
+                            "kind": "Syllable",
+                            "text": "a",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "fd3d6673-c413-49b0-a4ab-103f8a969cd7"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Flat",
+                                                        "base": "B",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "8d5add0a-ef8b-4702-bdff-618fc5d033fb"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "e2017a2a-1676-4d7f-af4a-28b5ae8bbd86",
+                            "kind": "Syllable",
+                            "text": "ex-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "3997f7d4-91bf-4cc0-b274-ea93bf851106"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "B",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "566d0532-8df6-4a6b-8c96-d22f436abb70"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "ae1c0eed-baeb-445f-875c-28d3f7528247",
+                            "kind": "Syllable",
+                            "text": "qui-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "1aa7c88d-85d8-455d-9a7f-0cfc4bc449cf"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "4dba0eff-2177-4774-ad79-d48ce4e473a4"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "d68e212e-8c7c-4b6b-bb44-d2f652dd3050",
+                            "kind": "Syllable",
+                            "text": "si-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "0d5c4372-1055-4e9f-873f-4a6a9562ccda"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "4c7f7e80-583c-4db4-8d44-edde420ddb9f"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "7615db7c-631c-44a8-9a0b-a988f417c277",
+                            "kind": "Syllable",
+                            "text": "vi",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "d4948d21-91cb-42bf-95ce-26cd61226b88"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "4d153111-0911-4655-a94f-4faa0155ff5f",
+                            "kind": "Syllable",
+                            "text": "do-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "c257834b-1230-402c-99bd-1c859397316b"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "B",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "a5347df3-8592-4f7f-9ea4-373038974884"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "20df380f-2faa-4eed-8654-f54016f34777",
+                            "kind": "Syllable",
+                            "text": "mi-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "c2f58397-c6b8-47b7-ad9a-8bc908629e5c"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "c61c9fba-94b0-4fd4-ac78-646120dbe5d6",
+                            "kind": "Syllable",
+                            "text": "ne",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "f392f6a9-e644-44ad-a9f7-498c022e3702"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "791fe261-9ca2-4c48-a033-6a031b891f8e",
+                            "kind": "Syllable",
+                            "text": "nam",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "44b4ea87-e5cd-4515-9424-4d71942f2e08"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "B",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "16dac90b-3f3e-4a94-b90f-9f1c34d2901a"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "91d45a82-8e70-4355-821a-5eacfcb96202"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "d419756e-d5ad-4e75-9c49-1e045120899c",
+                            "kind": "Syllable",
+                            "text": "et",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "52cea3ae-7170-4d17-bda5-c3ad8ad616e5"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "e69b10a3-8bfa-4e02-8986-6f8e70f29e6a",
+                            "kind": "Syllable",
+                            "text": "tes-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "309976a6-f3fc-4f17-aad7-b3d62636406e"
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "B",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "4701509f-cf13-48bf-9ca4-c5daf8b82a46"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "6bbb9d73-0192-4581-96c9-00d000e4f6ef"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "3cea390a-c93e-433c-a058-7fdac7be4cc7",
+                            "kind": "Syllable",
+                            "text": "ti",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "0565e819-26c6-4c11-bf97-219326afbe3e"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "c6d5a5b0-72a8-4804-ac3f-a95c8daf7b75",
+                            "kind": "Syllable",
+                            "text": "mo-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "5d4a0e8c-9dd9-449b-b3d7-9ca2b8abed53"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        }
+                    ]
+                },
+                {
+                    "kind": "ZeileContainer",
+                    "uuid": "283336b9-e967-49a2-a82f-0f778a8967d5",
+                    "children": [
+                        {
+                            "uuid": "1a9d4b32-fb17-4bf2-a5f5-d74998d46de8",
+                            "kind": "Clef",
+                            "focus": false,
+                            "base": "F",
+                            "octave": 4,
+                            "shape": "F"
+                        },
+                        {
+                            "uuid": "6d23f94c-22fc-43fe-b499-fadd61455799",
+                            "kind": "Clef",
+                            "focus": false,
+                            "base": "C",
+                            "octave": 5,
+                            "shape": "C"
+                        },
+                        {
+                            "uuid": "077d7129-593c-4e30-9351-f520245a24d1",
+                            "kind": "Clef",
+                            "focus": false,
+                            "base": "F",
+                            "octave": 4,
+                            "shape": "F"
+                        },
+                        {
+                            "uuid": "24ff9251-06c7-4ee0-b2cc-c153e5cd2b97",
+                            "kind": "Clef",
+                            "focus": false,
+                            "base": "C",
+                            "octave": 5,
+                            "shape": "C"
+                        },
+                        {
+                            "uuid": "694483e1-155b-4b7c-bd65-55b6d38bbb26",
+                            "kind": "Syllable",
+                            "text": "ni-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "2bb77271-337b-408d-93e9-cf068ebe5552"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "07be4a15-cc51-43ed-a23e-575a58e61ec0",
+                            "kind": "Syllable",
+                            "text": "a",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "7d856bd2-cbd2-47dc-bc28-7c01a4f72e72"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "E",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "e7b87a16-0a11-41ba-8fb1-9c30262df730"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "f61aa2e6-b3f2-448b-8240-0e48cb9938a2",
+                            "kind": "Syllable",
+                            "text": "tu-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "F",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "d043d17f-076f-4f8b-bb79-03c00409a036"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "bc001bee-7f81-44c0-84dc-51149a9d3211"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "c10887a6-5ec7-4054-8d8c-cf27c1a4ae2a",
+                            "kind": "Syllable",
+                            "text": "a",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "1cce2491-ddae-4f5a-a863-9af3302fd3db"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "D",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "3dc9f609-183a-43c3-8fc9-c8dd0e749f8d"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "a1fadd6c-e228-4419-bab5-0abaf2fcd16e",
+                            "kind": "Syllable",
+                            "text": "me-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "F",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "17cb6f66-99ba-4170-9b5b-df24666184bb"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "e8dcb11c-8496-47a0-a0fa-e86671762f79",
+                            "kind": "Syllable",
+                            "text": "di-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "51bd6848-8986-443c-9b45-4c7ed2d4e0b5"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "d676d44f-6ec0-4a72-bd07-11d50d202604",
+                            "kind": "Syllable",
+                            "text": "ta-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "20daa05c-02fa-4516-967f-2636b72aec4b"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "8aa02b40-c2de-48d8-b997-97e6722bbbfb"
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "B",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "4ef9bb44-bcf4-498e-9778-3ad7b8b51dea"
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "28c80afd-7feb-456e-af09-8204b44f12cd"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "62a7b5fd-386f-4ab4-b797-43adf83e320e",
+                            "kind": "Syllable",
+                            "text": "ti-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "aeb30033-b5e7-4a1b-8633-bb903eada045"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "abc70c33-a322-42af-976f-cc63a6030179"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "fdd5a034-891b-4068-bc00-fed1d78f2b5a",
+                            "kind": "Syllable",
+                            "text": "o",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "47ad5338-671b-48a2-a91a-e3df620be7a6"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "31e08f31-d1e2-42a9-8e2e-5f1a629f9754",
+                            "kind": "Syllable",
+                            "text": "me-",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "c9ca522d-a5c0-44d5-9532-8e4773e0b063"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "310e9bae-db47-4539-8edf-62e6d41bc758"
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "B",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "5ec5af62-8857-4e44-80cd-43da47453ee3"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "d8681aed-65cf-4c76-b097-aae8a90e998a"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "8dd82e7b-fbca-488d-989b-3a44c8b8aa94",
+                            "kind": "Syllable",
+                            "text": "a",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "C",
+                                                        "liquescent": false,
+                                                        "octave": 5,
+                                                        "focus": false,
+                                                        "uuid": "e2540e1f-e996-4937-a579-696e74e4f025"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        },
+                        {
+                            "uuid": "f647f741-dabb-4e6e-a0eb-7e94026b7dd3",
+                            "kind": "Syllable",
+                            "text": "est",
+                            "notes": {
+                                "spaced": [
+                                    {
+                                        "nonSpaced": [
+                                            {
+                                                "grouped": [
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "12b12a0d-5f3f-457d-9ac5-280c9c40130c"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "A",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "24b3ec26-47ab-45d1-adf3-0d4b41c1f275"
+                                                    },
+                                                    {
+                                                        "noteType": "Normal",
+                                                        "base": "G",
+                                                        "liquescent": false,
+                                                        "octave": 4,
+                                                        "focus": false,
+                                                        "uuid": "9ba04f16-5026-4fc0-8187-dd399271f5ee"
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            "syllableType": "Normal"
+                        }
+                    ]
+                }
+            ],
+            "data": [
+                {
+                    "name": "Signatur",
+                    "data": ""
+                }
+            ]
+        }
+    ],
+    "comments": [],
+    "documentType": "Level1"
+}

@@ -284,7 +284,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     rp.subscribe(originals => {
       // Use the same modal options as document.openComment() for a
       // consistent look-and-feel across every route into the comment dialog.
-      const modalRef = this.modalService.open(CommentComponent, { size: 'lg', centered: true, backdrop: 'static', windowClass: 'comment-modal-window' });
+      const modalRef = this.modalService.open(CommentComponent, { size: 'xl', centered: true, backdrop: 'static', windowClass: 'comment-modal-window', fullscreen: 'lg' });
       modalRef.componentInstance.comments = JSON.parse(JSON.stringify(comments));
       modalRef.componentInstance.originals = JSON.parse(JSON.stringify(originals));
       modalRef.componentInstance.saveEvent.subscribe((newComments: (VM.Comment | null)[]) => {

@@ -36,6 +36,13 @@
                         </button>
                     </div>
                 </li>
+                <li class="nav-item me-3 d-flex align-items-center gap-2" [attr.title]="isOnline ? 'Online' : 'Offline'">
+                    <span [style.background-color]="isOnline ? '#22c55e' : '#9ca3af'" 
+                          class="rounded-circle d-inline-block shadow-sm"
+                          style="width: 10px; height: 10px; transition: background-color 0.3s ease;">
+                    </span>
+                    <span class="small text-muted fw-medium d-none d-sm-inline" style="font-size: 0.85rem;">{{ isOnline ? 'Online' : 'Offline' }}</span>
+                </li>
                 <li class="nav-item">
                     <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['settings']">
                         <i class="bi bi-gear-fill me-1"></i>Settings
@@ -84,11 +91,13 @@
                 <ng-container *ngIf="t.icon !== 'to-source'">
                     <ng-container *ngIf="t.icon; else other">
                         <button *ngIf="!(i === 0 && t.icon === 'to-source')"
-                                class="btn btn-sm"
+                                class="btn d-flex align-items-center justify-content-center"
+                                style="min-width: 40px; height: 40px;"
                                 [ngClass]="t.active ? 'btn-primary shadow-sm' : 'btn-outline-secondary bg-white'"
                                 (click)="t.callback && t.callback()"
                                 [title]="t.title">
-                            <i class="bi bi-{{t.icon}}"></i>
+                            <span *ngIf="t.icon === 'mei'" class="fw-bold px-1" style="font-family: serif; font-size: 1.1em; letter-spacing: 0.5px;">MEI</span>
+                            <i *ngIf="t.icon !== 'mei'" class="bi bi-{{t.icon}}" style="font-size: 1.25rem;"></i>
                             <span *ngIf="t.active" class="ms-1">{{t.title}}</span>
                         </button>
                     </ng-container>

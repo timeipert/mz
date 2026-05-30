@@ -20,6 +20,7 @@ export class AppComponent {
   tools!: StackEntry;
   toolHasParent: boolean = false;
   isSyncing = false;
+  isOnline: boolean = navigator.onLine;
   
   constructor (
     private api: APIService, 
@@ -31,6 +32,8 @@ export class AppComponent {
   ) {
     userService.user.subscribe(u => this.user = u);
     toolsService.subscribe((ts, hasParent) => { this.tools = ts; this.toolHasParent = hasParent });
+    window.addEventListener('online', () => this.isOnline = true);
+    window.addEventListener('offline', () => this.isOnline = false);
   }
 
   toolsBack() {

@@ -18,6 +18,7 @@ import { DragStateService } from '../dragger/drag-state.service';
 import { NavigationService } from '../notationsdokumentation/navigation.service';
 import { PageTitleService } from '../page-title.service';
 import { extractFolioFromString, extractDocumentFolios } from '../transcription-analyzer-core';
+import { MeiExportService } from '../mei-export.service';
 
 import { jsPDF } from 'jspdf';
 import 'svg2pdf.js';
@@ -119,6 +120,7 @@ export class DocumentComponent implements OnInit {
     private toolService: ToolsService,
     private dragState: DragStateService,
     private navService: NavigationService,
+    private meiExport: MeiExportService,
     private pageTitle: PageTitleService, public focusService: FocusService) {
   }
 
@@ -1237,6 +1239,11 @@ export class DocumentComponent implements OnInit {
         title: 'Export as PDF'
       },
       {
+        callback: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document); },
+        icon: 'mei',
+        title: 'Export MEI'
+      },
+      {
         callback: () => { this.toggleReadOnly(); },
         icon: 'eye',
         title: 'Toggle Read-Only Mode'
@@ -1592,7 +1599,7 @@ export class DocumentComponent implements OnInit {
     this.undoService.beforeChange('Edit Comment');
     const original = VM.extractComment(this.cont, comment);
 
-    const modalRef = this.modalService.open(CommentComponent, { size: 'lg', centered: true, backdrop: 'static', windowClass: 'comment-modal-window' });
+    const modalRef = this.modalService.open(CommentComponent, { size: 'xl', centered: true, backdrop: 'static', windowClass: 'comment-modal-window', fullscreen: 'lg' });
     modalRef.componentInstance.comments = [comment];
     modalRef.componentInstance.originals = [original];
 

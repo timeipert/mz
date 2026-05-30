@@ -1,10 +1,8 @@
 /* ── Modal chrome ─────────────────────────────────────────────────────────── */
-:host ::ng-deep .modal-content {
-  border: none;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-}
+/* NOTE: We previously had a :host ::ng-deep .modal-content rule here, but
+ *  .modal-content is the *parent* of :host (app-comment), so that selector
+ *  never matched. Modal chrome is styled via the `comment-modal-window`
+ *  windowClass + global styles if needed. */
 
 .modal-header {
   background: linear-gradient(135deg, #f8faff 0%, #eef3ff 100%) !important;
@@ -98,6 +96,10 @@
 
 .note-comment .original {
   position: relative;
+  /* Lemma can be wider than the modal — scroll instead of clipping. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 130px;
 
   .hider {
     width: 100%;
@@ -110,6 +112,12 @@
     border-radius: 6px;
     pointer-events: none;
   }
+}
+
+/* The reading-line block should also accommodate wide staff lines. */
+.line-comment {
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 /* ── Type tab pills ───────────────────────────────────────────────────────── */

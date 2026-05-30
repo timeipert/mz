@@ -13,7 +13,7 @@ export interface FieldDef { key: string, label: string, isCustom: boolean }
   styleUrls: ['./settings.component.css']
 })
 export class SettingsComponent implements OnInit, OnDestroy {
-  activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' = 'metadata';
+  activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' | 'mei' | 'htmlExport' = 'metadata';
   previewScale = 0.6;
   user: User | null = null;
   subs: Subscription[] = [];
@@ -24,6 +24,38 @@ export class SettingsComponent implements OnInit, OnDestroy {
       sanitizeSettings(this.settings);
     }
     this.saveSettings();
+  }
+
+  resetMeiMappings() {
+    if (this.settings) {
+      this.settings.meiMappings = {
+        formteilContainer: { tag: 'section' },
+        zeileContainer: { tag: 'sb' },
+        syllable: { tag: 'syllable', textTag: 'syl' },
+        neume: { tag: 'neume' },
+        note: {
+          tag: 'nc',
+          pitchAttr: 'pname',
+          octaveAttr: 'oct',
+          liquescentAttr: 'curve',
+          liquescentValue: 'c',
+          connectionAttr: 'con',
+          connectionGapValue: 'g'
+        },
+        oriscus: { tag: 'oriscus' },
+        quilisma: { tag: 'quilisma' },
+        strophicus: { tag: 'strophicus' },
+        liquescentElement: { tag: 'liquescent' },
+        clef: {
+          tag: 'clef',
+          shapeAttr: 'shape',
+          lineAttr: 'line',
+          defaultLine: '1'
+        },
+        paratextContainer: { tag: 'dir' }
+      };
+      this.saveSettings();
+    }
   }
 
   sourceFields: FieldDef[] = [
@@ -71,6 +103,32 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }
   }
 
+  get htmlExportSourceFields() {
+    return [
+      { key: 'quellensigle', label: 'Siglum' },
+      { key: 'herkunftsregion', label: 'Region of Origin' },
+      { key: 'herkunftsort', label: 'Place of Origin' },
+      { key: 'herkunftsinstitution', label: 'Institution of Origin' },
+      { key: 'ordenstradition', label: 'Order Tradition' },
+      { key: 'quellentyp', label: 'Source Type' },
+      { key: 'bibliotheksort', label: 'Library Location' },
+      { key: 'bibliothek', label: 'Library' },
+      { key: 'bibliothekssignatur', label: 'Library Signature' }
+    ];
+  }
+
+  get htmlExportDocumentFields() {
+    return [
+      { key: 'textinitium', label: 'Text Initium' },
+      { key: 'dokumenten_id', label: 'Document ID' },
+      { key: 'gattung1', label: 'Genre 1' },
+      { key: 'gattung2', label: 'Genre 2' },
+      { key: 'festtag', label: 'Feast Day' },
+      { key: 'feier', label: 'Celebration' },
+      { key: 'liturgischer_status', label: 'Liturgical Status' }
+    ];
+  }
+
   ngOnInit() {
     this.pageTitle.set('Settings');
     this.subs.push(this.userService.user.subscribe(user => {
@@ -82,6 +140,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
             if (!this.settings.customSourceFields) this.settings.customSourceFields = [];
             if (!this.settings.customDocumentFields) this.settings.customDocumentFields = [];
             if (!this.settings.customLists) this.settings.customLists = {};
+            if (!this.settings.htmlExportSourceMetadata) this.settings.htmlExportSourceMetadata = this.htmlExportSourceFields.map(f => f.key);
+            if (!this.settings.htmlExportDocumentMetadata) this.settings.htmlExportDocumentMetadata = this.htmlExportDocumentFields.map(f => f.key);
+            if (!this.settings.htmlExportCustomCss) this.settings.htmlExportCustomCss = '';
+            if (!this.settings.htmlExportFrontpageHtml) {
+              this.settings.htmlExportFrontpageHtml = `<div class="frontpage-banner text-center py-5 mb-5 rounded-4 shadow-sm" style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white;">\n  <h1 class="display-4 fw-bold">Monodi Edition</h1>\n  <p class="lead opacity-75">Digital musicological source edition</p>\n  <hr class="my-4 mx-auto style-light" style="width: 100px; border-color: rgba(255,255,255,0.3); border-width: 3px;">\n  <div class="d-flex justify-content-center gap-3">\n    <span class="badge bg-white text-primary px-3 py-2 rounded-pill fs-7">Offline Viewer</span>\n    <span class="badge bg-info text-dark px-3 py-2 rounded-pill fs-7">Interactive Search</span>\n  </div>\n</div>`;
+            }
+            if (!this.settings.htmlExportHeaderHtml) {
+              this.settings.htmlExportHeaderHtml = `<div class="edition-header py-2 px-3 mb-4 rounded-3 border bg-white d-flex justify-content-between align-items-center">\n  <span class="text-secondary fw-semibold small text-uppercase tracking-wider">Monodi Digital Scholarly Edition</span>\n  <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small">Status: Final</span>\n</div>`;
+            }
+            if (!this.settings.htmlExportFooterHtml) {
+              this.settings.htmlExportFooterHtml = `<footer class="edition-footer mt-5 pt-4 pb-3 border-top text-center text-muted small">\n  <p class="mb-1">&copy; 2026 Scholarly Monodi Edition Project. All rights reserved.</p>\n  <p class="opacity-75">Generated with Monodi+ zero. Free to share and adapt for non-commercial scholarly purposes.</p>\n</footer>`;
+            }
           }
         });
       }
@@ -285,5 +355,23 @@ export class SettingsComponent implements OnInit, OnDestroy {
   disconnectGithub() {
     this.github.clearConfig();
     this.githubConfig = { token: '', owner: '', repo: '', branch: 'main' };
+  }
+
+  toggleHtmlExportSourceField(key: string) {
+    if (!this.settings || !this.settings.htmlExportSourceMetadata) return;
+    const list = this.settings.htmlExportSourceMetadata;
+    const index = list.indexOf(key);
+    if (index >= 0) list.splice(index, 1);
+    else list.push(key);
+    this.saveSettings();
+  }
+
+  toggleHtmlExportDocumentField(key: string) {
+    if (!this.settings || !this.settings.htmlExportDocumentMetadata) return;
+    const list = this.settings.htmlExportDocumentMetadata;
+    const index = list.indexOf(key);
+    if (index >= 0) list.splice(index, 1);
+    else list.push(key);
+    this.saveSettings();
   }
 }

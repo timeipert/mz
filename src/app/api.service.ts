@@ -377,7 +377,33 @@ export class APIService {
       pdfPageNumberFontSize: 8,
       pdfParatextFontSize: 10,
       pdfParatextSpacing: 12,
-      pdfFontFamily: 'times'
+      pdfFontFamily: 'times',
+      meiMappings: {
+        formteilContainer: { tag: 'section' },
+        zeileContainer: { tag: 'sb' },
+        syllable: { tag: 'syllable', textTag: 'syl' },
+        neume: { tag: 'neume' },
+        note: {
+          tag: 'nc',
+          pitchAttr: 'pname',
+          octaveAttr: 'oct',
+          liquescentAttr: 'curve',
+          liquescentValue: 'c',
+          connectionAttr: 'con',
+          connectionGapValue: 'g'
+        },
+        oriscus: { tag: 'oriscus' },
+        quilisma: { tag: 'quilisma' },
+        strophicus: { tag: 'strophicus' },
+        liquescentElement: { tag: 'liquescent' },
+        clef: {
+          tag: 'clef',
+          shapeAttr: 'shape',
+          lineAttr: 'line',
+          defaultLine: '1'
+        },
+        paratextContainer: { tag: 'dir' }
+      }
     };
   }
 }
@@ -416,6 +442,12 @@ export interface ProjectSettings {
   pdfScale?: number;
   pdfSyllableSpacing?: number;
   pdfVerticalSpace?: number;
+  htmlExportSourceMetadata?: string[];
+  htmlExportDocumentMetadata?: string[];
+  htmlExportCustomCss?: string;
+  htmlExportFrontpageHtml?: string;
+  htmlExportHeaderHtml?: string;
+  htmlExportFooterHtml?: string;
   undoHistorySize?: number;
   pdfMarginLeft?: number;
   pdfSignaturSpace?: number;
@@ -448,6 +480,45 @@ export interface ProjectSettings {
   pdfParatextFontSize?: number;
   pdfParatextSpacing?: number;
   pdfFontFamily?: 'times' | 'helvetica';
+  meiMappings?: MeiMappingSettings;
+}
+
+export interface MeiMappingSettings {
+  formteilContainer: {
+    tag: string;
+  };
+  zeileContainer: {
+    tag: string;
+  };
+  syllable: {
+    tag: string;
+    textTag: string;
+  };
+  neume: {
+    tag: string;
+  };
+  note: {
+    tag: string;
+    pitchAttr: string;
+    octaveAttr: string;
+    liquescentAttr: string;
+    liquescentValue: string;
+    connectionAttr: string;
+    connectionGapValue: string;
+  };
+  oriscus: { tag: string; };
+  quilisma: { tag: string; };
+  strophicus: { tag: string; };
+  liquescentElement: { tag: string; };
+  clef: {
+    tag: string;
+    shapeAttr: string;
+    lineAttr: string;
+    defaultLine: string;
+  };
+  paratextContainer: {
+    tag: string;
+  };
 }
 
 export interface SettingsRetrieved {

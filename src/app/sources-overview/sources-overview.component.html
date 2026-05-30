@@ -4,10 +4,13 @@
       <h2 class="page-title">Sources</h2>
     </div>
     <div class="d-flex gap-2">
-      <button class="btn btn-secondary" (click)="exportWorkspace()">Export Workspace</button>
+      <button class="btn btn-sm btn-secondary" title="Export Workspace" (click)="exportWorkspace()"><i class="bi bi-download me-1"></i>WS</button>
       <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
-      <button class="btn btn-secondary" (click)="triggerImport()">Import Workspace</button>
-      <button class="btn btn-primary" [routerLink]="['/source']"><i class="bi bi-plus-lg me-1"></i>Add New Source</button>
+      <button class="btn btn-sm btn-secondary" title="Import Workspace" (click)="triggerImport()"><i class="bi bi-upload me-1"></i>WS</button>
+      <input type="file" id="importOmmrFile" (change)="importOmmrZip($event)" style="display: none" accept=".zip" />
+      <button class="btn btn-sm btn-info text-white" title="Import OMMR ZIP" (click)="triggerOmmrImport()"><i class="bi bi-file-zip me-1"></i>OMMR</button>
+      <button class="btn btn-sm btn-warning" [title]="isOnline ? 'Export HTML Edition' : 'HTML Export is not available offline'" [disabled]="!isOnline" (click)="openHtmlExportDialog()"><i class="bi bi-globe me-1"></i>HTML <i *ngIf="!isOnline" class="bi bi-exclamation-circle ms-1"></i></button>
+      <button class="btn btn-sm btn-primary" title="Add New Source" [routerLink]="['/source']"><i class="bi bi-plus-lg me-1"></i>New</button>
     </div>
   </div>
 
@@ -60,3 +63,109 @@
     </div>
   </div>
 </div>
+
+<!-- HTML Export Dialog -->
+<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showHtmlExportDialog">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content shadow-lg">
+      <div class="modal-header bg-light border-0">
+        <h5 class="modal-title fw-bold">
+          <i class="bi bi-globe me-2"></i>Export Static HTML Edition
+        </h5>
+        <button type="button" class="btn-close" (click)="closeHtmlExportDialog()" [disabled]="isGeneratingHtml"></button>
+      </div>
+      <div class="modal-body bg-light p-4">
+        <div *ngIf="!isGeneratingHtml" class="d-flex justify-content-between align-items-center mb-3">
+          <p class="mb-0 text-muted">Select sources/documents to include.</p>
+          <div class="d-flex gap-2 align-items-center">
+            <input type="text" class="form-control form-control-sm" placeholder="Search metadata..." [(ngModel)]="exportFilterText" (input)="applyExportFilter()">
+            
+            <div ngbDropdown class="d-inline-block">
+              <button class="btn btn-sm btn-outline-secondary text-nowrap" id="dropdownColumns" ngbDropdownToggle>
+                <i class="bi bi-layout-three-columns"></i> Columns
+              </button>
+              <div ngbDropdownMenu aria-labelledby="dropdownColumns" class="p-2 shadow">
+                <div class="form-check" *ngFor="let col of exportDocCols">
+                  <input class="form-check-input" type="checkbox" [id]="'ex-col-' + col.key" [(ngModel)]="col.visible">
+                  <label class="form-check-label" [for]="'ex-col-' + col.key">{{ col.label }}</label>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn btn-sm btn-outline-primary text-nowrap" (click)="selectAllExport()">Select All</button>
+            <button class="btn btn-sm btn-outline-secondary text-nowrap" (click)="selectNoneExport()">Select None</button>
+          </div>
+        </div>
+        
+        <div *ngIf="isGeneratingHtml" class="text-center py-5">
+          <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+          <h5 class="text-primary">Generating HTML Edition...</h5>
+          <p class="text-muted">{{exportStatusMessage}}</p>
+        </div>
+
+        <div *ngIf="!isGeneratingHtml">
+          <ng-container *ngFor="let sourceNode of exportSelection">
+          <div class="card shadow-sm border-0 mb-3" *ngIf="sourceNode.visible">
+            <div class="card-header bg-white border-bottom-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" [id]="'src-' + sourceNode.source.id" [(ngModel)]="sourceNode.selected" (change)="toggleSourceSelection(sourceNode)">
+                <label class="form-check-label fw-bold text-primary cursor-pointer" [for]="'src-' + sourceNode.source.id">
+                  {{ sourceNode.source.quellensigle || sourceNode.source.id }}
+                </label>
+              </div>
+              <button class="btn btn-sm btn-outline-secondary" (click)="sourceNode.expanded = !sourceNode.expanded">
+                <i class="bi" [ngClass]="sourceNode.expanded ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                {{ sourceNode.documents.length }} docs
+              </button>
+            </div>
+            <div class="card-body p-0" *ngIf="sourceNode.expanded">
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0" style="font-size: 0.9rem;">
+                  <thead class="table-light">
+                    <tr>
+                      <th style="width: 40px;" class="text-center">✓</th>
+                      <ng-container *ngFor="let col of exportDocCols">
+                        <th *ngIf="col.visible">{{ col.label }}</th>
+                      </ng-container>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <ng-container *ngFor="let docNode of sourceNode.documents">
+                    <tr *ngIf="docNode.visible">
+                      <td class="text-center align-middle">
+                        <input class="form-check-input mt-0" type="checkbox" [id]="'doc-' + docNode.document.id" [(ngModel)]="docNode.selected" (change)="checkSourceSelection(sourceNode)">
+                      </td>
+                      <ng-container *ngFor="let col of exportDocCols">
+                        <td *ngIf="col.visible" class="align-middle">
+                          <label class="d-block w-100 cursor-pointer m-0" [for]="'doc-' + docNode.document.id">
+                            {{ docNode.document[col.key] || '-' }}
+                          </label>
+                        </td>
+                      </ng-container>
+                    </tr>
+                    </ng-container>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+        </div>
+        </ng-container>
+        </div>
+      </div>
+      <div class="modal-footer border-0 bg-white d-flex justify-content-between">
+        <button type="button" class="btn btn-secondary px-4 fw-medium" (click)="closeHtmlExportDialog()" [disabled]="isGeneratingHtml">Cancel</button>
+        <button type="button" class="btn btn-primary px-4 fw-medium" (click)="generateHtmlEdition()" [disabled]="isGeneratingHtml">
+          <span class="spinner-border spinner-border-sm me-2" *ngIf="isGeneratingHtml"></span>
+          Generate & Download ZIP <i class="bi bi-file-zip ms-1" *ngIf="!isGeneratingHtml"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden Render Container for Headless SVG Extraction -->
+<div style="position: absolute; left: -9999px; top: -9999px; width: 1000px;" id="export-render-container" *ngIf="renderingDocument">
+  <app-root-section [data]="renderingDocument" [zipper]="[]" [levelNames]="[]" [readOnly]="true" [comments]="renderingDocument.comments || []" [documentType]="renderingDocument.documentType || 'Antiphon'"></app-root-section>
+</div>
+
+

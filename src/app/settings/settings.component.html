@@ -44,6 +44,20 @@
             <i class="bi bi-pencil-square me-2"></i>Editor Settings
           </button>
         </li>
+        <li class="nav-item">
+          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
+                  [class.active]="activeTab === 'mei'"
+                  (click)="activeTab = 'mei'" type="button">
+            <i class="bi bi-music-note-beamed me-2"></i>MEI Export
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
+                  [class.active]="activeTab === 'htmlExport'"
+                  (click)="activeTab = 'htmlExport'" type="button">
+            <i class="bi bi-browser-chrome me-2"></i>HTML Export
+          </button>
+        </li>
       </ul>
 
       <!-- Active Tab Content -->
@@ -571,7 +585,6 @@
             </div>
           </div>
         </div>
-        </div>
 
         <!-- 5. Editor Settings Tab -->
         <div class="tab-pane fade show active" *ngIf="activeTab === 'editor'">
@@ -594,6 +607,300 @@
             </div>
           </div>
         </div>
+      <!-- 6. MEI Export Tab -->
+      <div class="tab-pane fade show active" *ngIf="activeTab === 'mei'">
+        <div class="card shadow-sm border-light mb-4">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-music-note-beamed fs-5 me-2"></i>
+              <h6 class="mb-0 fw-semibold d-inline-block">MEI Export Mappings</h6>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" (click)="resetMeiMappings()">Reset to Defaults</button>
+          </div>
+          <div class="card-body bg-white" *ngIf="settings.meiMappings">
+            <p class="text-muted small mb-4">Configure which MEI tags are generated for the corresponding Monodi elements during export.</p>
+            <div class="row g-4">
+              <!-- Containers -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">Containers & Structure</h6>
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">FormteilContainer (Level 1)</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.formteilContainer.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">ZeileContainer (Level 2)</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.zeileContainer.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">ParatextContainer / Dir</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.paratextContainer.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Syllables and Neumes -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">Syllable & Neume Groups</h6>
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">Syllable Tag</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.syllable.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">Syllable Text Tag</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.syllable.textTag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">Neume Group Tag</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.neume.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Note Mapping -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">Note / Neume Component (nc)</h6>
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">Element Tag</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.note.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">Pitch Attribute</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.pitchAttr" (ngModelChange)="onSettingsChange()">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">Octave Attribute</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.octaveAttr" (ngModelChange)="onSettingsChange()">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">Liquescent Attribute</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.liquescentAttr" (ngModelChange)="onSettingsChange()">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">Liquescent Value</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.liquescentValue" (ngModelChange)="onSettingsChange()">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">Connection Attribute (Gap)</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.connectionAttr" (ngModelChange)="onSettingsChange()">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label small fw-medium text-muted mb-1">Gap Value</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.connectionGapValue" (ngModelChange)="onSettingsChange()">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Special Signs Mapping -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">Special Signs</h6>
+                <div class="row g-3">
+                  <div class="col-md-3">
+                    <label class="form-label small fw-medium text-muted mb-1">Oriscus</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.oriscus.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small fw-medium text-muted mb-1">Quilisma</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.quilisma.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small fw-medium text-muted mb-1">Strophicus</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.strophicus.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small fw-medium text-muted mb-1">Liquescent Element</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.liquescentElement.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Clef Mapping -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3">Clef</h6>
+                <div class="row g-3">
+                  <div class="col-md-3">
+                    <label class="form-label small fw-medium text-muted mb-1">Element Tag</label>
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text">&lt;</span>
+                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.clef.tag" (ngModelChange)="onSettingsChange()">
+                      <span class="input-group-text">&gt;</span>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small fw-medium text-muted mb-1">Shape Attribute</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.clef.shapeAttr" (ngModelChange)="onSettingsChange()">
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small fw-medium text-muted mb-1">Line Attribute</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.clef.lineAttr" (ngModelChange)="onSettingsChange()">
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label small fw-medium text-muted mb-1">Default Line</label>
+                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.clef.defaultLine" (ngModelChange)="onSettingsChange()">
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. HTML Export Settings Tab -->
+      <div class="tab-pane fade show active" *ngIf="activeTab === 'htmlExport' && settings">
+        <div class="settings-panel fade-in p-4 p-md-5">
+          <div class="mb-5 pb-3 border-bottom">
+            <h3 class="h4 fw-bold mb-2">HTML Export Settings</h3>
+            <p class="text-muted mb-0">Configure what is included in the static offline viewer.</p>
+          </div>
+
+          <div class="row g-4">
+            <div class="col-12 col-xl-6">
+              <div class="card shadow-sm h-100 border-0">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                  <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-journal-richtext me-2"></i>Source Metadata</h5>
+                  <p class="text-muted small mt-1 mb-0">Select fields to show in the index source list.</p>
+                </div>
+                <div class="card-body">
+                  <div class="list-group list-group-flush border rounded">
+                    <div class="list-group-item" *ngFor="let field of htmlExportSourceFields">
+                      <div class="form-check form-switch mb-0">
+                        <input class="form-check-input cursor-pointer" type="checkbox" [id]="'ex-src-' + field.key"
+                               [checked]="settings.htmlExportSourceMetadata?.includes(field.key)"
+                               (change)="toggleHtmlExportSourceField(field.key)">
+                        <label class="form-check-label w-100 cursor-pointer user-select-none" [for]="'ex-src-' + field.key">
+                          {{ field.label }}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-xl-6">
+              <div class="card shadow-sm h-100 border-0">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                  <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-file-earmark-music me-2"></i>Document Metadata</h5>
+                  <p class="text-muted small mt-1 mb-0">Select fields to show on the document view.</p>
+                </div>
+                <div class="card-body">
+                  <div class="list-group list-group-flush border rounded">
+                    <div class="list-group-item" *ngFor="let field of htmlExportDocumentFields">
+                      <div class="form-check form-switch mb-0">
+                        <input class="form-check-input cursor-pointer" type="checkbox" [id]="'ex-doc-' + field.key"
+                               [checked]="settings.htmlExportDocumentMetadata?.includes(field.key)"
+                               (change)="toggleHtmlExportDocumentField(field.key)">
+                        <label class="form-check-label w-100 cursor-pointer user-select-none" [for]="'ex-doc-' + field.key">
+                          {{ field.label }}
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="card shadow-sm border-0 mt-2">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                  <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-palette me-2"></i>Custom CSS</h5>
+                  <p class="text-muted small mt-1 mb-0">Inject custom CSS directly into all exported HTML pages.</p>
+                </div>
+                <div class="card-body">
+                  <textarea class="form-control font-monospace bg-light" rows="8" placeholder="/* Example: body { background: #f0f0f0; } */"
+                            [(ngModel)]="settings.htmlExportCustomCss" (change)="saveSettings()"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="card shadow-sm border-0 mt-3">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                  <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-layout-text-window-reverse me-2"></i>Frontpage HTML Snippet</h5>
+                  <p class="text-muted small mt-1 mb-0">Custom HTML banner or introduction shown at the top of the main index page.</p>
+                </div>
+                <div class="card-body">
+                  <textarea class="form-control font-monospace bg-light" rows="6" placeholder="<!-- HTML snippet for index page frontpage banner -->"
+                            [(ngModel)]="settings.htmlExportFrontpageHtml" (change)="saveSettings()"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="card shadow-sm border-0 mt-3">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                  <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-layout-three-columns me-2"></i>Header HTML Snippet</h5>
+                  <p class="text-muted small mt-1 mb-0">Custom HTML header injected at the top of all source overview and document pages.</p>
+                </div>
+                <div class="card-body">
+                  <textarea class="form-control font-monospace bg-light" rows="4" placeholder="<!-- HTML snippet for header -->"
+                            [(ngModel)]="settings.htmlExportHeaderHtml" (change)="saveSettings()"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12">
+              <div class="card shadow-sm border-0 mt-3">
+                <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+                  <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-file-earmark-bar-graph me-2"></i>Footer HTML Snippet</h5>
+                  <p class="text-muted small mt-1 mb-0">Custom HTML footer injected at the bottom of all exported pages.</p>
+                </div>
+                <div class="card-body">
+                  <textarea class="form-control font-monospace bg-light" rows="4" placeholder="<!-- HTML snippet for footer -->"
+                            [(ngModel)]="settings.htmlExportFooterHtml" (change)="saveSettings()"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
 
@@ -944,9 +1251,9 @@
               <div class="page-number-mock" *ngIf="settings.pdfShowPageNumbers"
                    [style.font-size.px]="(settings.pdfPageNumberFontSize ?? 8) * previewScale">Page 2</div>
             </div>
-
           </div>
         </div>
       </div>
     </div>
   </div>
+</div>
