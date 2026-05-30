@@ -70,16 +70,9 @@ export interface MelodyResult {
   document: Document;
   sourceSigle: string;
   noteCount: number;
-  svg: SafeHtml;         // pre-rendered SVG showing the matching context
-}
-
-// ─── Syllable data ────────────────────────────────────────────────────────────
-
-/** A syllable with its note groups as they are stored (Spaced → NonSpaced → Grouped). */
-interface SyllableData {
-  text: string;
-  // spaced[i][j][k] = k-th note of the j-th Grouped inside the i-th NonSpaced
-  spaced: VM.Note[][][];
+  matchingSyllables: VM.Syllable[];
+  matchSylSet: Set<string>; // Set of matching syllable UUIDs
+  distance?: number;     // Levenshtein distance for display
 }
 
 // ─── Transcription utilities ──────────────────────────────────────────────────
@@ -93,16 +86,12 @@ function walkZeilen(children: any[], cb: (zeile: any) => void) {
 }
 
 /** Extract syllables with full neume-group structure preserved. */
-function extractSyllables(root: VM.RootContainer): SyllableData[] {
-  const result: SyllableData[] = [];
+function extractSyllables(root: VM.RootContainer): VM.Syllable[] {
+  const result: VM.Syllable[] = [];
   walkZeilen(root.children, zeile => {
     for (const part of (zeile.children || [])) {
       if (part?.kind === 'Syllable') {
-        const syl = part as VM.Syllable;
-        const spaced: VM.Note[][][] = (syl.notes?.spaced ?? []).map(
-          ns => (ns.nonSpaced ?? []).map(g => g.grouped ?? [])
-        );
-        result.push({ text: syl.text ?? '', spaced });
+        result.push(part as VM.Syllable);
       }
     }
   });
@@ -110,13 +99,16 @@ function extractSyllables(root: VM.RootContainer): SyllableData[] {
 }
 
 /** Flat note array for pattern matching. Also returns per-note syllable index. */
-function flattenNotes(syllables: SyllableData[]): { notes: VM.Note[]; sylIdx: number[] } {
+function flattenNotes(syllables: VM.Syllable[]): { notes: VM.Note[]; sylIdx: number[] } {
   const notes: VM.Note[] = [];
   const sylIdx: number[] = [];
   syllables.forEach((syl, si) => {
-    syl.spaced.forEach(ns => {
-      ns.forEach(g => {
-        g.forEach(n => { notes.push(n); sylIdx.push(si); });
+    const spaced = syl.notes?.spaced ?? [];
+    spaced.forEach(ns => {
+      const groups = ns.nonSpaced ?? [];
+      groups.forEach(g => {
+        const noteList = g.grouped ?? [];
+        noteList.forEach(n => { notes.push(n); sylIdx.push(si); });
       });
     });
   });
@@ -139,7 +131,15 @@ function extractSyllableText(root: VM.RootContainer): string {
 }
 
 function toPitchNames(notes: VM.Note[], withOctave: boolean): string[] {
-  return notes.map(n => withOctave ? `${n.base}${n.octave}` : n.base);
+  return notes.map(n => {
+    let name = n.base.toLowerCase();
+    if (n.noteType === VM.NoteType.Flat) {
+      name += 'b';
+    } else if (n.noteType === VM.NoteType.Sharp) {
+      name += '#';
+    }
+    return withOctave ? `${name}${n.octave}` : name;
+  });
 }
 
 function toContour(notes: VM.Note[]): string[] {
@@ -152,20 +152,192 @@ function toContour(notes: VM.Note[]): string[] {
   return result;
 }
 
-/** Returns the first index in `sequence` where `pattern` starts, or -1. */
-function findPatternStart(sequence: string[], pattern: string[]): number {
-  if (pattern.length === 0 || sequence.length < pattern.length) return -1;
-  outer: for (let i = 0; i <= sequence.length - pattern.length; i++) {
-    for (let j = 0; j < pattern.length; j++) {
-      if (sequence[i + j].toLowerCase() !== pattern[j].toLowerCase()) continue outer;
-    }
-    return i;
-  }
-  return -1;
+export interface SequenceMatch {
+  start: number;
+  end: number;
+  distance: number;
 }
 
-function parsePattern(raw: string): string[] {
-  return raw.trim().split(/\s+/).filter(s => s.length > 0);
+function levenshteinDistance(s1: string, s2: string): number {
+  const m = s1.length;
+  const n = s2.length;
+  const dp: number[][] = [];
+
+  for (let i = 0; i <= m; i++) {
+    dp[i] = [i];
+  }
+  for (let j = 1; j <= n; j++) {
+    dp[0][j] = j;
+  }
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function isFuzzySubstring(target: string, query: string, maxDistance: number): { matched: boolean; matchedSub?: string } {
+  const N = query.length;
+  const M = target.length;
+  if (N === 0) return { matched: false };
+  if (M === 0) return { matched: false };
+
+  if (N > M + maxDistance) return { matched: false };
+
+  let bestDist = 999;
+  let bestSub = '';
+
+  for (let start = 0; start < M; start++) {
+    const minLen = Math.max(1, N - maxDistance);
+    const maxLen = N + maxDistance;
+
+    for (let len = minLen; len <= maxLen; len++) {
+      const end = start + len - 1;
+      if (end >= M) break;
+
+      const sub = target.substring(start, end + 1);
+      const dist = levenshteinDistance(sub, query);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestSub = sub;
+      }
+    }
+  }
+
+  return { matched: bestDist <= maxDistance, matchedSub: bestSub };
+}
+
+function sequenceDistance(s1: string[], s2: string[]): number {
+  const m = s1.length;
+  const n = s2.length;
+  const dp: number[][] = [];
+
+  for (let i = 0; i <= m; i++) {
+    dp[i] = [i];
+  }
+  for (let j = 1; j <= n; j++) {
+    dp[0][j] = j;
+  }
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = s1[i - 1].toLowerCase() === s2[j - 1].toLowerCase() ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function findSubsequenceMatches(sequence: string[], pattern: string[], maxDistance: number): SequenceMatch[] {
+  const N = pattern.length;
+  const M = sequence.length;
+  if (N === 0 || M === 0) return [];
+
+  const matches: SequenceMatch[] = [];
+
+  // Iterate over all possible starting positions in the sequence
+  for (let start = 0; start < M; start++) {
+    const minLen = Math.max(1, N - maxDistance);
+    const maxLen = N + maxDistance;
+
+    for (let len = minLen; len <= maxLen; len++) {
+      const end = start + len - 1;
+      if (end >= M) break;
+
+      const sub = sequence.slice(start, end + 1);
+      const dist = sequenceDistance(sub, pattern);
+      if (dist <= maxDistance) {
+        matches.push({ start, end, distance: dist });
+      }
+    }
+  }
+
+  // Filter overlapping matches, keeping the best one
+  matches.sort((a, b) => a.distance - b.distance || (a.end - a.start) - (b.end - b.start));
+  const filteredMatches: SequenceMatch[] = [];
+
+  for (const m of matches) {
+    let isRedundant = false;
+    for (const selected of filteredMatches) {
+      if (Math.abs(selected.start - m.start) <= 2 && Math.abs(selected.end - m.end) <= 2) {
+        isRedundant = true;
+        break;
+      }
+    }
+    if (!isRedundant) {
+      filteredMatches.push(m);
+    }
+  }
+
+  return filteredMatches.sort((a, b) => a.start - b.start);
+}
+
+function parseMelodyPattern(raw: string, searchType: 'pitch' | 'contour', withOctave: boolean): string[] {
+  const clean = raw.trim();
+  if (searchType === 'contour') {
+    if (clean.includes(' ')) {
+      return clean.split(/\s+/).filter(Boolean).map(p => p.toLowerCase());
+    } else {
+      return clean.split('').filter(char => !/\s/.test(char)).map(p => p.toLowerCase());
+    }
+  }
+
+  // Pitch matching
+  // Note base: A-G, H (case-insensitive)
+  // We use a regex that restricts the flat accidental 'b' to only follow a B/b base.
+  // Other notes (A, C, D, E, F, G, H) can only have #, ♭, ♯ as accidentals.
+  // This prevents 'ab' from being parsed as A-flat instead of note A followed by note B.
+  const noteRegex = /(?:([bB])([b#♭♯]?)|([ac-ghAC-GH])([#♭♯]?))([0-9]?)/g;
+  const matches: string[] = [];
+  let match;
+  
+  while ((match = noteRegex.exec(clean)) !== null) {
+    const isB = match[1] !== undefined;
+    const base = (isB ? match[1] : match[3]).toLowerCase();
+    const accidental = (isB ? match[2] : match[4]) || '';
+    const octave = match[5] || '';
+
+    let note = base;
+    // Normalize German notation:
+    // H -> B (B-natural)
+    // B -> Bb (B-flat)
+    if (note === 'h') {
+      note = 'b';
+    } else if (note === 'b') {
+      note = 'bb';
+    }
+
+    // Normalize accidental
+    let accNorm = accidental.replace(/♭/g, 'b').replace(/♯/g, '#');
+
+    // Combine base and accidental
+    if (accNorm) {
+      if (note === 'bb' && accNorm === 'b') {
+        // already B-flat, do nothing
+      } else {
+        note += accNorm;
+      }
+    }
+
+    if (withOctave && octave) {
+      note += octave;
+    }
+
+    matches.push(note);
+  }
+
+  return matches;
 }
 
 function escapeXml(s: string): string {
@@ -195,166 +367,7 @@ function findTextSnippet(text: string, query: string, window = 35): TextSnippet 
 
 // ─── Melody SVG renderer ──────────────────────────────────────────────────────
 
-/**
- * Render a window of syllables as an SVG staff snippet.
- *
- * Uses exactly the same coordinate formula as the app's own Drawables.ts:
- *   noteY = 60 − (octave − 4) × 35 − baseNoteIndex × 5
- * then scaled by SCALE and shifted to fit the preview canvas.
- *
- * @param syllables   full list extracted from the document
- * @param matchSylSet set of syllable indices that contain matching notes
- * @param firstSyl    index of the first syllable to display (context window start)
- * @param lastSyl     index of the last syllable to display (inclusive)
- */
-function buildMelodySvg(
-  syllables: SyllableData[],
-  matchSylSet: Set<number>,
-  firstSyl: number,
-  lastSyl: number
-): string {
-  const SCALE      = 0.5;
-  const NOTE_W     = 10;   // px (original 12 * 0.5 ≈ 6; a bit larger for readability)
-  const NOTE_H     = 10;
-  const N_SPACE    = 14;   // between notes in a Grouped
-  const G_SPACE    = 16;   // between Grouped inside NonSpaced
-  const NS_SPACE   = 30;   // between NonSpaced items (= "spaced" level)
-  const SYL_GAP    = 18;   // extra gap between syllables
-  const PAD_LEFT   = 6;
-  const TEXT_Y     = 56;   // label row y
-  const SVG_H      = 68;
 
-  // Staff lines (original 40,50,60,70,80 × SCALE)
-  const staffYs = [40, 50, 60, 70, 80].map(y => y * SCALE);
-
-  // Y for a note (same formula as Drawables.ts, scaled)
-  const noteY = (n: VM.Note) =>
-    (60 - (n.octave - 4) * 35 - VM.baseNotes.indexOf(n.base) * 5) * SCALE;
-
-  // Helper line threshold: y ≤ top-staff or y ≥ bottom-staff
-  const TOP_STAFF    = staffYs[0];
-  const BOTTOM_STAFF = staffYs[staffYs.length - 1];
-
-  interface RendNote { x: number; y: number; isMatch: boolean; }
-  interface RendHelper { x: number; y: number; }
-  interface RendTie { x: number; y: number; width: number; }
-  interface RendLabel { cx: number; text: string; isMatch: boolean; }
-  interface RendHighlight { x: number; width: number; }
-
-  const rendNotes:   RendNote[]      = [];
-  const rendHelpers: RendHelper[]    = [];
-  const rendTies:    RendTie[]       = [];
-  const rendLabels:  RendLabel[]     = [];
-  const rendHighs:   RendHighlight[] = [];
-
-  let cx = PAD_LEFT;
-
-  for (let si = firstSyl; si <= lastSyl && si < syllables.length; si++) {
-    const syl     = syllables[si];
-    const isMatch = matchSylSet.has(si);
-    const sylX    = cx;
-    let firstNoteX = cx;
-
-    for (let nsi = 0; nsi < syl.spaced.length; nsi++) {
-      const nonSpaced = syl.spaced[nsi];
-      if (nsi > 0) cx += NS_SPACE;
-
-      for (let gi = 0; gi < nonSpaced.length; gi++) {
-        const group = nonSpaced[gi];
-        if (gi > 0) cx += G_SPACE;
-        const groupStartX = cx;
-
-        for (let ni = 0; ni < group.length; ni++) {
-          const n  = group[ni];
-          const ny = noteY(n);
-          if (ni > 0) cx += N_SPACE;
-
-          rendNotes.push({ x: cx, y: ny - NOTE_H / 2, isMatch });
-
-          // Ledger lines for notes outside the staff
-          if (ny - NOTE_H / 2 < TOP_STAFF - 2) {
-            rendHelpers.push({ x: cx - 2, y: TOP_STAFF - 5 });
-          }
-          if (ny + NOTE_H / 2 > BOTTOM_STAFF + 2) {
-            rendHelpers.push({ x: cx - 2, y: BOTTOM_STAFF + 5 });
-          }
-          if (ni === 0) firstNoteX = cx;
-        }
-
-        // Tie arc over groups with >1 note
-        if (group.length > 1) {
-          const tieW = (group.length - 1) * N_SPACE + NOTE_W;
-          const tieY = Math.min(...group.map(n => noteY(n) - NOTE_H / 2)) - 4;
-          rendTies.push({ x: groupStartX, y: tieY, width: tieW });
-        }
-
-        cx += NOTE_W;
-      }
-    }
-
-    const sylWidth = cx - sylX;
-    const labelCX  = sylX + sylWidth / 2;
-    rendLabels.push({ cx: labelCX, text: syl.text, isMatch });
-
-    if (isMatch) {
-      rendHighs.push({ x: sylX - 2, width: sylWidth + 4 });
-    }
-
-    cx += SYL_GAP;
-  }
-
-  const totalWidth = cx + PAD_LEFT;
-
-  // ── Build SVG string ──────────────────────────────────────────────────────
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${SVG_H}" style="display:block;overflow:visible">`;
-
-  // Highlight bands (behind everything)
-  for (const h of rendHighs) {
-    svg += `<rect x="${h.x.toFixed(1)}" y="${(staffYs[0] - 3).toFixed(1)}" `
-         + `width="${h.width.toFixed(1)}" height="${(staffYs[4] - staffYs[0] + 6).toFixed(1)}" `
-         + `fill="#fff3e0" rx="2"/>`;
-  }
-
-  // Staff lines
-  for (const ly of staffYs) {
-    svg += `<line x1="0" x2="${totalWidth}" y1="${ly.toFixed(1)}" y2="${ly.toFixed(1)}" `
-         + `stroke="#bbb" stroke-width="0.7"/>`;
-  }
-
-  // Ledger (helper) lines
-  for (const h of rendHelpers) {
-    svg += `<line x1="${(h.x).toFixed(1)}" x2="${(h.x + NOTE_W + 4).toFixed(1)}" `
-         + `y1="${h.y.toFixed(1)}" y2="${h.y.toFixed(1)}" stroke="#bbb" stroke-width="0.7"/>`;
-  }
-
-  // Tie arcs
-  for (const t of rendTies) {
-    const cx1 = (t.x + t.width * 0.2).toFixed(1);
-    const cx2 = (t.x + t.width * 0.8).toFixed(1);
-    const cy  = (t.y - 5).toFixed(1);
-    const ex  = (t.x + t.width).toFixed(1);
-    svg += `<path d="M${t.x.toFixed(1)},${t.y.toFixed(1)} C${cx1},${cy} ${cx2},${cy} ${ex},${t.y.toFixed(1)}" `
-         + `stroke="#555" stroke-width="1" fill="none"/>`;
-  }
-
-  // Note rectangles
-  for (const n of rendNotes) {
-    const fill = n.isMatch ? '#e65100' : '#212529';
-    svg += `<rect x="${n.x.toFixed(1)}" y="${n.y.toFixed(1)}" `
-         + `width="${NOTE_W}" height="${NOTE_H}" fill="${fill}" rx="1"/>`;
-  }
-
-  // Syllable text labels
-  for (const l of rendLabels) {
-    const fill = l.isMatch ? '#e65100' : '#555';
-    const text = escapeXml(l.text || '·');
-    svg += `<text x="${l.cx.toFixed(1)}" y="${TEXT_Y}" `
-         + `text-anchor="middle" font-size="7.5" font-family="serif" fill="${fill}">${text}</text>`;
-  }
-
-  svg += '</svg>';
-  return svg;
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -374,6 +387,9 @@ export class SearchComponent implements OnInit, OnDestroy {
   quickResults: QuickResult[] = [];
   quickSearched = false;
   quickSearching = false;
+  quickSearchMode: 'phrase' | 'words-and' | 'words-or' | 'fuzzy' = 'phrase';
+  quickMedievalTolerance = true;
+  quickFuzzyDistance = 2;
 
   // ── Source search ─────────────────────────────────────────────────────────
   sourceQuery: SourceQuery = {};
@@ -409,6 +425,7 @@ export class SearchComponent implements OnInit, OnDestroy {
   melodySearching = false;
   melodyScanned = 0;
   melodyWithNotes = 0;
+  melodyMaxDistance = 0;
 
   // ── Recent searches ───────────────────────────────────────────────────────
   recentSearches: string[] = [];
@@ -440,14 +457,113 @@ export class SearchComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() { this.subs.forEach(s => s.unsubscribe()); }
 
-  // ── Quick search ──────────────────────────────────────────────────────────
+  matchText(text: string, query: string, mode: 'phrase' | 'words-and' | 'words-or' | 'fuzzy', spellingTolerance: boolean, maxDistance: number): { matched: boolean; snippet?: TextSnippet } {
+    if (!text) return { matched: false };
+    const norm = (s: string) => {
+      let res = s.toLowerCase();
+      if (spellingTolerance) {
+        res = res
+          .replace(/[jv]/g, char => char === 'j' ? 'i' : 'u')
+          .replace(/y/g, 'i')
+          .replace(/ae/g, 'e')
+          .replace(/(.)\1+/g, '$1'); // collapse double letters
+      }
+      return res;
+    };
+
+    const targetNorm = norm(text);
+    const queryNorm = norm(query);
+
+    if (mode === 'phrase') {
+      if (spellingTolerance) {
+        const idx = targetNorm.indexOf(queryNorm);
+        if (idx !== -1) {
+          // Approximate mapping back to original text range
+          const matchStart = idx;
+          const matchEnd = idx + queryNorm.length;
+          const snippet = findTextSnippet(text, text.substring(Math.max(0, matchStart), Math.min(text.length, matchEnd))) || { before: '', match: query, after: '' };
+          return { matched: true, snippet };
+        }
+        return { matched: false };
+      } else {
+        const idx = text.toLowerCase().indexOf(query.toLowerCase());
+        if (idx !== -1) {
+          return { matched: true, snippet: findTextSnippet(text, query) };
+        }
+        return { matched: false };
+      }
+    }
+
+    if (mode === 'words-and' || mode === 'words-or') {
+      const words = query.trim().split(/\s+/).filter(Boolean);
+      if (words.length === 0) return { matched: false };
+
+      const wordMatches = words.map(w => {
+        const wNorm = norm(w);
+        return targetNorm.includes(wNorm) || text.toLowerCase().includes(w.toLowerCase());
+      });
+
+      const matched = mode === 'words-and' 
+        ? wordMatches.every(m => m) 
+        : wordMatches.some(m => m);
+
+      if (matched) {
+        // Find snippet around the first matching word
+        for (const w of words) {
+          const idx = text.toLowerCase().indexOf(w.toLowerCase());
+          if (idx !== -1) {
+            return { matched: true, snippet: findTextSnippet(text, w) };
+          }
+        }
+        return { matched: true, snippet: { before: '', match: text.substring(0, Math.min(text.length, 25)), after: '…' } };
+      }
+      return { matched: false };
+    }
+
+    if (mode === 'fuzzy') {
+      const targetWords = text.toLowerCase().split(/\s+/).filter(Boolean);
+      const queryWords = query.toLowerCase().split(/\s+/).filter(Boolean);
+      if (queryWords.length === 0) return { matched: false };
+
+      const matchedWords = queryWords.map(qw => {
+        let bestDist = 999;
+        let matchedTargetWord = '';
+        for (const tw of targetWords) {
+          const res = isFuzzySubstring(norm(tw), norm(qw), maxDistance);
+          if (res.matched) {
+            // Re-calculate the actual distance of this best matching substring
+            const dist = levenshteinDistance(norm(res.matchedSub || ''), norm(qw));
+            if (dist < bestDist) {
+              bestDist = dist;
+              matchedTargetWord = tw;
+            }
+          }
+        }
+        return { matched: bestDist <= maxDistance, word: matchedTargetWord };
+      });
+
+      const matched = matchedWords.every(mw => mw.matched);
+      if (matched && matchedWords.length > 0) {
+        const firstMatch = matchedWords[0].word;
+        if (firstMatch) {
+          const origIdx = text.toLowerCase().indexOf(firstMatch);
+          const origWord = origIdx !== -1 ? text.substring(origIdx, origIdx + firstMatch.length) : firstMatch;
+          const snippet = findTextSnippet(text, origWord);
+          return { matched: true, snippet };
+        }
+        return { matched: true };
+      }
+      return { matched: false };
+    }
+
+    return { matched: false };
+  }
 
   searchQuick() {
     if (!this.user || !this.quickText.trim()) return;
     this.quickSearching = true;
     this.quickSearched = false;
     this.addRecentSearch(this.quickText);
-    const q = this.quickText.toLowerCase();
 
     forkJoin({
       sources: this.api.listSources(this.user.token),
@@ -459,8 +575,16 @@ export class SearchComponent implements OnInit, OnDestroy {
 
       if (sources.kind === 'SourcesRetrieved') {
         for (const s of sources.sources) {
-          const txt = Object.values(s).filter(v => typeof v === 'string').join(' ');
-          if (txt.toLowerCase().includes(q)) {
+          const metaFields = Object.values(s).filter(v => typeof v === 'string').map(v => v as string);
+          let matched = false;
+          for (const val of metaFields) {
+            const matchRes = this.matchText(val, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
+            if (matchRes.matched) {
+              matched = true;
+              break;
+            }
+          }
+          if (matched) {
             results.push({
               kind: 'source', id: s.id!,
               title:    s.quellensigle || s.bibliothekssignatur || '(no siglum)',
@@ -473,26 +597,37 @@ export class SearchComponent implements OnInit, OnDestroy {
 
       if (docs.kind === 'DocumentsRetrieved') {
         for (const d of docs.documents) {
-          const metaTxt = Object.values(d).filter(v => typeof v === 'string').join(' ');
+          const metaFields = Object.values(d).filter(v => typeof v === 'string').map(v => v as string);
           const root    = allNotes[d.id];
-          // Syllable text: joined raw ("Al-le-lu-ia") + dehyphenated ("Alleluia")
-          const sylRaw  = root ? (() => {
-            const syls = extractSyllables(root);
-            return syls.map(s => s.text).join('');
-          })() : '';
+          
+          const sylsList = root ? extractSyllables(root).map(s => s.text) : [];
+          const sylRaw  = sylsList.join('');
           const sylClean = sylRaw.replace(/-/g, '');
+          const sylSpaced = sylsList.join(' ').replace(/-/g, ' ');
 
-          const matchMeta = metaTxt.toLowerCase().includes(q);
-          const matchSyl  = sylRaw.toLowerCase().includes(q) || sylClean.toLowerCase().includes(q);
+          let matchMeta = false;
+          let metaSnippet: TextSnippet | undefined;
+          for (const val of metaFields) {
+            const matchRes = this.matchText(val, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
+            if (matchRes.matched) {
+              matchMeta = true;
+              metaSnippet = matchRes.snippet;
+              break;
+            }
+          }
+
+          const matchSylRaw = this.matchText(sylRaw, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
+          const matchSylClean = this.matchText(sylClean, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
+          const matchSylSpaced = this.matchText(sylSpaced, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
+
+          const matchSyl = matchSylRaw.matched || matchSylClean.matched || matchSylSpaced.matched;
 
           if (matchMeta || matchSyl) {
-            // Build snippet from the source that matched
-            let snippet: TextSnippet | undefined;
+            let snippet = metaSnippet;
             if (matchSyl && !matchMeta) {
-              // Prefer the clean form for display (it reads as full words)
-              snippet = findTextSnippet(sylClean, q) ?? findTextSnippet(sylRaw, q);
-            } else if (matchSyl) {
-              snippet = findTextSnippet(sylClean, q) ?? findTextSnippet(sylRaw, q);
+              snippet = matchSylSpaced.snippet ?? matchSylClean.snippet ?? matchSylRaw.snippet;
+            } else if (matchSyl && matchMeta && !snippet) {
+              snippet = matchSylSpaced.snippet ?? matchSylClean.snippet ?? matchSylRaw.snippet;
             }
 
             results.push({
@@ -565,7 +700,7 @@ export class SearchComponent implements OnInit, OnDestroy {
     this.melodySearched   = false;
     this.melodyScanned    = 0;
     this.melodyWithNotes  = 0;
-    const pattern = parsePattern(this.melodyPattern);
+    const pattern = parseMelodyPattern(this.melodyPattern, this.melodySearchType, this.melodyWithOctave);
 
     forkJoin({
       docsRes:    this.api.listDocuments(this.user.token),
@@ -593,39 +728,49 @@ export class SearchComponent implements OnInit, OnDestroy {
           ? toPitchNames(notes, this.melodyWithOctave)
           : toContour(notes);
 
-        const matchStart = findPatternStart(sequence, pattern);
-        if (matchStart === -1) continue;
+        const matches = findSubsequenceMatches(sequence, pattern, this.melodyMaxDistance);
+        if (matches.length === 0) continue;
 
-        // For contour, matchEnd is in notes-space: pattern of N gives N+1 notes
-        const matchEndNote = this.melodySearchType === 'contour'
-          ? matchStart + pattern.length      // N intervals → N+1 notes, last is matchStart+len
-          : matchStart + pattern.length - 1;
+        // Take the best match (minimum distance)
+        const bestMatch = matches[0];
+        const matchStart = bestMatch.start;
+        const matchEndNote = bestMatch.end;
+        const distance = bestMatch.distance;
 
         // Determine which syllables are "in the match"
-        const matchSylSet = new Set<number>();
+        const matchSylSet = new Set<string>();
         for (let ni = matchStart; ni <= matchEndNote && ni < sylIdx.length; ni++) {
-          matchSylSet.add(sylIdx[ni]);
+          const syl = syllables[sylIdx[ni]];
+          if (syl?.uuid) {
+            matchSylSet.add(syl.uuid);
+          }
         }
 
         // Context window: 3 syllables of padding before and after the match
-        const matchSylMin = Math.min(...Array.from(matchSylSet));
-        const matchSylMax = Math.max(...Array.from(matchSylSet));
+        const matchingSyllableIndices = [];
+        for (let ni = matchStart; ni <= matchEndNote && ni < sylIdx.length; ni++) {
+          matchingSyllableIndices.push(sylIdx[ni]);
+        }
+        const matchSylMin = Math.min(...matchingSyllableIndices);
+        const matchSylMax = Math.max(...matchingSyllableIndices);
         const ctxFirst = Math.max(0, matchSylMin - 3);
         const ctxLast  = Math.min(syllables.length - 1, matchSylMax + 3);
 
-        const svgStr = buildMelodySvg(syllables, matchSylSet, ctxFirst, ctxLast);
-        const svg    = this.sanitizer.bypassSecurityTrustHtml(svgStr);
+        const contextSyllables = syllables.slice(ctxFirst, ctxLast + 1);
 
         const source = allSources.find(s => s.id === doc.quelle_id);
         results.push({
           document:   doc,
           sourceSigle: source?.quellensigle ?? '',
           noteCount:  notes.length,
-          svg,
+          matchingSyllables: contextSyllables,
+          matchSylSet,
+          distance,
         });
       }
 
-      this.melodyResults  = results;
+      // Sort results: exact matches first, then sorted by distance, then by document metadata
+      this.melodyResults  = results.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
       this.melodySearched = true;
       this.melodySearching = false;
     });
@@ -634,10 +779,10 @@ export class SearchComponent implements OnInit, OnDestroy {
   get melodyPatternHint(): string {
     if (this.melodySearchType === 'pitch') {
       return this.melodyWithOctave
-        ? 'e.g. C4 D4 E4 F4  (space-separated pitch + octave)'
-        : 'e.g. C D E F G  (space-separated note names A–G)';
+        ? 'e.g. C4D4E4F4  (note names + octave, no spaces needed)'
+        : 'e.g. CDEFG  (note names A–G, no spaces needed)';
     }
-    return 'e.g. u u d u r d  (u=up, d=down, r=repeat)';
+    return 'e.g. uudrud  (u=up, d=down, r=repeat)';
   }
 
   // ── Sorting ───────────────────────────────────────────────────────────────

@@ -148,9 +148,9 @@
 					width="10px" height="2px" [attr.fill]="syllableBracketColor('end')" />
 
 			</g>
-			<g *ngIf="!isNormal() && !readOnly" [attr.transform]="'translate(' + ((getWidth() - 40)/2) + ', 0)'">
-				<rect x="5" y="60" fill="black" width="40px" height="10px"
-					[attr.stroke]=" hasFocus ?  '#00FF00' : '#000000'" fill=none stroke-width="4" />
+			<g *ngIf="!isNormal()" [attr.transform]="'translate(' + ((getWidth() - 40)/2) + ', 0)'">
+				<rect x="5" y="60" fill="none" width="40px" height="10px"
+					[attr.stroke]=" hasFocus && !readOnly ? '#00FF00' : '#000000'" stroke-width="4" />
 			</g>
 
 		</svg>

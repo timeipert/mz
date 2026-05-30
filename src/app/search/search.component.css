@@ -40,20 +40,19 @@
 /* ── Melody result cards ───────────────────────────────────────────────────── */
 .melody-card:hover { background: #f8f9ff; }
 
-.svg-scroll {
+.melody-preview-container {
   overflow-x: auto;
-  overflow-y: visible;
-  /* Push the SVG a bit away from the metadata column */
-  padding: 4px 0;
-  /* Fixed height matching the SVG canvas (68px) */
-  height: 72px;
+  overflow-y: hidden;
+  padding: 8px 0;
   display: flex;
   align-items: center;
 }
 
-/* Make SVG inside the scroll container not shrink */
-.svg-scroll svg {
-  flex-shrink: 0;
+.matching-syllable {
+  background-color: #fffbeb !important; /* amber-50 */
+  border: 1.5px dashed #fbbf24 !important; /* amber-400 */
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.1);
+  transition: background-color 0.2s, border-color 0.2s;
 }
 
 /* ── Quick results list ─────────────────────────────────────────────────────── */

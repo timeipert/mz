@@ -345,8 +345,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     const success = await this.github.testConnection();
     this.isGithubConnecting = false;
     if (!success) {
-      this.github.clearConfig();
-      alert('GitHub connection failed. Please check your token and repository details.');
+      alert('GitHub connection failed. The settings were saved, but we could not reach the repository. Please verify your internet connection, token scopes/validity, and repository details.');
     } else {
       alert('GitHub connected successfully! Use the Sync button in the top navigation bar to push or pull data.');
     }

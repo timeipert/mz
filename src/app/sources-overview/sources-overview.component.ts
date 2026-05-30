@@ -550,10 +550,18 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
               sourceName: srcNode.source.quellensigle || srcNode.source.id
             });
             
-            const docMetadata = Object.entries(doc)
+            let docMetadata = Object.entries(doc)
               .filter(([k, v]) => v && k !== 'custom' && typeof v !== 'object')
               .filter(([k, _]) => !settings.htmlExportDocumentMetadata || settings.htmlExportDocumentMetadata.includes(k))
               .map(([k, v]) => ({ label: this.getMetadataLabel(k), value: v }));
+              
+            if (doc.custom && typeof doc.custom === 'object') {
+              for (const [k, v] of Object.entries(doc.custom)) {
+                if (v && typeof v !== 'object') {
+                  docMetadata.push({ label: k, value: v });
+                }
+              }
+            }
               
             let renderedHtml = renderedHtmlMap.get(doc.id) || '<div class="alert alert-warning">No visual data rendered.</div>';
             // Rewrite asset paths for the subdirectory
@@ -574,8 +582,8 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
             zip.file(`${srcNode.source.id}/${doc.id}.html`, docHtml);
           }
           
-          const sourceMetadata = Object.entries(srcNode.source)
-            .filter(([k, v]) => v && k !== 'id')
+          let sourceMetadata = Object.entries(srcNode.source)
+            .filter(([k, v]) => v && k !== 'id' && typeof v !== 'object')
             .filter(([k, _]) => !settings.htmlExportSourceMetadata || settings.htmlExportSourceMetadata.includes(k))
             .map(([k, v]) => ({ label: this.getMetadataLabel(k), value: v }));
             
