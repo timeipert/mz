@@ -16,6 +16,6 @@
 			</g>
 		</svg>
 	</div>
-	<div (focus)="focusText()"  #changeText class="noteText" spellcheck="false" (keyup)="onTextChange()" (keydown)="onTextKeyDownChange($event)" contenteditable="true"></div>
-	<div                                    class="syllableText" contenteditable="true"></div>
+	<div (focus)="focusText()"  #changeText class="noteText" spellcheck="false" (keyup)="onTextChange()" (keydown)="onTextKeyDownChange($event)" [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
+	<div                                    class="syllableText" [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
 </div>

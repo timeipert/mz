@@ -14,7 +14,42 @@ export type Event =
   PasteRequested |
   ViewIiifRequested |
   HighlightRegionRequested |
-  OpenCommentModalRequested;
+  OpenCommentModalRequested |
+  MergeWithNextLineRequested |
+  MergeSectionRequested |
+  DeleteSectionKeepContentRequested |
+  SplitSectionAtLineRequested |
+  FixSyllableDashesRequested |
+  DocumentUpdated;
+
+export interface FixSyllableDashesRequested {
+  kind: "FixSyllableDashesRequested";
+}
+
+export interface DocumentUpdated {
+  kind: "DocumentUpdated";
+}
+
+export interface SplitSectionAtLineRequested {
+  kind: "SplitSectionAtLineRequested";
+  lineUuid: string;
+  splitLevel: number;
+}
+
+export interface MergeWithNextLineRequested {
+  kind: "MergeWithNextLineRequested";
+  uuid: string;
+}
+
+export interface MergeSectionRequested {
+  kind: "MergeSectionRequested";
+  uuid: string;
+}
+
+export interface DeleteSectionKeepContentRequested {
+  kind: "DeleteSectionKeepContentRequested";
+  uuid: string;
+}
 
 export interface NewNoteLineRequsted {
   kind: "NewNoteLineRequsted";

@@ -37,7 +37,82 @@ export class DocumentComponent implements OnInit {
   user: User | null = null;
   private _cont: VM.RootContainer | undefined;
   get cont(): VM.RootContainer | undefined { return this._cont; }
-  set cont(v: VM.RootContainer | undefined) { this._cont = v; if (v) this.dragState.setRootData(v); }
+  set cont(v: VM.RootContainer | undefined) {
+    this._cont = v;
+    if (v) {
+      this.dragState.setRootData(v);
+      this.applyPendingFocus();
+    }
+  }
+
+  pendingFocusNoteUuid: string | null = null;
+
+  findSyllableUuidForNoteUuid(root: VM.RootContainer, noteUuid: string): string | null {
+    let foundSyllableUuid: string | null = null;
+    const traverse = (node: any) => {
+      if (foundSyllableUuid) return;
+      if (!node) return;
+      if (node.kind === 'Syllable') {
+        if (node.notes && node.notes.spaced) {
+          for (const spacedItem of node.notes.spaced) {
+            if (spacedItem.nonSpaced) {
+              for (const ns of spacedItem.nonSpaced) {
+                if (ns.grouped) {
+                  for (const g of ns.grouped) {
+                    if (g.uuid === noteUuid) {
+                      foundSyllableUuid = node.uuid;
+                      return;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      if (node.children && Array.isArray(node.children)) {
+        for (const child of node.children) {
+          traverse(child);
+        }
+      }
+      if (node.parts && Array.isArray(node.parts)) {
+        for (const part of node.parts) {
+          traverse(part);
+        }
+      }
+    };
+    traverse(root);
+    return foundSyllableUuid;
+  }
+
+  applyPendingFocus() {
+    if (!this.pendingFocusNoteUuid || !this._cont) return;
+    const noteUuid = this.pendingFocusNoteUuid;
+    const syllableUuid = this.findSyllableUuidForNoteUuid(this._cont, noteUuid);
+    if (syllableUuid) {
+      this.pendingFocusNoteUuid = null;
+      setTimeout(() => {
+        const el = document.querySelector(`[data-uuid="${syllableUuid}"]`) as HTMLElement;
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const originalBg = el.style.backgroundColor;
+          const originalShadow = el.style.boxShadow;
+          const originalTransition = el.style.transition;
+          el.style.transition = 'all 0.5s ease';
+          el.style.backgroundColor = '#fef08a';
+          el.style.boxShadow = '0 0 15px #fde047';
+          setTimeout(() => {
+            el.style.backgroundColor = originalBg;
+            el.style.boxShadow = originalShadow;
+            setTimeout(() => {
+              el.style.transition = originalTransition;
+            }, 500);
+          }, 2000);
+          this.focusService.focusedNoteUUID = noteUuid;
+        }
+      }, 500);
+    }
+  }
   readOnly: boolean = false;
   collapseMetadata: boolean = true;
   sourceSigle: string | undefined;
@@ -53,7 +128,7 @@ export class DocumentComponent implements OnInit {
   isSaving = false;
   /** True if a save was requested while an HTTP request was already ongoing */
   private savePending = false;
-  sidebarTab: 'metadata' | 'comments' = 'metadata';
+  sidebarTab: 'metadata' | 'comments' | 'structure' = 'metadata';
   activeSidebarComment: VM.Comment | null = null;
   activeSidebarOriginal: VM.ZeileContainer | null = null;
 
@@ -107,6 +182,7 @@ export class DocumentComponent implements OnInit {
   importText: string = '';
   importType: keyof typeof parsers = "Misc";
   importTypes = Object.keys(parsers);
+  fixDashesOnImport = true;
 
   constructor(
     private api: APIService,
@@ -123,6 +199,157 @@ export class DocumentComponent implements OnInit {
     private meiExport: MeiExportService,
     private pageTitle: PageTitleService, public focusService: FocusService) {
   }
+
+  documentTypes = [
+    { value: 'Level0', label: '0' },
+    { value: 'Level1', label: '1' },
+    { value: 'Level2', label: '2' },
+    { value: 'Level3', label: '3' }
+  ];
+
+  getStructureTree(): Array<{ zipper: number[], label: string, kind: string, depth: number, icon: string }> {
+    if (!this.cont) return [];
+    const items: any[] = [];
+    const traverse = (node: any, zipper: number[], depth: number) => {
+      if (zipper.length > 0) {
+        let label = '';
+        let icon = '';
+        if (node.kind === 'FormteilContainer') {
+          const sig = (node.data || []).find((d: any) => d.name === 'Signatur')?.data;
+          const ti  = (node.data || []).find((d: any) => d.name === 'LemmatisiertesTextInitium')?.data;
+          label = sig || (ti ? ti.slice(0, 15) : '') || 'Section';
+          icon = '📁';
+        } else if (node.kind === 'ZeileContainer') {
+          label = 'Line';
+          icon = '♩';
+        } else if (node.kind === 'ParatextContainer') {
+          label = (node.text || '').trim().slice(0, 15) || node.paratextType || 'Text';
+          icon = '¶';
+        } else if (node.kind === 'MiscContainer') {
+          label = 'Misc';
+          icon = '…';
+        }
+        items.push({ zipper, label, kind: node.kind, depth, icon });
+      }
+      if (node.children) {
+        node.children.forEach((child: any, idx: number) => {
+          traverse(child, [...zipper, idx], depth + 1);
+        });
+      }
+    };
+    traverse(this.cont, [], -1);
+    return items;
+  }
+
+  renameContainer(zipper: number[], newName: string): void {
+    if (!this.cont) return;
+    this.undoService.beforeChange();
+    const node = VM.resolve(this.cont, zipper) as any;
+    if (node && node.kind === 'FormteilContainer') {
+      if (!node.data) node.data = [];
+      let sig = node.data.find((d: any) => d.name === 'Signatur');
+      if (sig) {
+        sig.data = newName;
+      } else {
+        node.data.push({ name: 'Signatur', data: newName });
+      }
+      this.save();
+      this.cont = { ...this.cont };
+    }
+  }
+
+  canMergeContainer(zipper: number[]): boolean {
+    if (!this.cont) return false;
+    const parentZipper = zipper.slice(0, -1);
+    const index = zipper[zipper.length - 1];
+    const parent = VM.resolve(this.cont, parentZipper) as any;
+    if (!parent || !parent.children) return false;
+    const nextChild = parent.children[index + 1];
+    return nextChild && nextChild.kind === 'FormteilContainer';
+  }
+
+  mergeContainerWithNext(zipper: number[]): void {
+    if (!this.cont) return;
+    this.undoService.beforeChange();
+    const parentZipper = zipper.slice(0, -1);
+    const index = zipper[zipper.length - 1];
+    const parent = VM.resolve(this.cont, parentZipper) as any;
+    if (parent && parent.children) {
+      const current = parent.children[index];
+      const next = parent.children[index + 1];
+      if (current && next && current.kind === 'FormteilContainer' && next.kind === 'FormteilContainer') {
+        current.children.push(...next.children);
+        parent.children.splice(index + 1, 1);
+        this.save();
+        this.cont = { ...this.cont };
+      }
+    }
+  }
+
+  canDeleteContainer(zipper: number[]): boolean {
+    if (!this.cont) return false;
+    const parentZipper = zipper.slice(0, -1);
+    const parent = VM.resolve(this.cont, parentZipper) as any;
+    if (!parent || !parent.children) return false;
+    const formteilCount = parent.children.filter((c: any) => c.kind === 'FormteilContainer').length;
+    return formteilCount > 1;
+  }
+
+  deleteContainerAt(zipper: number[]): void {
+    if (!this.cont) return;
+    if (!this.canDeleteContainer(zipper)) {
+      this.toastr.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+      return;
+    }
+    this.undoService.beforeChange();
+    const parentZipper = zipper.slice(0, -1);
+    const index = zipper[zipper.length - 1];
+    const parent = VM.resolve(this.cont, parentZipper) as any;
+    if (parent && parent.children) {
+      const node = parent.children[index];
+      if (node) {
+        if (node.children && node.children.length > 0) {
+          parent.children.splice(index, 1, ...node.children);
+        } else {
+          parent.children.splice(index, 1);
+        }
+        this.save();
+        this.cont = { ...this.cont };
+      }
+    }
+  }
+
+  splitContainerAt(zipper: number[]): void {
+    if (!this.cont) return;
+    this.undoService.beforeChange();
+    const parentZipper = zipper.slice(0, -1);
+    const index = zipper[zipper.length - 1];
+    const parent = VM.resolve(this.cont, parentZipper) as any;
+    if (parent && parent.children) {
+      const itemsToMove = parent.children.slice(index);
+      parent.children.length = index;
+      const grandParentZipper = parentZipper.slice(0, -1);
+      const parentIndex = parentZipper[parentZipper.length - 1];
+      const grandParent = VM.resolve(this.cont, grandParentZipper) as any;
+      if (grandParent && grandParent.children) {
+        const newFormteil = VM.emptyFormteilContainer(this.cont.documentType, []);
+        newFormteil.children = itemsToMove;
+        grandParent.children.splice(parentIndex + 1, 0, newFormteil);
+        this.save();
+        this.cont = { ...this.cont };
+      }
+    }
+  }
+
+  setDocumentType(value: string): void {
+    if (!this.cont) return;
+    this.undoService.beforeChange();
+    this.cont.documentType = value as VM.DocumentType;
+    VM.changeDocumentStructure(this.cont, this.cont.documentType);
+    this.save();
+    this.cont = { ...this.cont };
+  }
+
 
   test() {
     this.undoService.undo();
@@ -155,6 +382,23 @@ export class DocumentComponent implements OnInit {
 
   /** Receives events bubbled up from app-root-section (via the Section base class onEvent output). */
   handleRootEvent(e: any): void {
+    if (e.kind === 'FixSyllableDashesRequested') {
+      this.undoService.beforeChange();
+      if (this.cont) {
+        VM.fixSyllableDashes(this.cont);
+        this.save();
+        this.cont = { ...this.cont } as VM.RootContainer;
+      }
+      this.toastr.success("Silbentrennstriche wurden korrigiert.");
+      return;
+    }
+    if (e.kind === 'DocumentUpdated') {
+      this.save();
+      if (this.cont) {
+        this.cont = { ...this.cont } as VM.RootContainer;
+      }
+      return;
+    }
     if (e.kind === 'OpenCommentModalRequested') {
       this.openComment(e.comment);
       return;
@@ -209,6 +453,14 @@ export class DocumentComponent implements OnInit {
     this.linkModeRegionId = data.regionId;
     this.linkModeRegionName = data.regionName;
     this.toastr.info(`Now click a line-change in the transcription to link it to "${data.regionName}"`, '', { timeOut: 8000 });
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    const target = event.target as HTMLElement;
+    if (target && !target.closest('.content-row')) {
+      this.focusService.focusedContainerUUID = undefined;
+    }
   }
 
   /** Builds a map of line-changes to their implicit region names based on DOM order. */
@@ -783,8 +1035,7 @@ export class DocumentComponent implements OnInit {
               
               // Draw Syllable Text below the SVG
               if (txt) {
-                const txtX = cursorX + (svgWidth / 2) - (textWidth / 2);
-                doc.text(txt, Math.max(cursorX, txtX), cursorY + secHeight + pdfSyllableTextOffset);
+                doc.text(txt, cursorX, cursorY + secHeight + pdfSyllableTextOffset);
               }
               
               // 2. Check if any comments end here
@@ -1182,6 +1433,10 @@ export class DocumentComponent implements OnInit {
       if (params['view'] && ['transcription', 'split', 'iiif'].includes(params['view'])) {
         this.setViewMode(params['view'] as any, false);
       }
+      if (params['focus']) {
+        this.pendingFocusNoteUuid = params['focus'];
+        this.applyPendingFocus();
+      }
     }));
   }
 
@@ -1254,6 +1509,19 @@ export class DocumentComponent implements OnInit {
         title: 'Import Text'
       },
       {
+        callback: () => {
+          this.undoService.beforeChange();
+          if (this.cont) {
+            VM.fixSyllableDashes(this.cont);
+            this.save();
+            this.cont = { ...this.cont } as VM.RootContainer;
+          }
+          this.toastr.success("Silbentrennstriche wurden korrigiert.");
+        },
+        icon: 'type-strikethrough',
+        title: 'Fix Syllable Dashes'
+      },
+      {
         callback: () => { this.modalService.open(this.globalCommentModal, { size: 'xl', fullscreen: true }); },
         icon: 'chat-left-text',
         title: 'Edit Global Comment'
@@ -1299,7 +1567,20 @@ export class DocumentComponent implements OnInit {
         switch (res.kind) {
           case 'LoginRequired': this.userService.logout(); break;
           case 'InsufficientPermissions': this.userService.logout(); break;
-          case 'DocumentNotFound': this.document = undefined; break;
+          case 'DocumentNotFound':
+            // Notes are missing — this is NOT the same as "document
+            // missing". A freshly-imported document whose notes write
+            // failed, or an old-format doc with no notes row yet, should
+            // still open as an empty edition rather than reverting to
+            // "loading…". Previously we set `this.document = undefined`
+            // here, which made imported docs look permanently broken.
+            this.cont = VM.emptyRootContainer();
+            this.contJsonClone = JSON.stringify(this.cont);
+            this.toastr.warning(
+              'No transcription data was found for this document. Starting from an empty edition — re-import to restore the original notes.',
+              'Notes missing'
+            );
+            break;
           case 'NotesRetrieved': this.cont = res.data; this.contJsonClone = JSON.stringify(this.cont); break;
           default: assertNever(res);
         }
@@ -1510,6 +1791,11 @@ export class DocumentComponent implements OnInit {
       const result = parsers[this.importType]!.parse(this.importText.trim());
       if (result.status) {
         this.cont = result.value;
+        if (this.fixDashesOnImport && this.cont) {
+          VM.fixSyllableDashes(this.cont);
+        }
+        this.save();
+        this.cont = { ...this.cont };
         this.modalService.dismissAll();
       } else {
         console.log(result);

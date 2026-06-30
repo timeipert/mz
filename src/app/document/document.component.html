@@ -17,7 +17,7 @@
     </ng-container>
     <div class="row mb-4">
       <div class="col">
-        <h2 class="page-title mb-0">{{document.textinitium || document.dokumenten_id || 'Untitled Chant'}}</h2>
+        <h2 class="page-title mb-0">{{document.textinitium || document.dokumenten_id || 'Untitled Chant'}} <app-help-button topic="transcription"></app-help-button></h2>
       </div>
     </div>
 
@@ -70,23 +70,32 @@
         <div *ngIf="sidebarVisible" class="border rounded-3 p-3 bg-light shadow-sm" style="background-color: #f9fbfd !important;">
           <!-- Tab Navigation + collapse button -->
           <div class="d-flex align-items-center mb-3 gap-1">
-            <ul class="nav nav-pills flex-grow-1 bg-white p-1 rounded border mb-0" style="font-size: 0.85rem;">
-              <li class="nav-item flex-grow-1">
-                <button class="nav-link w-100 py-1 px-3 fw-medium border-0 rounded"
+            <ul class="nav nav-pills flex-grow-1 bg-white p-1 rounded border mb-0" style="font-size: 0.82rem;">
+              <li class="nav-item" style="flex: 1 1 0px; min-width: 0;">
+                <button class="nav-link w-100 py-1 px-2 fw-medium border-0 rounded text-truncate"
                         [class.active]="sidebarTab === 'metadata'"
                         [style.background-color]="sidebarTab === 'metadata' ? '#0d6efd' : 'transparent'"
                         [style.color]="sidebarTab === 'metadata' ? '#fff' : '#495057'"
                         (click)="sidebarTab = 'metadata'" type="button">
-                  <i class="bi bi-info-circle me-1"></i>Metadata
+                  <i class="bi bi-info-circle me-1"></i>Meta
                 </button>
               </li>
-              <li class="nav-item flex-grow-1">
-                <button class="nav-link w-100 py-1 px-3 fw-medium border-0 rounded"
+              <li class="nav-item" style="flex: 1 1 0px; min-width: 0;">
+                <button class="nav-link w-100 py-1 px-2 fw-medium border-0 rounded text-truncate"
+                        [class.active]="sidebarTab === 'structure'"
+                        [style.background-color]="sidebarTab === 'structure' ? '#0d6efd' : 'transparent'"
+                        [style.color]="sidebarTab === 'structure' ? '#fff' : '#495057'"
+                        (click)="sidebarTab = 'structure'" type="button">
+                  <i class="bi bi-diagram-3 me-1"></i>Struct
+                </button>
+              </li>
+              <li class="nav-item" style="flex: 1 1 0px; min-width: 0;">
+                <button class="nav-link w-100 py-1 px-2 fw-medium border-0 rounded text-truncate"
                         [class.active]="sidebarTab === 'comments'"
                         [style.background-color]="sidebarTab === 'comments' ? '#0d6efd' : 'transparent'"
                         [style.color]="sidebarTab === 'comments' ? '#fff' : '#495057'"
                         (click)="sidebarTab = 'comments'" type="button">
-                  <i class="bi bi-chat-text me-1"></i>Comments
+                  <i class="bi bi-chat-text me-1"></i>Comm
                   <span class="badge rounded-pill ms-1"
                         [class.bg-light]="sidebarTab === 'comments'" [class.text-dark]="sidebarTab === 'comments'"
                         [class.bg-secondary]="sidebarTab !== 'comments'">{{cont?.comments?.length || 0}}</span>
@@ -268,6 +277,90 @@
               </div>
             </div>
           </div>
+
+          <!-- Tab Content: Structure -->
+          <div *ngIf="sidebarTab === 'structure' && cont" class="d-flex flex-column gap-3 structure-pane">
+
+            <!-- Layers configuration -->
+            <div class="struct-card">
+              <div class="struct-card-head">
+                <i class="bi bi-layers-half"></i>
+                <span>Structural layers</span>
+              </div>
+              <div class="struct-seg" role="group" aria-label="Number of structural layers">
+                <button type="button" class="struct-seg-btn"
+                        *ngFor="let o of documentTypes"
+                        [class.active]="cont.documentType === o.value"
+                        (click)="setDocumentType(o.value)"
+                        [attr.aria-pressed]="cont.documentType === o.value">
+                  {{ o.label }}
+                </button>
+              </div>
+              <div class="struct-card-hint">How many nesting levels the document hierarchy uses.</div>
+            </div>
+
+            <!-- Structure Tree Editor -->
+            <div class="struct-card">
+              <ng-container *ngIf="getStructureTree() as tree">
+                <div class="struct-card-head justify-content-between">
+                  <span><i class="bi bi-diagram-3"></i>Hierarchy &amp; sections</span>
+                  <span class="struct-count" *ngIf="tree.length">{{ tree.length }}</span>
+                </div>
+
+                <div class="structure-tree">
+                  <div *ngFor="let item of tree"
+                       class="structure-row"
+                       [attr.data-kind]="item.kind"
+                       [class.is-section]="item.kind === 'FormteilContainer'"
+                       [style.--depth]="item.depth < 0 ? 0 : item.depth">
+
+                    <span class="structure-icon" [ngSwitch]="item.kind">
+                      <i *ngSwitchCase="'FormteilContainer'" class="bi bi-folder-fill"></i>
+                      <i *ngSwitchCase="'ZeileContainer'" class="bi bi-music-note-beamed"></i>
+                      <i *ngSwitchCase="'ParatextContainer'" class="bi bi-text-paragraph"></i>
+                      <i *ngSwitchCase="'MiscContainer'" class="bi bi-three-dots"></i>
+                      <i *ngSwitchDefault class="bi bi-dot"></i>
+                    </span>
+
+                    <!-- Editable name for Formteil signature -->
+                    <input *ngIf="item.kind === 'FormteilContainer'"
+                           class="structure-label-input"
+                           [value]="item.label"
+                           (change)="renameContainer(item.zipper, $any($event.target).value)"
+                           placeholder="Section name" />
+                    <span *ngIf="item.kind !== 'FormteilContainer'" class="structure-label">{{ item.label }}</span>
+
+                    <!-- Row Action Buttons -->
+                    <span class="structure-actions">
+                      <button *ngIf="item.kind === 'ZeileContainer' || item.kind === 'ParatextContainer'"
+                              type="button" class="structure-act act-split"
+                              (click)="splitContainerAt(item.zipper)"
+                              title="Split section here">
+                        <i class="bi bi-scissors"></i>
+                      </button>
+                      <button *ngIf="item.kind === 'FormteilContainer' && canMergeContainer(item.zipper)"
+                              type="button" class="structure-act act-merge"
+                              (click)="mergeContainerWithNext(item.zipper)"
+                              title="Merge with next section">
+                        <i class="bi bi-arrow-down-square"></i>
+                      </button>
+                      <button *ngIf="item.kind === 'FormteilContainer' && canDeleteContainer(item.zipper)"
+                              type="button" class="structure-act act-delete"
+                              (click)="deleteContainerAt(item.zipper)"
+                              title="Delete empty section">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </span>
+                  </div>
+                </div>
+
+                <div class="struct-empty" *ngIf="!tree.length">
+                  <i class="bi bi-diagram-2 mb-1"></i>
+                  <div>No sections yet.</div>
+                </div>
+              </ng-container>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -379,6 +472,12 @@
     </select>
     <div>
       <textarea class="w-100" [(ngModel)]="importText"></textarea>
+    </div>
+    <div class="form-check my-2">
+      <input class="form-check-input" type="checkbox" id="fixDashesCheckbox" [(ngModel)]="fixDashesOnImport">
+      <label class="form-check-label small text-muted" for="fixDashesCheckbox">
+        Fix syllable dashes (e.g. convert 'ti -bi' to 'ti- bi')
+      </label>
     </div>
     <div>
       <button class="btn btn-primary" (click)="doImport()">Import</button>

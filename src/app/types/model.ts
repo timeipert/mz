@@ -92,7 +92,7 @@ export interface ZeileContainer {
   children: LinePart[];
 }
 
-export type RootChildren = FormteilContainer | MiscContainer;
+export type RootChildren = FormteilContainer | MiscContainer | ZeileContainer | ParatextContainer;
 
 export type FormteilChildren = ZeileContainer | ParatextContainer | FormteilContainer;
 
@@ -109,6 +109,7 @@ export enum ParatextType {
 }
 
 export enum DocumentType {
+  Level0 = "Level0",
   Level1 = "Level1",
   Level2 = "Level2",
   Level3 = "Level3",
@@ -274,7 +275,7 @@ export function isOfContainer(x: any): boolean {
 }
 
 export function isOfRootChildren(x: any): boolean {
-  return isOfFormteilContainer(x) || isOfMiscContainer(x);
+  return isOfFormteilContainer(x) || isOfMiscContainer(x) || isOfZeileContainer(x) || isOfParatextContainer(x);
 }
 
 export function isOfFormteilChildren(x: any): boolean {
@@ -290,7 +291,7 @@ export function isOfParatextType(x: any): boolean {
 }
 
 export function isOfDocumentType(x: any): boolean {
-  return x === 'Level1' || x === 'Level2' || x === 'Level3';
+  return x === 'Level0' || x === 'Level1' || x === 'Level2' || x === 'Level3';
 }
 
 export function isOfFormteilData(x: any): boolean {
@@ -474,6 +475,16 @@ export function emptyFormteilContainer(d: DocumentType, zipper: number[]): Formt
       }
     ]
   };
+}
+
+export function createNestedFormteilContainer(d: DocumentType, currentDepth: number): FormteilContainer {
+  const container = emptyFormteilContainer(d, []);
+  const targetLevel = d === 'Level0' ? 0 : (parseInt(d.replace(/level/i, ''), 10) || 0);
+  if (currentDepth < targetLevel) {
+    const child = createNestedFormteilContainer(d, currentDepth + 1);
+    container.children = [child];
+  }
+  return container;
 }
 
 export function emptyParatextContainer(): ParatextContainer {
@@ -870,18 +881,16 @@ export function noteTypeToString(n: NoteType): string {
 }
 
 export function removeFocus(c: RootContainer): void {
-  for (let formteilContainer of c.children) {
-    for (let sub of formteilContainer.children) {
-      switch (sub.kind) {
-        case ContainerKind.ParatextContainer: break;
-        case ContainerKind.ZeileContainer: {
-          for (const part of sub.children) {
-            removeFocusFromLinePart(part);
-          }
-        }
+  const traverse = (node: any) => {
+    if (node.kind === ContainerKind.ZeileContainer) {
+      for (const part of node.children) {
+        removeFocusFromLinePart(part);
       }
+    } else if (node.children) {
+      node.children.forEach(traverse);
     }
-  }
+  };
+  c.children.forEach(traverse);
 }
 
 export function removeFocusFromLinePart(lp: LinePart) {
@@ -958,6 +967,7 @@ export interface FormteilDescription {
 }
 
 export const structure: StructureHead = {
+  Level0: [],
   Level1: [
     {
       canHaveLines: true,
@@ -1234,3 +1244,219 @@ export const applyCommentTreeEvent = (commentTree: CommentTree, event: CommentTr
 
   return go(commentTree, event.source, (tg) => tg ?? { kind: "CommentTreeUndecided", id: UUID() });
 }
+
+export function changeDocumentStructure(root: RootContainer, targetType: DocumentType): void {
+  let currentLevel = parseInt(root.documentType.replace(/level/i, ''), 10) || 0;
+  const hasFormteil = root.children.some((c: any) => c.kind === ContainerKind.FormteilContainer);
+  if (root.children.length > 0) {
+    if (!hasFormteil) {
+      currentLevel = 0;
+    } else {
+      currentLevel = 1;
+      const l1 = root.children.find((c: any) => c.kind === ContainerKind.FormteilContainer) as any;
+      if (l1) {
+        const l2 = l1.children.find((c: any) => c.kind === ContainerKind.FormteilContainer) as any;
+        if (l2) {
+          currentLevel = 2;
+          const l3 = l2.children.find((c: any) => c.kind === ContainerKind.FormteilContainer);
+          if (l3) {
+            currentLevel = 3;
+          }
+        }
+      }
+    }
+  }
+
+  const targetLevel = parseInt(targetType.replace(/level/i, ''), 10) || 0;
+
+  if (currentLevel === targetLevel) {
+    root.documentType = targetType;
+    return;
+  }
+
+  // 1. If targeting Level 0 (flat), flatten all descendants directly
+  if (targetLevel === 0) {
+    const newChildren: any[] = [];
+    const collect = (node: any) => {
+      if (node.kind === ContainerKind.ZeileContainer || node.kind === ContainerKind.ParatextContainer) {
+        newChildren.push(node);
+      } else if (node.children) {
+        node.children.forEach(collect);
+      }
+    };
+    root.children.forEach(collect);
+    root.children = newChildren;
+    root.documentType = targetType;
+    return;
+  }
+
+  let level = currentLevel;
+  // 2. If starting from Level0, wrap in a single L1 FormteilContainer first
+  if (level === 0) {
+    const l1 = emptyFormteilContainer(targetType, []);
+    l1.children = root.children as any[];
+    root.children = [l1];
+    level = 1;
+  }
+
+  const step = level < targetLevel ? 1 : -1;
+
+  while (level !== targetLevel) {
+    const nextLevel = level + step;
+    if (step === 1) {
+      if (level === 1) {
+        for (const l1 of root.children) {
+          if (l1.kind === ContainerKind.FormteilContainer) {
+            const l2 = emptyFormteilContainer(targetType, []);
+            l2.children = l1.children as any[];
+            l1.children = [l2] as any[];
+          }
+        }
+      } else if (level === 2) {
+        for (const l1 of root.children) {
+          if (l1.kind === ContainerKind.FormteilContainer) {
+            for (const l2 of l1.children) {
+              if (l2.kind === ContainerKind.FormteilContainer) {
+                const l3 = emptyFormteilContainer(targetType, []);
+                l3.children = l2.children as any[];
+                l2.children = [l3] as any[];
+              }
+            }
+          }
+        }
+      }
+    } else {
+      if (level === 3) {
+        for (const l1 of root.children) {
+          if (l1.kind === ContainerKind.FormteilContainer) {
+            for (const l2 of l1.children) {
+              if (l2.kind === ContainerKind.FormteilContainer) {
+                const newChildren: FormteilChildren[] = [];
+                for (const l3 of l2.children) {
+                  if (l3.kind === ContainerKind.FormteilContainer) {
+                    newChildren.push(...(l3.children as FormteilChildren[]));
+                  } else {
+                    newChildren.push(l3);
+                  }
+                }
+                l2.children = newChildren;
+              }
+            }
+          }
+        }
+      } else if (level === 2) {
+        for (const l1 of root.children) {
+          if (l1.kind === ContainerKind.FormteilContainer) {
+            const newChildren: FormteilChildren[] = [];
+            for (const l2 of l1.children) {
+              if (l2.kind === ContainerKind.FormteilContainer) {
+                newChildren.push(...(l2.children as FormteilChildren[]));
+              } else {
+                newChildren.push(l2);
+              }
+            }
+            l1.children = newChildren;
+          }
+        }
+      }
+    }
+    level = nextLevel;
+  }
+
+  root.documentType = targetType;
+}
+
+export function getAllLineContainers(c: Container): ZeileContainer[] {
+  switch (c.kind) {
+    case ContainerKind.RootContainer:
+    case ContainerKind.FormteilContainer:
+    case ContainerKind.MiscContainer:
+      return _.flatMap(c.children, getAllLineContainers);
+    case ContainerKind.ZeileContainer:
+      return [c];
+    case ContainerKind.ParatextContainer:
+      return [];
+    default:
+      return assertNever(c);
+  }
+}
+
+export function findParentContainer(root: Container, targetUuid: string): { parent: Container; index: number } | undefined {
+  if (root.kind === ContainerKind.ZeileContainer || root.kind === ContainerKind.ParatextContainer) {
+    return undefined;
+  }
+  const idx = root.children.findIndex(c => c.uuid === targetUuid);
+  if (idx >= 0) {
+    return { parent: root, index: idx };
+  }
+  for (const child of root.children) {
+    const found = findParentContainer(child, targetUuid);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+export function findZipperPath(root: Container, targetUuid: string): number[] | undefined {
+  if (root.uuid === targetUuid) {
+    return [];
+  }
+  if (root.kind === ContainerKind.ZeileContainer || root.kind === ContainerKind.ParatextContainer) {
+    return undefined;
+  }
+  for (let i = 0; i < root.children.length; i++) {
+    const subPath = findZipperPath(root.children[i], targetUuid);
+    if (subPath) {
+      return [i, ...subPath];
+    }
+  }
+  return undefined;
+}
+
+export function splitTreeAtLine(root: RootContainer, lineUuid: string, splitLevel: number): void {
+  const path = findZipperPath(root, lineUuid);
+  if (!path) return;
+
+  const K = parseInt(root.documentType.replace(/level/i, ''), 10) || 1;
+  if (splitLevel < 1 || splitLevel > K) return;
+
+  const containers: any[] = [root];
+  let current: any = root;
+  for (let idx of path) {
+    current = current.children[idx];
+    containers.push(current);
+  }
+
+  for (let i = K; i >= splitLevel; i--) {
+    const parent = containers[i - 1];
+    const self = containers[i];
+    if (!parent || !self) continue;
+    const splitIdx = path[i];
+    if (splitIdx === undefined) continue;
+
+    const sliced = self.children.slice(splitIdx);
+    self.children.length = splitIdx;
+
+    const newContainer = emptyFormteilContainer(root.documentType, []);
+    newContainer.children = sliced;
+    newContainer.data = [];
+
+    parent.children.splice(path[i - 1] + 1, 0, newContainer);
+    path[i - 1] = path[i - 1] + 1;
+  }
+}
+
+export function fixSyllableDashes(root: RootContainer): void {
+  const syllables = getSyllables(root);
+  for (let i = 1; i < syllables.length; i++) {
+    const prev = syllables[i - 1];
+    const curr = syllables[i];
+    const trimmed = curr.text.trim();
+    if (trimmed.startsWith('-')) {
+      curr.text = curr.text.replace('-', '').trim();
+      if (!prev.text.endsWith('-')) {
+        prev.text = prev.text.trim() + '-';
+      }
+    }
+  }
+}
+

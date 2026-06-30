@@ -16,6 +16,9 @@ import { handleTextInputMove, Focusable, Focus, FocusChange } from '../types/Foc
 import { CommentComponent } from '../comment/comment.component';
 import { ReplaySubject, Subscription } from 'rxjs';
 import { UndoService } from '../undoService';
+import { ContextMenuService } from '../context-menu/context-menu.service';
+import { Router } from '@angular/router';
+import { extractPattern } from '../transcription-analyzer-core';
 
 declare const $: any;
 
@@ -42,6 +45,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
 
   @Input()
   model!: VM.Syllable;
+
+  @Input()
+  highlightNoteUUIDs?: Set<string> | null;
 
   syllableWidth = 0;
   noteTextWidth = 0;
@@ -83,7 +89,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     private domRoot: ElementRef,
     private toolsService: ToolsService,
     private undoService: UndoService,
-    private modalService: NgbModal) {
+    private modalService: NgbModal,
+    private contextMenuService: ContextMenuService,
+    private router: Router) {
   }
 
   refresh() { this.cdr.detectChanges(); this.notesToText(); }
@@ -532,6 +540,12 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   }
 
   keyDown(e: KeyboardEvent, voiceIndex: number): void {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      return;
+    }
+    if (e.key === 'Escape') {
+      return;
+    }
     this.focusedVoiceIndex = voiceIndex;
     this.focusService.preferredVoiceIndex = voiceIndex;
     e.preventDefault();
@@ -917,6 +931,141 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     }
   }
 
+  findPatternForNote(noteUuid: string): { patternId: string; basePattern: string } | null {
+    if (this.model.kind !== 'Syllable') return null;
+    const notes = this.model.notes;
+    if (!notes || !notes.spaced) return null;
+
+    for (const spacedItem of notes.spaced) {
+      if (spacedItem.nonSpaced) {
+        for (const ns of spacedItem.nonSpaced) {
+          if (ns.grouped) {
+            for (const g of ns.grouped) {
+              if (g.uuid === noteUuid) {
+                const patternId = extractPattern({ nonSpaced: [ns] } as VM.NonSpaced);
+                if (patternId) {
+                  const basePattern = patternId.replace(/[QOSLAD]/g, '');
+                  return { patternId, basePattern };
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  findFirstPatternForSyllable(): { patternId: string; basePattern: string } | null {
+    if (this.model.kind !== 'Syllable') return null;
+    const notes = this.model.notes;
+    if (!notes || !notes.spaced) return null;
+
+    for (const spacedItem of notes.spaced) {
+      if (spacedItem.nonSpaced) {
+        for (const ns of spacedItem.nonSpaced) {
+          if (ns.grouped && ns.grouped.length > 0) {
+            const firstNoteUuid = ns.grouped[0].uuid;
+            if (firstNoteUuid) {
+              return this.findPatternForNote(firstNoteUuid);
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  onContextMenu(me: MouseEvent, d: Drawable, voiceIndex: number): void {
+    if (!(d instanceof DNote)) {
+      return;
+    }
+    
+    // First, select the note
+    this.drawableClicked(d, me, voiceIndex);
+
+    const items = [
+      {
+        label: 'Set to Flat (f)',
+        action: () => { this.toggleNoteType(VM.NoteType.Flat); }
+      },
+      {
+        label: 'Set to Sharp (s)',
+        action: () => { this.toggleNoteType(VM.NoteType.Sharp); }
+      },
+      {
+        label: 'Set to Natural (n)',
+        action: () => { this.toggleNoteType(VM.NoteType.Normal); }
+      },
+      {
+        label: 'Toggle Liquescent (l)',
+        action: () => { this.toggleLiquescent(); }
+      },
+      {
+        label: 'Split Line After Syllable',
+        action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }
+      },
+      {
+        label: 'Add Comment (Ctrl+K)',
+        action: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })); }
+      }
+    ];
+
+    const patInfo = this.findPatternForNote(d.ref.uuid);
+    if (patInfo) {
+      items.push({
+        label: 'Open in Pattern Overview',
+        action: () => { this.router.navigate(['/stats'], { queryParams: { pattern: patInfo.basePattern } }); }
+      });
+      items.push({
+        label: 'Open Pattern Variants',
+        action: () => { this.router.navigate(['/stats'], { queryParams: { pattern: patInfo.basePattern, showVariants: 'true' } }); }
+      });
+    }
+
+    this.contextMenuService.open(me, items, 'transcription', 'entering-notes');
+  }
+
+  onSyllableContextMenu(me: MouseEvent): void {
+    me.preventDefault();
+    me.stopPropagation();
+    this.setTextAsPreferredFocus();
+    
+    const items = [
+      {
+        label: 'Clear Syllable Text',
+        action: () => { 
+          this.model.text = ''; 
+          (this.syllableTextElement.nativeElement as HTMLElement).textContent = '';
+          this.recalculateWidths();
+          this.request.emit({ kind: "NoFocusRequested" });
+        }
+      },
+      {
+        label: 'Split Line After Syllable',
+        action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }
+      },
+      {
+        label: 'Add Comment (Ctrl+K)',
+        action: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })); }
+      }
+    ];
+
+    const patInfo = this.findFirstPatternForSyllable();
+    if (patInfo) {
+      items.push({
+        label: 'Open in Pattern Overview',
+        action: () => { this.router.navigate(['/stats'], { queryParams: { pattern: patInfo.basePattern } }); }
+      });
+      items.push({
+        label: 'Open Pattern Variants',
+        action: () => { this.router.navigate(['/stats'], { queryParams: { pattern: patInfo.basePattern, showVariants: 'true' } }); }
+      });
+    }
+
+    this.contextMenuService.open(me, items, 'transcription', 'entering-syllables');
+  }
+
   addNoteTools() {
     window.clearTimeout(this.timeoutF);
     this.toolsService.addStack({
@@ -1003,6 +1152,15 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   isCommentStart: (d: Drawable) => boolean = d => d instanceof DCommentStart;
   isCommentEnd: (d: Drawable) => boolean = d => d instanceof DCommentEnd;
   isHelperLine: (d: Drawable) => boolean = d => d instanceof DHelperLine;
+
+  isHighlighted(d: Drawable): boolean {
+    if (!this.highlightNoteUUIDs || !d.ref) return false;
+    const ref = d.ref;
+    if ('uuid' in ref) {
+      return this.highlightNoteUUIDs.has(ref.uuid);
+    }
+    return false;
+  }
 
   isThisCommentStart(): boolean {
     return this.comments.some(c => c.startUUID === this.model.uuid);

@@ -43,6 +43,18 @@ export class FocusService {
       this._focusedNoteUUID$.next(uuid);
     }
   }
+
+  private readonly _focusedContainerUUID$ = new BehaviorSubject<string | undefined>(undefined);
+  readonly focusedContainerUUID$: Observable<string | undefined> = this._focusedContainerUUID$.asObservable();
+
+  get focusedContainerUUID(): string | undefined {
+    return this._focusedContainerUUID$.value;
+  }
+  set focusedContainerUUID(uuid: string | undefined) {
+    if (this._focusedContainerUUID$.value !== uuid) {
+      this._focusedContainerUUID$.next(uuid);
+    }
+  }
 }
 
 type Mode = NormalMode | CommentPickStartMode | CommentCreateMode

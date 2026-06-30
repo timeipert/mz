@@ -8,6 +8,8 @@ import { CommonModule } from '@angular/common';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { ToastrModule } from 'ngx-toastr';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
+import { DragDropModule } from '@angular/cdk/drag-drop';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 
 import { AppComponent } from './app.component';
 import { WelcomeComponent } from './welcome/welcome.component';
@@ -51,13 +53,28 @@ import { CommentInfoComponent } from './comment/comment-info/comment-info.compon
 import { SearchComponent } from './search/search.component';
 import { DragMapComponent } from './drag-map/drag-map.component';
 import { NotationsdokumentationModule } from './notationsdokumentation/notationsdokumentation.module';
+import { HelpButtonComponent } from './help-button/help-button.component';
+import { ContextMenuComponent } from './context-menu/context-menu.component';
+
+import { ManualLayoutComponent } from './manual/manual-layout/manual-layout.component';
+import { OverviewComponent } from './manual/pages/overview/overview.component';
+import { TranscriptionComponent } from './manual/pages/transcription/transcription.component';
+import { SearchComponent as ManualSearchComponent } from './manual/pages/search/search.component';
+import { ManualHighlightTriggerDirective } from './manual/services/manual-highlight-trigger.directive';
+import { IiifComponent } from './manual/pages/iiif/iiif.component';
+import { MetadataComponent } from './manual/pages/metadata/metadata.component';
+import { UseCasesComponent } from './manual/pages/use-cases/use-cases.component';
+import { CommentsComponent } from './manual/pages/comments/comments.component';
+import { ManualSettingsComponent } from './manual/pages/settings/settings.component';
+import { SubcorporaSelectorComponent } from './sources-overview/subcorpora-selector/subcorpora-selector.component';
+import { StatsComponent } from './stats/stats.component';
 
 @NgModule({ declarations: [
         AppComponent,
         WelcomeComponent,
-        // Removed LoginComponent
         UsersOverviewComponent,
         SourcesOverviewComponent,
+        SubcorporaSelectorComponent,
         SourceComponent,
         DocumentComponent,
         NotesComponent,
@@ -89,7 +106,20 @@ import { NotationsdokumentationModule } from './notationsdokumentation/notations
         CommentInfoComponent,
         SearchComponent,
         SettingsComponent,
-        DragMapComponent
+        DragMapComponent,
+        HelpButtonComponent,
+        ContextMenuComponent,
+        ManualLayoutComponent,
+        OverviewComponent,
+        TranscriptionComponent,
+        ManualSearchComponent,
+        ManualHighlightTriggerDirective,
+        IiifComponent,
+        MetadataComponent,
+        UseCasesComponent,
+        CommentsComponent,
+        ManualSettingsComponent,
+        StatsComponent
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,
         CommonModule,
@@ -98,6 +128,8 @@ import { NotationsdokumentationModule } from './notationsdokumentation/notations
         FormsModule,
         NotationsdokumentationModule,
         NgbModule,
+        DragDropModule,
+        ScrollingModule,
         RouterModule.forRoot([
             {
                 path: 'login',
@@ -126,6 +158,9 @@ import { NotationsdokumentationModule } from './notationsdokumentation/notations
                 path: 'search',
                 component: SearchComponent,
             }, {
+                path: 'stats',
+                component: StatsComponent,
+            }, {
                 path: 'settings',
                 component: SettingsComponent,
             }, {
@@ -135,10 +170,24 @@ import { NotationsdokumentationModule } from './notationsdokumentation/notations
                 path: 'cc',
                 component: ComplexCommentComponent
             }, {
+                path: 'manual',
+                component: ManualLayoutComponent,
+                children: [
+                    { path: '', redirectTo: 'overview', pathMatch: 'full' },
+                    { path: 'overview', component: OverviewComponent },
+                    { path: 'transcription', component: TranscriptionComponent },
+                    { path: 'search', component: ManualSearchComponent },
+                    { path: 'iiif', component: IiifComponent },
+                    { path: 'metadata', component: MetadataComponent },
+                    { path: 'comments', component: CommentsComponent },
+                    { path: 'settings', component: ManualSettingsComponent },
+                    { path: 'use-cases', component: UseCasesComponent },
+                ]
+            }, {
                 path: '**',
                 component: WelcomeComponent
             }
-        ], { useHash: true }),
+        ], { useHash: true, anchorScrolling: 'enabled' }),
         ServiceWorkerModule.register('ngsw-worker.js', {
           enabled: !isDevMode(),
           registrationStrategy: 'registerWhenStable:30000'

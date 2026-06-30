@@ -1,12 +1,14 @@
-import { Component } from '@angular/core';
+import { Component, HostListener } from '@angular/core';
 import { Router } from '@angular/router';
 import { APIService } from './api.service'
 import { StackEntry, ToolsService, Tool} from './tools.service';
 import { UserService, User } from './user.service';
 import { GithubService } from './github.service';
 import { UndoService } from './undoService';
+import { ContextMenuService } from './context-menu/context-menu.service';
 import * as localforage from 'localforage';
 import * as _ from 'lodash';
+import { NotesStore } from './notes-store';
 
 @Component({
   selector: 'app-root',
@@ -28,12 +30,78 @@ export class AppComponent {
     private toolsService: ToolsService,
     public github: GithubService,
     public undoService: UndoService,
-    public router: Router
+    public router: Router,
+    private contextMenuService: ContextMenuService
   ) {
     userService.user.subscribe(u => this.user = u);
     toolsService.subscribe((ts, hasParent) => { this.tools = ts; this.toolHasParent = hasParent });
     window.addEventListener('online', () => this.isOnline = true);
     window.addEventListener('offline', () => this.isOnline = false);
+  }
+
+  @HostListener('contextmenu', ['$event'])
+  onContextMenu(event: MouseEvent) {
+    // This catches any right clicks that were NOT intercepted by child components
+    // (because child components call event.stopPropagation())
+    event.preventDefault();
+    
+    const items = [
+      {
+        label: 'Open Global Manual',
+        icon: 'bi-book',
+        action: () => {
+          const urlTree = this.router.createUrlTree(['/manual']);
+          const serialized = this.router.serializeUrl(urlTree);
+          const url = window.location.origin + window.location.pathname + '#' + serialized;
+          window.open(url, '_blank');
+        }
+      },
+      {
+        label: 'View Use Cases / Tutorials',
+        icon: 'bi-lightbulb',
+        action: () => {
+          const urlTree = this.router.createUrlTree(['/manual', 'use-cases']);
+          const serialized = this.router.serializeUrl(urlTree);
+          const url = window.location.origin + window.location.pathname + '#' + serialized;
+          window.open(url, '_blank');
+        }
+      },
+      {
+        label: 'Open Settings',
+        icon: 'bi-gear',
+        action: () => { this.router.navigate(['/settings']); }
+      }
+    ];
+
+    this.contextMenuService.open(event, items, undefined, undefined);
+  }
+
+  onToolContextMenu(event: MouseEvent, t: Tool) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    let helpTopic = 'transcription';
+    let helpHash = '';
+
+    const titleLower = (t.title || '').toLowerCase();
+    
+    if (titleLower.includes('export') || titleLower.includes('html') || titleLower.includes('mei') || titleLower.includes('pdf')) {
+      helpTopic = 'metadata';
+      helpHash = 'exporting-data';
+    } else if (titleLower.includes('search')) {
+      helpTopic = 'search';
+    } else if (titleLower.includes('iiif') || titleLower.includes('map')) {
+      helpTopic = 'iiif';
+    }
+
+    const items = [
+      {
+        label: 'Execute Action',
+        action: () => { if (t.callback) t.callback(); }
+      }
+    ];
+
+    this.contextMenuService.open(event, items, helpTopic, helpHash);
   }
 
   toolsBack() {
@@ -56,7 +124,9 @@ export class AppComponent {
 
     const localSources = await localforage.getItem<any[]>('monodi_sources') || [];
     const localDocs = await localforage.getItem<any[]>('monodi_documents') || [];
-    const localNotes = await localforage.getItem<any>('monodi_notes') || {};
+    // Pulls every chant's notes from per-document rows (with legacy
+    // single-blob migration handled transparently).
+    const localNotes = await NotesStore.getAll();
     const localSettings = await localforage.getItem<any>('monodi_settings') || null;
 
     this.conflicts = [];
@@ -160,7 +230,9 @@ export class AppComponent {
     this.isSyncing = true;
     await localforage.setItem('monodi_sources', this.resolvedDb.sources);
     await localforage.setItem('monodi_documents', this.resolvedDb.documents);
-    await localforage.setItem('monodi_notes', this.resolvedDb.notes);
+    // Per-document writes so a multi-GB workspace doesn't trip IndexedDB's
+    // structured-clone limit on the next sync.
+    await NotesStore.replaceAll(this.resolvedDb.notes);
     if (this.resolvedDb.settings) await localforage.setItem('monodi_settings', this.resolvedDb.settings);
 
     if (this.pendingAction === 'push') {

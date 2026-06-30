@@ -18,7 +18,8 @@
 				<g *ngIf="isNormal()" [attr.transform]="'translate(12, 0)'">
 					<g *ngFor="let drawable of getDrawables(i);trackBy:refOfDrawable"
 						[style.opacity]="drawable.ref && drawable.ref.isLatent ? 0.5 : 1"
-						(click)="drawableClicked(drawable, $event, i)">
+						(click)="drawableClicked(drawable, $event, i)"
+						(contextmenu)="onContextMenu($event, drawable, i)">
 						<!-- Comment-creation visual marker for the picked START note (step 2). -->
 						<circle *ngIf="isPickedCommentStart(drawable)"
 							[attr.cx]="drawable.x + 6" [attr.cy]="drawable.y + 30"
@@ -29,6 +30,12 @@
 							[attr.x]="drawable.x + 6" [attr.y]="drawable.y - 6"
 							text-anchor="middle" fill="#b8540a" font-size="9" font-weight="700"
 							style="font-family: system-ui, sans-serif; pointer-events: none;">START</text>
+						<!-- Search Result Note Highlight Circle -->
+						<circle *ngIf="isNote(drawable) && isHighlighted(drawable)"
+							[attr.cx]="drawable.x + 6" [attr.cy]="drawable.y + 30"
+							r="12" fill="#fde047" fill-opacity="0.8"
+							stroke="#eab308" stroke-width="1.5"
+							style="pointer-events: none;" />
 						<image *ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Flat'"
 							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
 							[attr.height]="drawable.ref.liquescent ? 40 : 60"
@@ -157,13 +164,13 @@
 	</div>
 
 	<div (click)="setCodeAsPreferredFocus(i)" [class.vhidden]="!isNormal()" tabindex="-1" #noteText class="noteText voice-{{i}}"
-		spellcheck="false" (keyup)="changeNoteText($event, i)" (keydown)="onNoteTextDown($event, i)" contenteditable="true">
+		spellcheck="false" (keyup)="changeNoteText($event, i)" (keydown)="onNoteTextDown($event, i)" [attr.contenteditable]="readOnly ? 'false' : 'true'">
 	</div>
 	</ng-container>
 	<div (click)="setTextAsPreferredFocus()" [class.dnone]="isSourceEllipsis() || isEditorEllipsis()" tabindex="-1"
 		#syllableText class="syllableText" spellcheck="false" (keydown)="changeSyllableTextDown($event)"
 		(keyup)="changeSyllableText($event)" (focusin)="setSyllFocus(true)" (focusout)="setSyllFocus(false)"
-		contenteditable="true"></div>
+		[attr.contenteditable]="readOnly ? 'false' : 'true'" (contextmenu)="onSyllableContextMenu($event)"></div>
 	<div (click)="setTextAsPreferredFocus()" [class.dnone]="!isSourceEllipsis()" class="syllableText">...</div>
 	<div (click)="setTextAsPreferredFocus()" [class.dnone]="!isEditorEllipsis()" class="syllableText">&lt;...&gt;</div>
 </div>

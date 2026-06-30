@@ -150,7 +150,11 @@
 
 /* ── Footer ─────────────────────────────────────────── */
 .welcome-footer {
-  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   padding: 1.5rem 2rem 2rem;
   border-top: 1px solid #e8e4de;
   font-size: 0.8rem;
@@ -163,6 +167,23 @@
   font-weight: 500;
 }
 .welcome-footer a:hover { color: #374151; }
+
+.btn-credits {
+  background: transparent;
+  border: 1px solid #c4bbb0;
+  color: #6b7280;
+  border-radius: 6px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease-in-out;
+}
+.btn-credits:hover {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: #6366f1;
+  color: #6366f1;
+}
 
 /* ── Responsive ─────────────────────────────────────── */
 @media (max-width: 900px) {

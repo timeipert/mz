@@ -10,6 +10,7 @@ import { Subscription } from 'rxjs';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { Focusable, Focus, FocusChange } from '../types/Focus';
 import { UndoService } from '../undoService';
+import { ContextMenuService } from '../context-menu/context-menu.service';
 
 declare const $: any;
 
@@ -54,7 +55,8 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
     private domRoot: ElementRef,
     private toolsService: ToolsService,
     private undoService: UndoService,
-    private modalService: NgbModal) {
+    private modalService: NgbModal,
+    private contextMenuService: ContextMenuService) {
   }
 
   ngOnInit() {
@@ -94,6 +96,12 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   }
 
   keyDown(e: KeyboardEvent): void {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      return;
+    }
+    if (e.key === 'Escape') {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
 
@@ -148,6 +156,28 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
     const [octave, base] = producer(this.model.octave, this.model.base);
     this.model.octave = octave;
     this.model.base = base;
+  }
+
+  onContextMenu(me: MouseEvent): void {
+    this.clicked(); // Focus the clef
+    const items = [
+      {
+        label: 'Toggle Clef Shape (f)',
+        action: () => { 
+          this.model.shape = this.model.shape === 'F' ? 'C' : 'F'; 
+          this.cdr.markForCheck();
+        }
+      },
+      {
+        label: 'Split Line After Clef',
+        action: () => { this.request.emit({ kind: 'SplitLineRequested' }); }
+      },
+      {
+        label: 'Add Comment (Ctrl+K)',
+        action: () => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })); }
+      }
+    ];
+    this.contextMenuService.open(me, items, 'transcription', 'basic-layout');
   }
 
   clicked(): void {

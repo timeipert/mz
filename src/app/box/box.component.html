@@ -13,6 +13,6 @@
       </g>
     </svg>
   </div>
-  <div tabindex="-1" class="noteText" contenteditable="true"></div>
-  <div tabindex="-1" class="syllableText" contenteditable="true"></div>
+  <div tabindex="-1" class="noteText" [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
+  <div tabindex="-1" class="syllableText" [attr.contenteditable]="readOnly ? 'false' : 'true'"></div>
 </div>

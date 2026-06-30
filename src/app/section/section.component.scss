@@ -9,6 +9,16 @@
     align-items: flex-start;
     margin-top: 4px;
     gap: 0;
+    transition: background-color 0.15s ease;
+}
+
+.content-row:hover {
+    background-color: rgba(0, 0, 0, 0.015);
+    cursor: pointer;
+}
+
+.content-row input, .content-row textarea {
+    cursor: text;
 }
 
 .after-dragger {
@@ -262,4 +272,14 @@ span.segment-type {
         border-left: 1px solid #ddd !important;
         margin-bottom: 5px !important;
     }
+}
+
+/* ── Selected container highlight ───────────────── */
+.selected-container-highlight {
+    background-color: rgba(59, 130, 246, 0.04);
+    border-left: 3px solid #3b82f6 !important;
+    padding-left: 8px !important;
+    border-radius: 4px;
+    box-shadow: inset 2px 0 6px rgba(59, 130, 246, 0.02);
+    transition: background-color 0.2s ease, border-left-color 0.2s ease;
 }

@@ -432,3 +432,182 @@ ul {
   grid-gap: var(--tree-gap, 4px) !important;
 }
 
+
+/* ── Structure tab (left sidebar) ──────────────────────────────────────────── */
+.structure-pane { font-size: 0.85rem; }
+
+/* Card wrapper shared by the layers control and the tree */
+.struct-card {
+  background: #ffffff;
+  border: 1px solid #e7ecf3;
+  border-radius: 10px;
+  padding: 0.7rem 0.75rem;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.struct-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 0.6rem;
+}
+.struct-card-head i { font-size: 0.85rem; color: #94a3b8; }
+
+.struct-card-hint {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.3;
+}
+
+.struct-count {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #475569;
+  background: #eef2f7;
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  min-width: 1.4rem;
+  text-align: center;
+}
+
+/* Segmented control for the layer count */
+.struct-seg {
+  display: flex;
+  gap: 4px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 4px;
+}
+.struct-seg-btn {
+  flex: 1 1 0;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  padding: 0.3rem 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.struct-seg-btn:hover { color: #1e293b; }
+.struct-seg-btn.active {
+  background: #ffffff;
+  color: #0d6efd;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12);
+}
+
+/* Tree */
+.structure-tree {
+  max-height: 420px;
+  overflow-y: auto;
+  margin: -0.15rem -0.15rem 0;
+  padding: 0.15rem;
+}
+
+.structure-row {
+  --depth: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.4rem;
+  padding-left: calc(0.4rem + var(--depth) * 14px);
+  border-radius: 7px;
+  margin-bottom: 2px;
+  transition: background 0.12s;
+}
+.structure-row:hover { background: #f5f8fc; }
+
+/* Section rows get a soft tinted background + accent */
+.structure-row.is-section {
+  background: #f3f7ff;
+  box-shadow: inset 2px 0 0 #bcd3ff;
+}
+.structure-row.is-section:hover { background: #e9f1ff; }
+
+/* Type-coloured icons */
+.structure-icon {
+  flex-shrink: 0;
+  width: 1.1rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+.structure-row[data-kind="FormteilContainer"] .structure-icon { color: #2563eb; }
+.structure-row[data-kind="ZeileContainer"]   .structure-icon { color: #64748b; }
+.structure-row[data-kind="ParatextContainer"] .structure-icon { color: #d97706; }
+.structure-row[data-kind="MiscContainer"]    .structure-icon { color: #94a3b8; }
+
+/* Labels */
+.structure-label,
+.structure-label-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.structure-label-input {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 5px;
+  padding: 0.1rem 0.3rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+.structure-label-input:hover { border-color: #dbe3ee; }
+.structure-label-input:focus {
+  outline: none;
+  border-color: #93c5fd;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+/* Row actions — hidden until hover for a calmer default state */
+.structure-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.structure-row:hover .structure-actions,
+.structure-row:focus-within .structure-actions { opacity: 1; }
+
+.structure-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: background 0.12s, color 0.12s;
+}
+.structure-act:hover { background: #eef2f7; }
+.structure-act.act-split:hover  { color: #0ea5e9; }
+.structure-act.act-merge:hover  { color: #16a34a; }
+.structure-act.act-delete:hover { color: #dc2626; }
+
+/* Empty state */
+.struct-empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 1.2rem 0 0.6rem;
+  font-size: 0.8rem;
+}
+.struct-empty i { display: block; font-size: 1.4rem; opacity: 0.6; }

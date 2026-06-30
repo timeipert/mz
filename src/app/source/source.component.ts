@@ -12,6 +12,7 @@ import { AnalyzedPattern } from '../transcription-analyzer.service';
 import { analyzeDocument, extractDocumentFolios } from '../transcription-analyzer-core';
 import { ProjectSettings } from '../api.service';
 import { PageTitleService } from '../page-title.service';
+import { Header } from '../smart-table/smart-table.component';
 
 export interface DocColDef {
   key: keyof Document | string;
@@ -83,10 +84,12 @@ export class SourceComponent implements OnInit {
     } catch {
       this.docCols = DEFAULT_DOC_COLS.map(c => ({ ...c }));
     }
+    this.updateDocHeaders();
   }
 
   saveDocCols() {
     localStorage.setItem(DOC_COLS_KEY, JSON.stringify(this.docCols));
+    this.updateDocHeaders();
   }
 
   constructor(
@@ -343,5 +346,23 @@ export class SourceComponent implements OnInit {
     this.toolService.remove(this);
   }
 
+  docHeaders: Header<Document>[] = [];
+
+  updateDocHeaders() {
+    this.docHeaders = this.visibleDocCols.map(col => ({
+      name: col.label,
+      makeCell: (d: Document) => {
+        const text = d[col.key as keyof Document] || '';
+        if (col.key === 'gattung1' || col.key === 'gattung2') {
+          return { kind: 'badge' as const, text: text.toString() };
+        }
+        return { kind: 'text' as const, text: text.toString() };
+      }
+    }));
+  }
+
+  goToDocument(d: Document) {
+    this.router.navigate(['/document', d.quelle_id || this.source?.id, d.id]);
+  }
 }
 

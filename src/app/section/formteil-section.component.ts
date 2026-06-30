@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, OnChanges, ViewChildren, QueryList, Component } from '@angular/core';
+import { ChangeDetectorRef, OnChanges, ViewChildren, QueryList, Component, OnDestroy, OnInit } from '@angular/core';
 import * as S from './Section';
 import * as Model from '../types/model';
 import { Event, NewNoteLineRequsted } from './Event';
@@ -6,13 +6,18 @@ import { FocusShiftRequested, DeletionRequested } from '../types/CommonEvent';
 import { handleFocusShiftFromChild, handleFocusChangeFromParent } from '../../utils';
 import { Focusable, FocusChange } from "../types/Focus";
 import { UndoService } from '../undoService';
+import { ContextMenuService } from '../context-menu/context-menu.service';
+import { ToastrService } from 'ngx-toastr';
+import { FocusService } from '../focus.service';
+import { ToolsService } from '../tools.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-formteil-section',
   templateUrl: './section.component.html',
   styleUrls: ['./section.component.scss']
 })
-export class FormteilSectionComponent extends S.Section<Model.FormteilContainer> implements OnChanges, Focusable {
+export class FormteilSectionComponent extends S.Section<Model.FormteilContainer> implements OnChanges, Focusable, OnInit, OnDestroy {
   @ViewChildren("sub")
   children!: QueryList<Focusable>;
 
@@ -36,7 +41,16 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     return this.data.data[index].data
   }
 
-  constructor(private cdr: ChangeDetectorRef, undo: UndoService) {
+  private focusSub?: Subscription;
+
+  constructor(
+    private cdr: ChangeDetectorRef, 
+    undo: UndoService, 
+    private contextMenuService: ContextMenuService, 
+    private toastr: ToastrService,
+    private focusService: FocusService,
+    private toolService: ToolsService
+  ) {
     super("Formteil", {
       'NewNoteLineRequsted': (e: Event, oldIndex: number) => {
         undo.beforeChange();
@@ -53,7 +67,7 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
       'NewFormteilRequested': (e: Event, oldIndex: number) => {
         undo.beforeChange();
         this.newAt(
-          Model.emptyFormteilContainer(this.documentType, this.zipper.concat([oldIndex + 1])),
+          Model.createNestedFormteilContainer(this.documentType, this.zipper.length + 1),
           oldIndex + 1
         );
       },
@@ -69,6 +83,15 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
   }
 
   deletionRequest(e: DeletionRequested, oldIndex: number): void {
+    const child = this.data.children[oldIndex];
+    if (child && child.kind === Model.ContainerKind.FormteilContainer) {
+      const formteilCount = this.data.children.filter(c => c.kind === Model.ContainerKind.FormteilContainer).length;
+      if (formteilCount <= 1) {
+        this.toastr.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+        return;
+      }
+    }
+
     this.data.children.splice(oldIndex, 1); this.onEvent.emit({ kind: 'StaleCommentRemovealRequested' });
     if (this.data.children.length > 0) {
       if (oldIndex >= this.data.children.length) {
@@ -104,7 +127,7 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     // 3. Add sub section (Child level)
     const nextLevel = docStruct[this.zipper.length];
     if (nextLevel) {
-      this.actionHandlers['+ L' + (currentLevelNum + 1)] = () => this.newAt(Model.emptyFormteilContainer(this.documentType, this.zipper.concat([0])), 0);
+      this.actionHandlers['+ L' + (currentLevelNum + 1)] = () => this.newAt(Model.createNestedFormteilContainer(this.documentType, currentLevelNum + 1), 0);
     }
     
     // 4. Add paratext (Additional metadata/text)
@@ -158,4 +181,157 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
     return ret;
   })()
 
+  override onContextMenu(me: MouseEvent): void {
+    me.preventDefault();
+    me.stopPropagation();
+
+    const items: any[] = [];
+    
+    // Rename option
+    items.push({
+      label: 'Rename Section',
+      action: () => {
+        const sig = this.data.data.find(d => d.name === 'Signatur');
+        const oldName = sig ? sig.data : '';
+        const newName = prompt('New section name/signature:', oldName);
+        if (newName !== null) {
+          this.undo.beforeChange();
+          if (sig) {
+            sig.data = newName;
+          } else {
+            this.data.data.push({ name: Model.FormteilDataName.Signatur, data: newName });
+          }
+          this.cdr.detectChanges();
+        }
+      }
+    });
+
+    // Merge option
+    items.push({
+      label: 'Merge with Next Section',
+      action: () => {
+        this.onEvent.emit({ kind: 'MergeSectionRequested', uuid: this.data.uuid } as any);
+      }
+    });
+
+    // Delete options:
+    items.push({
+      label: 'Delete Section & Content',
+      action: () => {
+        if (confirm('Are you sure you want to delete this section and all its contents?')) {
+          this.onEvent.emit({ kind: 'DeletionRequested', focusLast: true });
+        }
+      }
+    });
+
+    this.contextMenuService.open(me, items, 'transcription', 'basic-layout');
+  }
+
+  ngOnInit(): void {
+    this.focusSub = this.focusService.focusedContainerUUID$.subscribe((focusedUuid) => {
+      if (focusedUuid !== this.data.uuid) {
+        this.toolService.remove(this);
+      }
+      this.cdr.markForCheck();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.focusSub?.unsubscribe();
+    this.toolService.remove(this);
+  }
+
+  isFocused(): boolean {
+    return this.focusService.focusedContainerUUID === this.data.uuid;
+  }
+
+  selectContainer(event: MouseEvent): void {
+    event.stopPropagation();
+
+    // 1. Highlight this container
+    this.focusService.focusedContainerUUID = this.data.uuid;
+
+    // 2. Build and push container-specific tools to top toolbar
+    const tools: any[] = [];
+
+    // Rename Action
+    tools.push({
+      callback: () => {
+        const sig = this.data.data.find(d => d.name === 'Signatur');
+        const oldName = sig ? sig.data : '';
+        const newName = prompt('New section name/signature:', oldName);
+        if (newName !== null) {
+          this.undo.beforeChange();
+          if (sig) {
+            sig.data = newName;
+          } else {
+            this.data.data.push({ name: Model.FormteilDataName.Signatur, data: newName });
+          }
+          this.cdr.detectChanges();
+          this.onEvent.emit({ kind: 'DocumentUpdated' });
+        }
+      },
+      icon: 'pencil-square text-primary',
+      title: 'Rename Section'
+    });
+
+    // Merge Action
+    tools.push({
+      callback: () => {
+        this.onEvent.emit({ kind: 'MergeSectionRequested', uuid: this.data.uuid } as any);
+      },
+      icon: 'box-arrow-in-down text-info',
+      title: 'Merge with Next'
+    });
+
+    // Delete Section & Content Action
+    tools.push({
+      callback: () => {
+        if (confirm('Are you sure you want to delete this section and all its contents?')) {
+          this.onEvent.emit({ kind: 'DeletionRequested', focusLast: true });
+        }
+      },
+      icon: 'trash text-danger',
+      title: 'Delete Section & Content'
+    });
+
+    // Add sibling/child options if applicable
+    const docStruct = Model.getStructure(this.documentType);
+    const currentLevelNum = this.zipper.length;
+    tools.push({
+      callback: () => {
+        this.onEvent.emit({ kind: 'NewFormteilRequested' });
+      },
+      icon: 'plus-square text-success',
+      title: `Add L${currentLevelNum} Section`
+    });
+
+    const nextLevel = docStruct[this.zipper.length];
+    if (nextLevel) {
+      tools.push({
+        callback: () => {
+          this.newAt(Model.createNestedFormteilContainer(this.documentType, currentLevelNum + 1), 0);
+          this.onEvent.emit({ kind: 'DocumentUpdated' });
+        },
+        icon: 'plus-square-fill text-success',
+        title: `Add L${currentLevelNum + 1} Sub-Section`
+      });
+    }
+
+    // Clear selection button
+    tools.push({
+      callback: () => {
+        this.focusService.focusedContainerUUID = undefined;
+        this.toolService.remove(this);
+      },
+      icon: 'x-circle text-secondary',
+      title: 'Clear Selection'
+    });
+
+    this.toolService.remove(this);
+    this.toolService.addStack({
+      source: this,
+      tools: tools
+    });
+  }
 }

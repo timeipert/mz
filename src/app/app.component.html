@@ -20,6 +20,9 @@
                 <li class="nav-item">
                     <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['search']">Search</a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['stats']">Stats</a>
+                </li>
             </ul>
             <ul class="navbar-nav ms-auto align-items-center">
                 <li class="nav-item me-3" *ngIf="github.isConnected">
@@ -46,6 +49,11 @@
                 <li class="nav-item">
                     <a class="nav-link fw-medium" routerLinkActive="active text-accent" [routerLink]="['settings']">
                         <i class="bi bi-gear-fill me-1"></i>Settings
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fw-medium text-primary" [routerLink]="['/manual']">
+                        <i class="bi bi-book-fill me-1"></i>Manual
                     </a>
                 </li>
             </ul>
@@ -95,6 +103,7 @@
                                 style="min-width: 40px; height: 40px;"
                                 [ngClass]="t.active ? 'btn-primary shadow-sm' : 'btn-outline-secondary bg-white'"
                                 (click)="t.callback && t.callback()"
+                                (contextmenu)="onToolContextMenu($event, t)"
                                 [title]="t.title">
                             <span *ngIf="t.icon === 'mei'" class="fw-bold px-1" style="font-family: serif; font-size: 1.1em; letter-spacing: 0.5px;">MEI</span>
                             <i *ngIf="t.icon !== 'mei'" class="bi bi-{{t.icon}}" style="font-size: 1.25rem;"></i>
@@ -175,3 +184,4 @@
 
 <canvas id="canvas"></canvas>
 <app-drag-map></app-drag-map>
+<app-context-menu></app-context-menu>

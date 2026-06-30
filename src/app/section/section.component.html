@@ -1,6 +1,9 @@
 <div class="app-container" [class.read-only]="readOnly" [class.insertion-point]="isDragTarget">
   <div>
-    <div class="content-row" [class.formteil-section]="kindIs(data, 'FormteilContainer')">
+    <div class="content-row" [class.formteil-section]="kindIs(data, 'FormteilContainer')"
+         [class.selected-container-highlight]="isFocused()"
+         (click)="selectContainer($event)"
+         (contextmenu)="onContextMenu($event)">
       <app-dragger *ngIf="!readOnly && !kindIs(data, 'RootContainer')" [zipper]="zipper" (dropRequested)="onDropRequested($event); isDragTarget=false"
         (actionRequested)="executeAction($event)" [actions]="actions()"
         (dragEnterTarget)="isDragTarget=true" (dragLeaveTarget)="isDragTarget=false"></app-dragger>
@@ -88,7 +91,7 @@
           </div>
 
         </div>
-        <div *ngIf=" ('' + data.kind) === 'ZeileContainer'">
+        <div *ngIf=" ('' + data.kind) === 'ZeileContainer'" (contextmenu)="onContextMenu($event)">
           <ng-container *ngFor="let child of data.children; trackBy:getUUID">
             <app-notes #linechild *ngIf="child.kind === 'Syllable'" [readOnly]="readOnly" [model]="child"
               (request)="onLinePartRequest($event, child)" [comments]="comments" [attr.data-uuid]="child.uuid"></app-notes>

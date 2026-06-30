@@ -1,0 +1,136 @@
+<h1 id="use-cases">Use Cases</h1>
+<p class="lead">To help you get the most out of Monodi-Zero, here are step-by-step guides for common research workflows.</p>
+
+<h2 id="use-case-1-transcribing-a-melody-and-printing-it-as-pdf">Use Case 1: Transcribing a Melody and Printing it as PDF</h2>
+<p>Imagine you have a single manuscript page that you want to transcribe, preview, and then save as a cleanly formatted PDF document for a presentation or publication.</p>
+
+<h3 id="step-1-create-or-open-a-document">Step 1: Create or Open a Document</h3>
+<p>First, navigate to the <strong>Sources</strong> page from the main navigation bar. Open the source that contains your manuscript and create a new document within it.</p>
+
+<h3 id="step-2-set-the-initial-metadata">Step 2: Set the Initial Metadata</h3>
+<p>In the right-hand <strong>Metadata</strong> panel, enter the basic information:</p>
+<ul>
+  <li><strong>Text Initium</strong>: The first few words of the chant.</li>
+  <li><strong>Folio Start / Line Start</strong>: Ensure these match where the chant begins on the physical manuscript page.</li>
+</ul>
+
+<h3 id="step-3-enter-the-transcription">Step 3: Enter the Transcription</h3>
+<p>Follow these steps to quickly encode the notation:</p>
+<ol>
+  <li><strong>Insert a Clef</strong>: Focus the editor, press <kbd>c</kbd> to insert a clef, and pick the appropriate pitch context (e.g. C-Clef on staff line 3).</li>
+  <li><strong>Add Syllables</strong>: Go to the syllable text row (bottom), type your text, and press <kbd>Space</kbd> to move to the next syllable.</li>
+  <li><strong>Add Notes</strong>: Use the <kbd>↑</kbd> arrow key to jump to the notes above a syllable. Press <kbd>Space</kbd> to insert a note, and <kbd>↑</kbd>/<kbd>↓</kbd> arrows to adjust the pitch.</li>
+  <li><strong>Special Note Shapes</strong>: Use <kbd>l</kbd> for Liquescents or <kbd>o</kbd> for Oriscus shapes as you transcribe.</li>
+</ol>
+
+<h3 id="step-4-export-to-pdf">Step 4: Export to PDF</h3>
+<p>Once the transcription looks complete:</p>
+<ol>
+  <li>Click the <strong>PDF Export</strong> button (marked with a PDF icon) on the main top-right toolbar.</li>
+  <li>A dialog will ask if you want to include the document's Metadata table. Check the box if you want a clean metadata header at the top of your PDF.</li>
+  <li>Click <strong>Print / Save PDF</strong>.</li>
+  <li>Your browser's native print dialog will appear. Make sure the destination is set to <strong>Save as PDF</strong>, enable background graphics, and click Save!</li>
+</ol>
+
+<hr>
+
+<h2 id="use-case-2-setting-up-a-collaborative-team-project">Use Case 2: Setting up a Collaborative Team Project</h2>
+<p>If you are working with a group of researchers or students, you need a way to share data securely and track everyone's changes. Monodi-Zero natively integrates with <strong>GitHub</strong> to act as a backend database.</p>
+
+<h3 id="step-1-create-a-github-repository">Step 1: Create a GitHub Repository</h3>
+<ol>
+  <li>Create a standard repository on GitHub (e.g., <code>my-monodi-project</code>).</li>
+  <li>Invite all your team members as <strong>collaborators</strong> to this repository.</li>
+</ol>
+
+<h3 id="step-2-configure-monodi-zero">Step 2: Configure Monodi-Zero</h3>
+<p>Each team member must configure their local Monodi-Zero instance to connect to this repository:</p>
+<ol>
+  <li>Click on <strong>Settings</strong> in the top navigation bar.</li>
+  <li>In the <strong>GitHub Synchronization</strong> section, enter the repository name (e.g., <code>username/my-monodi-project</code>).</li>
+  <li>Enter a Personal Access Token (PAT). Each team member needs to generate their own PAT on GitHub with <code>repo</code> permissions.</li>
+</ol>
+
+<h3 id="step-3-collaborative-workflow">Step 3: Collaborative Workflow</h3>
+<p>Once connected, a "Sync" indicator will appear in the top navigation bar. Here is the daily workflow for your team:</p>
+<ul>
+  <li><strong>Start of the Day</strong>: Click the <strong>Pull</strong> button (cloud with a down arrow) to pull the latest changes that other team members made.</li>
+  <li><strong>Working</strong>: Work normally. Monodi-Zero saves all changes to your local browser storage instantly, so you never lose work if you close the tab.</li>
+  <li><strong>End of the Day</strong>: Click the <strong>Push</strong> button (cloud with an up arrow) to upload your daily work to GitHub.</li>
+</ul>
+
+<h3 id="resolving-conflicts">Resolving Conflicts</h3>
+<p>Because Monodi-Zero stores each document as a separate JSON file, team members can work on different documents simultaneously without issue. If two members edit the <em>exact same document</em> at the same time, the last person to Push will be warned to Pull and resolve the changes first.</p>
+
+<hr>
+
+<h2 id="use-case-3-comparative-variant-analysis-via-critical-apparatus">Use Case 3: Melodic Variant Analysis via the Critical Apparatus</h2>
+<p>As a musicologist, you often need to document spelling or melodic differences between your primary manuscript source and other concordant sources. Monodi-Zero allows you to build a structured critical apparatus directly inline.</p>
+
+<h3 id="step-1-select-melodic-segment">Step 1: Select the Target Syllable or Note</h3>
+<p>Identify the syllable in your transcription editor where the variant occurs. Focus on that syllable or its notes in the editor.</p>
+
+<h3 id="step-2-add-complex-comment">Step 2: Add a Critical Comment</h3>
+<p>Open the context menu or click the **Add Comment** button. This opens the Comment Panel on the right side and inserts a new recursive comment block initialized in the **Undecided** state.</p>
+
+<h3 id="step-3-structure-variants-using-a-grid">Step 3: Create a Comparative Grid</h3>
+<ol>
+  <li>In the comment tree panel, click **Grid** on the Undecided block. This turns the block into a comparative spreadsheet matrix.</li>
+  <li>By default, it creates a single cell. Click the **Action Dot** (small round button next to the cells) to add columns (parallel melodic segments) or rows (alternative manuscript sources).</li>
+  <li>Click on the cells inside the Grid. You can turn each cell into a **Leaf** representing:
+    <ul>
+      <li><strong>Notes</strong>: Input alternative notation syllables or pitches.</li>
+      <li><strong>Text</strong>: Write scholarly commentary or bibliography references (e.g., <i>"C-clef shifts in Bamberg ms."</i>).</li>
+    </ul>
+  </li>
+</ol>
+
+<h3 id="step-4-assign-source-contexts">Step 4: Label your Sources</h3>
+<p>Click on the **Action Dot** at the left of each row to open the Context menu. Select **Set Context** and type the name or shelfmark of the variant manuscript (e.g., <code>Einsiedeln 121</code> or <code>St. Gall 339</code>). The row will now display that label, organizing your apparatus.</p>
+
+<h3 id="step-5-save-and-export">Step 5: View in PDF</h3>
+<p>Export your document to a PDF. The critical apparatus will render cleanly, aligning the variant rows horizontally and displaying your annotations directly underneath the main chant line, ready for scholarly publication.</p>
+
+<hr>
+
+<h2 id="use-case-4-reconstructing-damaged-folios">Use Case 4: Reconstructing Damaged Folios</h2>
+<p>Liturgical manuscripts are often centuries old and suffer from physical damage (tears, ink fading, or water stains). Monodi-Zero combines image annotation with critical apparatus markup to support editorial reconstruction.</p>
+
+<h3 id="reconstruction-step-1">Step 1: Map the Damaged Area</h3>
+<p>Open the document in <strong>Split Screen</strong> mode. Zoom in on the damaged section of the manuscript in the IIIF viewer. Draw an annotation zone covering the illegible stave or text fragment and click <strong>Link</strong>.</p>
+
+<h3 id="reconstruction-step-2">Step 2: Create a Reconstruction Block</h3>
+<p>In the transcription editor, create a corresponding Line or Syllable block. Link the line to your drawn IIIF zone so that they remain logically bound together.</p>
+
+<h3 id="reconstruction-step-3">Step 3: Encode Hypothesized Readings</h3>
+<ol>
+  <li>Open the comment panel for the illegible syllable.</li>
+  <li>Create a **Leaf** of type **Text** or **Notes**.</li>
+  <li>Input your editorial hypothesis. Use standard critical brackets (e.g., <code>[al]leluia</code> or notes inside brackets) to represent reconstructed pitches.</li>
+  <li>In the justification text, cite supporting evidence (e.g., <i>"Reconstruction based on parallel chant in St. Gall 390, folio 42r."</i>).</li>
+</ol>
+
+<h3 id="reconstruction-step-4">Step 4: Export with Editorial Apparat</h3>
+<p>When exporting to PDF or MEI, the reconstructed reading is cleanly tagged as an editorial hypothesis, keeping your primary transcription strictly factual while providing scholars with fully documented reconstructions.</p>
+
+<hr>
+
+<h2 id="use-case-5-classroom-pedagogical-corpus-transcription">Use Case 5: Classroom &amp; Pedagogical Corpus Transcription</h2>
+<p>Instructors teaching paleography or medieval musicology can use Monodi-Zero to collaborate on class-wide transcription projects, tracking student work via GitHub.</p>
+
+<h3 id="class-step-1">Step 1: Set up the Course Repository</h3>
+<p>The instructor creates a GitHub repository (e.g., <code>university-chant-project-2026</code>) and commits a set of empty source documents (holding only metadata, IIIF links, and blank staffs).</p>
+
+<h3 id="class-step-2">Step 2: Connect Student Instances</h3>
+<p>Each student connects their browser's Monodi-Zero instance to the central repository under **Settings**, using their personal GitHub account credentials.</p>
+
+<h3 id="class-step-3">Step 3: Assigned Transcription Workflow</h3>
+<ol>
+  <li>Students open the app and click <strong>Pull</strong> to download the template files.</li>
+  <li>Each student is assigned a specific folio range to transcribe.</li>
+  <li>As students work, their progress is saved automatically to local storage. They can work offline without losing data.</li>
+  <li>At the end of their session, students click <strong>Push</strong> to upload their work to the course repository.</li>
+</ol>
+
+<h3 id="class-step-4">Step 4: Central Review and Merging</h3>
+<p>Because each chant document is stored in its own separate file in the repository, students can work in parallel without merge conflicts. The instructor can open the central repository to review student transcriptions, download the completed MEI corpus for analysis, or compile a single PDF chant book containing the work of the entire class.</p>

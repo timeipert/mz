@@ -1,0 +1,56 @@
+.custom-context-menu {
+  position: fixed;
+  z-index: 99999;
+  background-color: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  min-width: 220px;
+  padding: 6px 0;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.menu-items-container {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.menu-item {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  transition: background-color 0.1s;
+}
+
+.menu-item:hover:not(.disabled) {
+  background-color: #f1f3f5;
+  color: #000;
+}
+
+.menu-item.disabled {
+  color: #adb5bd;
+  cursor: not-allowed;
+}
+
+.menu-item i {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.menu-divider {
+  height: 1px;
+  background-color: #e9ecef;
+  margin: 6px 0;
+}
+
+.help-item:hover {
+  background-color: #e7f1ff !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}

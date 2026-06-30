@@ -52,7 +52,85 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
       NoFocusRequested: (e: Event, oldIndex: number) => { Model.removeFocus(this.data); setTimeout(() => cdr.detectChanges(), 0); },
       NewParatextRequested: (e: Event, oldIndex: number) => { this.undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), oldIndex + 1); },
       NewFormteilRequested: (e: Event, oldIndex: number) => { this.newFormteilAt(oldIndex + 1); },
-      DeletionRequested: (e: Event, oldIndex: number) => { this.undo.beforeChange(); this.data.children.splice(oldIndex, 1); Model.removeStaleComments(this.data); },
+      DeletionRequested: (e: Event, oldIndex: number) => {
+        const child = this.data.children[oldIndex];
+        if (child && child.kind === Model.ContainerKind.FormteilContainer) {
+          const formteilCount = this.data.children.filter(c => c.kind === Model.ContainerKind.FormteilContainer).length;
+          if (formteilCount <= 1) {
+            this.toaster.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+            return;
+          }
+        }
+        this.undo.beforeChange();
+        this.data.children.splice(oldIndex, 1);
+        Model.removeStaleComments(this.data);
+      },
+      NewNoteLineRequsted: (e: any, oldIndex: number) => {
+        this.undo.beforeChange();
+        this.newAt(e.container, oldIndex + 1);
+      },
+      MergeWithNextLineRequested: (e: any, oldIndex: number) => {
+        this.undo.beforeChange();
+        const lines = Model.getAllLineContainers(this.data);
+        const idx = lines.findIndex(l => l.uuid === e.uuid);
+        if (idx >= 0 && lines[idx + 1]) {
+          const current = lines[idx];
+          const next = lines[idx + 1];
+          current.children.push(...next.children);
+          Model.remove(this.data, next);
+          Model.removeStaleComments(this.data);
+          this.cdr.detectChanges();
+        } else {
+          this.toaster.warning("Es gibt keine folgende Zeile zum Zusammenführen");
+        }
+      },
+      MergeSectionRequested: (e: any, oldIndex: number) => {
+        this.undo.beforeChange();
+        const res = Model.findParentContainer(this.data, e.uuid);
+        if (res) {
+          const { parent, index } = res;
+          const parentContainer = parent as any;
+          const current = parentContainer.children[index];
+          const next = parentContainer.children[index + 1];
+          if (current && next && current.kind === Model.ContainerKind.FormteilContainer && next.kind === Model.ContainerKind.FormteilContainer) {
+            current.children.push(...next.children);
+            parentContainer.children.splice(index + 1, 1);
+            Model.removeStaleComments(this.data);
+            this.cdr.detectChanges();
+          } else {
+            this.toaster.warning("Es gibt keinen folgenden Abschnitt zum Zusammenführen");
+          }
+        }
+      },
+      DeleteSectionKeepContentRequested: (e: any, oldIndex: number) => {
+        this.undo.beforeChange();
+        const res = Model.findParentContainer(this.data, e.uuid);
+        if (res) {
+          const { parent, index } = res;
+          const parentContainer = parent as any;
+          const formteilCount = parentContainer.children.filter((c: any) => c.kind === Model.ContainerKind.FormteilContainer).length;
+          if (formteilCount <= 1) {
+            this.toaster.warning("Dieser Abschnitt kann nicht gelöscht werden, da er der einzige auf dieser Ebene ist.");
+            return;
+          }
+          const node = parentContainer.children[index];
+          if (node) {
+            if (node.children && node.children.length > 0) {
+              parentContainer.children.splice(index, 1, ...node.children);
+            } else {
+              parentContainer.children.splice(index, 1);
+            }
+            Model.removeStaleComments(this.data);
+            this.cdr.detectChanges();
+          }
+        }
+      },
+      SplitSectionAtLineRequested: (e: any, oldIndex: number) => {
+        this.undo.beforeChange();
+        Model.splitTreeAtLine(this.data, e.lineUuid, e.splitLevel);
+        Model.removeStaleComments(this.data);
+        this.cdr.detectChanges();
+      },
       MoveRequested: (e: MoveRequested, oldIndex: number) => {
         this.undo.beforeChange();
         const errorMessage = Model.move(this.data, e.from, e.to);
@@ -69,7 +147,9 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
       },
       HighlightRegionRequested: (e: any) => {
         this.onEvent.emit(e);
-      }
+      },
+      FixSyllableDashesRequested: (e: any) => this.onEvent.emit(e),
+      DocumentUpdated: (e: any) => this.onEvent.emit(e)
     }, undoService);
   }
 
@@ -88,7 +168,10 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
       '+ Text': () => { this.undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), 0); },
       'Paste after': () => { this.undo.beforeChange(); this.insert([], false, false) },
       'Paste after (discard notes)': () => { this.undo.beforeChange(); this.insert([], true, false) },
-      'Paste after (discard text)': () => { this.undo.beforeChange(); this.insert([], false, true) }
+      'Paste after (discard text)': () => { this.undo.beforeChange(); this.insert([], false, true) },
+      'Fix Syllable Dashes': () => {
+        this.onEvent.emit({ kind: 'FixSyllableDashesRequested' as any } as any);
+      }
     };
   }
 
@@ -118,7 +201,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
 
   newFormteilAt(oldIndex: number): void {
     this.undo.beforeChange();
-    const newData = Model.emptyFormteilContainer(this.data.documentType, [0]);
+    const newData = Model.createNestedFormteilContainer(this.data.documentType, 1);
     this.data.children.splice(oldIndex, 0, newData);
     setTimeout(() => this.children.toArray().find(p => p.getData() === newData)!.focus({ focusLast: false }), 0);
   }
@@ -137,13 +220,14 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
   }
 
   documentTypes = [
+    { value: 'Level0', label: '0' },
     { value: 'Level1', label: '1' },
     { value: 'Level2', label: '2' },
     { value: 'Level3', label: '3' }
   ];
 
   canChangeDocumentType(): boolean {
-    return !this.data.children.every(c => c.kind === Model.ContainerKind.MiscContainer);
+    return false;
   }
 
   /** Called by the button-group in the template. Sets the documentType AND always triggers
@@ -156,7 +240,7 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
   onDocumentTypeChange(): void {
     if (this.data.children.length === 0) {
       this.undo.beforeChange();
-      const level = parseInt(this.data.documentType.replace(/level/i, ''), 10) || 1;
+      const level = this.data.documentType === 'Level0' ? 0 : (parseInt(this.data.documentType.replace(/level/i, ''), 10) || 1);
 
       let currentContainer: any = this.data;
       let zipperPath: number[] = [];
@@ -172,6 +256,11 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
       currentContainer.children.push(newLine);
 
       this.cdr.detectChanges();
+    } else {
+      this.undo.beforeChange();
+      Model.changeDocumentStructure(this.data, this.data.documentType);
+      this.cdr.detectChanges();
     }
   }
 }
+

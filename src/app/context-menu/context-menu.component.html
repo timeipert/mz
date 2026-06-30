@@ -1,0 +1,24 @@
+<div *ngIf="state.isOpen" 
+     class="custom-context-menu shadow-lg rounded"
+     [style.left.px]="state.x" 
+     [style.top.px]="state.y"
+     (click)="onMenuClick($event)">
+  <div class="menu-items-container">
+    <div *ngFor="let item of state.items" 
+         class="menu-item" 
+         [class.disabled]="item.disabled"
+         (click)="executeAction(item, $event)">
+      <i *ngIf="item.icon" class="bi" [ngClass]="item.icon"></i>
+      <span>{{ item.label }}</span>
+    </div>
+  </div>
+  
+  <div class="menu-divider" *ngIf="state.items.length > 0 && state.helpTopic"></div>
+  
+  <div *ngIf="state.helpTopic" 
+       class="menu-item help-item" 
+       (click)="openHelp($event)">
+    <i class="bi bi-question-circle-fill text-primary"></i>
+    <span class="text-primary fw-medium">Get Help for this Component</span>
+  </div>
+</div>

@@ -1,25 +1,97 @@
-<table class="table table-striped">
-  <thead>
-    <tr>
-      <th *ngFor="let header of headers" (click)="sortBy(header)">
-        {{header.name}}
-        <img *ngIf="sortFieldName === header.name && !sortDescending" src="assets/icons/sort-up.svg"  />
-        <img *ngIf="sortFieldName === header.name &&  sortDescending" src="assets/icons/sort-down.svg"/>
-        <img *ngIf="sortFieldName !== header.name"                    src="assets/icons/sort-none.svg"/>
-      </th>
-      <th *ngIf="canDelete"></th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr *ngFor="let row of rows">
-      <td class="td-smart-row" (click)="rowClicked(row.dataObject)" *ngFor="let cell of row.cells">
-        <span *ngIf="cell.kind === 'text' && cell.text">{{cell.text}}</span>
-        <span *ngIf="cell.kind === 'text' && !cell.text" class="cell-empty">–</span>
-        <a *ngIf="cell.kind === 'link'" [href]="cell.href">{{cell.text}}</a>
-      </td>
-      <td *ngIf="canDelete">
-        <img class="delete-icon" src="assets/icons/delete.svg" (click)="requestDelete(row.dataObject); $event.stopPropagation();"/>
-      </td>
-    </tr>
-  </tbody>
-</table>
+<div class="smart-table-wrapper">
+  <!-- Filter Input -->
+  <div class="mb-3" *ngIf="filterable && objects.length > 0">
+    <div class="input-group input-group-sm" style="max-width: 320px;">
+      <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-funnel"></i></span>
+      <input type="text" 
+             class="form-control border-start-0" 
+             placeholder="Filter table..." 
+             [(ngModel)]="filterText" 
+             (ngModelChange)="applyFilterAndPagination()" />
+      <button class="btn btn-outline-secondary border-start-0" 
+              type="button" 
+              *ngIf="filterText" 
+              (click)="filterText = ''; applyFilterAndPagination()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr class="border-bottom">
+          <th *ngFor="let header of headers" 
+              (click)="sortBy(header)" 
+              class="cursor-pointer text-nowrap sortable-th">
+            <div class="d-flex align-items-center justify-content-between">
+              <span>{{header.name}}</span>
+              <span class="sort-indicators ms-2">
+                <i *ngIf="sortFieldName === header.name && !sortDescending" class="bi bi-chevron-up text-primary small"></i>
+                <i *ngIf="sortFieldName === header.name && sortDescending" class="bi bi-chevron-down text-primary small"></i>
+              </span>
+            </div>
+          </th>
+          <th *ngIf="canDelete" style="width: 80px;" class="text-end pe-3">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngIf="pagedRows.length === 0">
+          <td [attr.colspan]="headers.length + (canDelete ? 1 : 0)" class="text-center py-4 text-muted">
+            No matching results found.
+          </td>
+        </tr>
+        <tr *ngFor="let row of pagedRows" class="cursor-pointer">
+          <td class="td-smart-row" (click)="rowClicked(row.dataObject)" *ngFor="let cell of row.cells">
+            <span *ngIf="cell.kind === 'text' && cell.text">{{cell.text}}</span>
+            <span *ngIf="cell.kind === 'text' && !cell.text" class="cell-empty text-muted">–</span>
+            <a *ngIf="cell.kind === 'link'" [href]="cell.href">{{cell.text}}</a>
+            <span *ngIf="cell.kind === 'badge'" class="badge bg-light text-dark border">{{cell.text}}</span>
+          </td>
+          <td *ngIf="canDelete" class="text-end pe-3">
+            <button class="btn btn-sm btn-outline-danger border-0" 
+                    (click)="requestDelete(row.dataObject); $event.stopPropagation();" 
+                    title="Delete">
+              <i class="bi bi-trash"></i>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination Controls -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 gap-2" 
+       *ngIf="paginated && totalPages > 1">
+    <div class="small text-muted fw-medium">
+      Showing <strong class="text-dark">{{ startRow + 1 }}-{{ endRow }}</strong> of {{ filteredRows.length }} rows
+    </div>
+    <nav aria-label="Table pagination">
+      <ul class="pagination pagination-sm mb-0 shadow-sm rounded">
+        <li class="page-item" [class.disabled]="currentPage === 1">
+          <button class="page-link" (click)="setPage(1)" title="First Page">
+            <i class="bi bi-chevron-double-left"></i>
+          </button>
+        </li>
+        <li class="page-item" [class.disabled]="currentPage === 1">
+          <button class="page-link" (click)="setPage(currentPage - 1)" title="Previous Page">
+            <i class="bi bi-chevron-left"></i>
+          </button>
+        </li>
+        <li *ngFor="let page of pageNumbers" class="page-item" [class.active]="page === currentPage">
+          <button class="page-link" (click)="setPage(page)">{{ page }}</button>
+        </li>
+        <li class="page-item" [class.disabled]="currentPage === totalPages">
+          <button class="page-link" (click)="setPage(currentPage + 1)" title="Next Page">
+            <i class="bi bi-chevron-right"></i>
+          </button>
+        </li>
+        <li class="page-item" [class.disabled]="currentPage === totalPages">
+          <button class="page-link" (click)="setPage(totalPages)" title="Last Page">
+            <i class="bi bi-chevron-double-right"></i>
+          </button>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</div>

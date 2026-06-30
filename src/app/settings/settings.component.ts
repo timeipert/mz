@@ -1,9 +1,13 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
-import { APIService, ProjectSettings, sanitizeSettings } from '../api.service';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { APIService, ProjectSettings, sanitizeSettings, Source } from '../api.service';
 import { UserService, User } from '../user.service';
 import { GithubService, GithubConfig } from '../github.service';
 import { Subscription } from 'rxjs';
+import { ActivatedRoute } from '@angular/router';
 import { PageTitleService } from '../page-title.service';
+import { ToastrService } from 'ngx-toastr';
+import { NotesStore } from '../notes-store';
+import * as localforage from 'localforage';
 
 export interface FieldDef { key: string, label: string, isCustom: boolean }
 
@@ -13,7 +17,37 @@ export interface FieldDef { key: string, label: string, isCustom: boolean }
   styleUrls: ['./settings.component.css']
 })
 export class SettingsComponent implements OnInit, OnDestroy {
-  activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' | 'mei' | 'htmlExport' = 'metadata';
+  activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' | 'mei' | 'htmlExport' | 'workspace' = 'metadata';
+
+  // ── Workspace tab state ────────────────────────────────────────────────
+  /** Stats refreshed when the user enters the Workspace tab and after each
+   *  destructive action. Populated by `refreshWorkspaceStats()`. */
+  workspaceStats: {
+    sources: number;
+    documents: number;
+    notes: number;
+    orphanNotes: number;
+    orphanDocs: number;
+    storageQuotaBytes?: number;
+    storageUsedBytes?: number;
+    settingsPresent: boolean;
+  } = { sources: 0, documents: 0, notes: 0, orphanNotes: 0, orphanDocs: 0, settingsPresent: false };
+
+  loadingStats = false;
+  statsComputed = false;
+  lastComputedTime: string | null = null;
+  private currentStatsRunId = 0;
+
+  /** Tracks which action is currently in-flight so the UI can disable the
+   *  whole row of destructive buttons and show a spinner on the active one. */
+  busyAction: '' | 'reset-settings' | 'reset-cols' | 'orphan-notes' | 'orphan-docs'
+            | 'wipe-docs' | 'wipe-all' = '';
+
+  /** Two-step confirmation: clicking a destructive button arms it; the
+   *  second click within the same arm window executes the action. */
+  armedAction: '' | 'reset-settings' | 'orphan-notes' | 'orphan-docs'
+             | 'wipe-docs' | 'wipe-all' = '';
+  private armedTimeout: any;
   previewScale = 0.6;
   user: User | null = null;
   subs: Subscription[] = [];
@@ -96,7 +130,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private api: APIService,
     private userService: UserService,
     public github: GithubService,
-    private pageTitle: PageTitleService
+    private pageTitle: PageTitleService,
+    private toastr: ToastrService,
+    private cdRef: ChangeDetectorRef,
+    private route: ActivatedRoute,
   ) {
     if (this.github.config) {
       this.githubConfig = { ...this.github.config };
@@ -131,6 +168,16 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.pageTitle.set('Settings');
+    // Allow deep-linking to a specific tab via ?tab=workspace etc.
+    // Used by the Sources page gear button to land directly on Workspace.
+    this.subs.push(this.route.queryParamMap.subscribe(params => {
+      const tab = params.get('tab');
+      const allowed = ['metadata', 'github', 'pdf', 'containers', 'editor', 'mei', 'htmlExport', 'workspace'];
+      if (tab && allowed.includes(tab)) {
+        this.activeTab = tab as any;
+        if (tab === 'workspace') this.loadCachedStats();
+      }
+    }));
     this.subs.push(this.userService.user.subscribe(user => {
       this.user = user;
       if (this.user) {
@@ -159,6 +206,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.currentStatsRunId++;
     this.subs.forEach(s => s.unsubscribe());
   }
 
@@ -372,5 +420,346 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (index >= 0) list.splice(index, 1);
     else list.push(key);
     this.saveSettings();
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  //                          WORKSPACE TAB
+  // ──────────────────────────────────────────────────────────────────────
+
+  /** Switch to the Workspace tab and load cached stats if available. */
+  openWorkspaceTab(): void {
+    this.activeTab = 'workspace';
+    this.loadCachedStats();
+  }
+
+  loadCachedStats(): void {
+    const cached = localStorage.getItem('monodi_cached_workspace_stats');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        this.workspaceStats = parsed.stats;
+        this.lastComputedTime = parsed.timestamp;
+        this.statsComputed = true;
+      } catch (e) {
+        this.statsComputed = false;
+      }
+    } else {
+      this.statsComputed = false;
+    }
+    this.cdRef.markForCheck();
+  }
+
+  async refreshWorkspaceStats(): Promise<void> {
+    this.currentStatsRunId++;
+    const runId = this.currentStatsRunId;
+    this.loadingStats = true;
+    this.statsComputed = false;
+    this.cdRef.markForCheck();
+
+    const yieldToEventLoop = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+    // Only cancel when a newer run has started (e.g. user clicked refresh again
+    // or the component is being destroyed). Do NOT include activeTab in this
+    // check — a transient query-param re-emission could falsely cancel the run
+    // and leave loadingStats=true forever.
+    const isCancelled = () => runId !== this.currentStatsRunId;
+    const cancelCleanup = () => {
+      if (runId === this.currentStatsRunId) {
+        this.loadingStats = false;
+        this.cdRef.markForCheck();
+      }
+    };
+
+    // Reset stats to -1 (indicating they are currently loading)
+    this.workspaceStats = {
+      sources: -1,
+      documents: -1,
+      notes: -1,
+      orphanNotes: -1,
+      orphanDocs: -1,
+      settingsPresent: false,
+    };
+    this.cdRef.markForCheck();
+
+    try {
+      // 1. Fetch sources & settings
+      const sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+      const settings = await localforage.getItem<any>('monodi_settings');
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      this.workspaceStats.sources = sources.length;
+      this.workspaceStats.settingsPresent = !!settings;
+      this.cdRef.markForCheck();
+
+      // Yield to let UI update and remain responsive
+      await yieldToEventLoop();
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      // 2. Fetch documents
+      const documents = (await localforage.getItem<any[]>('monodi_documents')) || [];
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      this.workspaceStats.documents = documents.length;
+      this.cdRef.markForCheck();
+
+      // Yield
+      await yieldToEventLoop();
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      // 3. Fetch Notes Index
+      const noteIds = await NotesStore.getIndex();
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      this.workspaceStats.notes = noteIds.length;
+      this.cdRef.markForCheck();
+
+      // Yield
+      await yieldToEventLoop();
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      // 4. Compute sourceIds Set & docIds Set
+      const sourceIds = new Set(sources.map(s => s.id));
+      const docIds = new Set(documents.map(d => d.id));
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      // Yield
+      await yieldToEventLoop();
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      // 5. Compute orphanDocs
+      const orphanDocs = documents.filter(d => !sourceIds.has(d.quelle_id)).length;
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      this.workspaceStats.orphanDocs = orphanDocs;
+      this.cdRef.markForCheck();
+
+      // Yield
+      await yieldToEventLoop();
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      // 6. Compute orphanNotes
+      const orphanNotes = noteIds.filter(id => !docIds.has(id)).length;
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      this.workspaceStats.orphanNotes = orphanNotes;
+      this.cdRef.markForCheck();
+
+      // Yield
+      await yieldToEventLoop();
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      // 7. Storage Manager API — wrapped in its own try so a storage-API
+      //    denial (e.g. Firefox private browsing, extension interference) does
+      //    not abort the whole stats run.
+      if ('storage' in navigator && typeof navigator.storage.estimate === 'function') {
+        try {
+          const est = await navigator.storage.estimate();
+          if (!isCancelled()) {
+            this.workspaceStats.storageQuotaBytes = est.quota;
+            this.workspaceStats.storageUsedBytes  = est.usage;
+          }
+        } catch (storageErr) {
+          console.warn('Storage estimate failed (non-fatal):', storageErr);
+        }
+      }
+
+      if (isCancelled()) { cancelCleanup(); return; }
+
+      const timestamp = new Date().toLocaleString();
+      this.lastComputedTime = timestamp;
+      this.statsComputed = true;
+      localStorage.setItem('monodi_cached_workspace_stats', JSON.stringify({
+        stats: this.workspaceStats,
+        timestamp
+      }));
+
+      this.loadingStats = false;
+      this.cdRef.markForCheck();
+    } catch (e) {
+      const msg = (e as Error)?.message ?? String(e);
+      console.error('Failed to refresh workspace stats', e);
+      if (runId === this.currentStatsRunId) {
+        this.loadingStats = false;
+        this.statsComputed = false;
+        this.cdRef.markForCheck();
+        this.toastr.error(`Stats failed: ${msg}`, 'Workspace stats error');
+      }
+    }
+  }
+
+  /** Two-click safety: first click arms the action, second click within
+   *  6 seconds executes it. The window auto-clears so users don't
+   *  accidentally trigger something on a stale armed state. */
+  armAction(a: typeof this.armedAction): void {
+    if (this.armedAction === a) {
+      // Second click — execute.
+      this.runArmedAction(a);
+      return;
+    }
+    this.armedAction = a;
+    clearTimeout(this.armedTimeout);
+    this.armedTimeout = setTimeout(() => {
+      this.armedAction = '';
+      this.cdRef.markForCheck();
+    }, 6000);
+  }
+
+  private async runArmedAction(a: typeof this.armedAction): Promise<void> {
+    clearTimeout(this.armedTimeout);
+    this.armedAction = '';
+    switch (a) {
+      case 'reset-settings': await this.resetSettings();        break;
+      case 'orphan-notes':   await this.cleanOrphanNotes();     break;
+      case 'orphan-docs':    await this.cleanOrphanDocuments(); break;
+      case 'wipe-docs':      await this.wipeDocuments();        break;
+      case 'wipe-all':       await this.wipeEverything();       break;
+    }
+  }
+
+  /** Format e.g. 1241060536 → "1.16 GB". */
+  formatBytes(b?: number): string {
+    if (b === undefined || b === null) return '—';
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+    return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  }
+
+  get storagePct(): number {
+    const { storageUsedBytes, storageQuotaBytes } = this.workspaceStats;
+    if (!storageUsedBytes || !storageQuotaBytes) return 0;
+    return Math.min(100, Math.round((storageUsedBytes / storageQuotaBytes) * 100));
+  }
+
+  /** Wipe `monodi_settings` but leave sources / documents / notes alone. */
+  async resetSettings(): Promise<void> {
+    this.busyAction = 'reset-settings';
+    try {
+      await localforage.removeItem('monodi_settings');
+      this.toastr.success('Settings reset. Reload the page to pick up defaults.', 'Settings cleared');
+      await this.refreshWorkspaceStats();
+    } catch (e) {
+      this.toastr.error(`Reset failed: ${(e as Error)?.message ?? e}`);
+    } finally {
+      this.busyAction = '';
+    }
+  }
+
+  /** Removes the per-source / per-document column visibility prefs
+   *  (those live in localStorage, not IndexedDB). */
+  resetUiPreferences(): void {
+    this.busyAction = 'reset-cols';
+    try {
+      // Known UI-pref keys used elsewhere in the app
+      localStorage.removeItem('monodi_source_cols');
+      localStorage.removeItem('monodi_doc_cols');
+      localStorage.removeItem('monodi_comment_help_dismissed');
+      this.toastr.success('Column visibility & UI hints reset.', 'UI preferences cleared');
+    } finally {
+      this.busyAction = '';
+    }
+  }
+
+  /** Deletes notes rows whose document no longer exists. */
+  async cleanOrphanNotes(): Promise<void> {
+    this.busyAction = 'orphan-notes';
+    try {
+      const documents = (await localforage.getItem<any[]>('monodi_documents')) || [];
+      const docIds = new Set(documents.map(d => d.id));
+      const noteIds = await NotesStore.getIndex();
+      const orphans = noteIds.filter(id => !docIds.has(id));
+      if (orphans.length === 0) {
+        this.toastr.info('No orphan notes found.', 'Already clean');
+      } else {
+        await NotesStore.removeMany(orphans);
+        this.toastr.success(`Removed ${orphans.length} orphan note row${orphans.length === 1 ? '' : 's'}.`);
+      }
+      await this.refreshWorkspaceStats();
+    } catch (e) {
+      this.toastr.error(`Cleanup failed: ${(e as Error)?.message ?? e}`);
+    } finally {
+      this.busyAction = '';
+    }
+  }
+
+  /** Deletes documents whose source no longer exists, and their notes. */
+  async cleanOrphanDocuments(): Promise<void> {
+    this.busyAction = 'orphan-docs';
+    try {
+      const sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+      const documents = (await localforage.getItem<any[]>('monodi_documents')) || [];
+      const sourceIds = new Set(sources.map(s => s.id));
+      const orphans = documents.filter(d => !sourceIds.has(d.quelle_id));
+      if (orphans.length === 0) {
+        this.toastr.info('No orphan documents found.', 'Already clean');
+      } else {
+        const keep = documents.filter(d => sourceIds.has(d.quelle_id));
+        await localforage.setItem('monodi_documents', keep);
+        this.api.invalidateCache();
+        await NotesStore.removeMany(orphans.map(d => d.id));
+        this.toastr.success(`Removed ${orphans.length} orphan document${orphans.length === 1 ? '' : 's'} and their notes.`);
+      }
+      await this.refreshWorkspaceStats();
+    } catch (e) {
+      this.toastr.error(`Cleanup failed: ${(e as Error)?.message ?? e}`);
+    } finally {
+      this.busyAction = '';
+    }
+  }
+
+  /** Deletes ALL documents + ALL notes, keeps sources + settings. */
+  async wipeDocuments(): Promise<void> {
+    this.busyAction = 'wipe-docs';
+    try {
+      const noteIds = await NotesStore.getIndex();
+      await localforage.setItem('monodi_documents', []);
+      this.api.invalidateCache();
+      await NotesStore.removeMany(noteIds);
+      localStorage.removeItem('monodi_cached_pattern_stats');
+      localStorage.removeItem('monodi_pattern_params');
+      await localforage.removeItem('monodi_cached_pattern_stats'); // IndexedDB copy
+      this.toastr.success('All documents and notes deleted. Sources kept.', 'Documents wiped');
+      await this.refreshWorkspaceStats();
+    } catch (e) {
+      this.toastr.error(`Wipe failed: ${(e as Error)?.message ?? e}`);
+    } finally {
+      this.busyAction = '';
+    }
+  }
+
+  /** Nuclear option — delete sources, documents, notes, settings, and UI prefs. */
+  async wipeEverything(): Promise<void> {
+    this.busyAction = 'wipe-all';
+    try {
+      const noteIds = await NotesStore.getIndex();
+      await NotesStore.removeMany(noteIds);
+      await localforage.removeItem('monodi_notes_index');
+      await localforage.removeItem('monodi_notes_migrated_v1');
+      await localforage.removeItem('monodi_notes');           // legacy blob if any
+      await localforage.setItem('monodi_sources', []);
+      await localforage.setItem('monodi_documents', []);
+      this.api.invalidateCache();
+      await localforage.removeItem('monodi_settings');
+      localStorage.removeItem('monodi_source_cols');
+      localStorage.removeItem('monodi_doc_cols');
+      localStorage.removeItem('monodi_comment_help_dismissed');
+      localStorage.removeItem('monodi_cached_workspace_stats');
+      localStorage.removeItem('monodi_cached_pattern_stats');
+      localStorage.removeItem('monodi_pattern_params');
+      await localforage.removeItem('monodi_cached_pattern_stats'); // IndexedDB copy
+      this.statsComputed = false;
+      this.lastComputedTime = null;
+      this.toastr.success('Workspace cleared. Reload the page for a clean slate.', 'Everything wiped');
+      await this.refreshWorkspaceStats();
+    } catch (e) {
+      this.toastr.error(`Wipe failed: ${(e as Error)?.message ?? e}`);
+    } finally {
+      this.busyAction = '';
+    }
+  }
+
+  /** Used to reload the page after a wipe so cached in-memory state is
+   *  reset everywhere. */
+  reloadPage(): void {
+    window.location.reload();
   }
 }

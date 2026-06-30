@@ -1,0 +1,24 @@
+<div class="manual-layout">
+  <div class="manual-container">
+    <aside class="manual-sidebar">
+      <div class="sidebar-header pb-3 mb-3 border-bottom px-4">
+        <h5 class="fw-bold text-dark mb-0">Monodi-Zero</h5>
+        <span class="text-muted small">User Manual</span>
+      </div>
+      <ul class="sidebar-links">
+        <li><a routerLink="overview" routerLinkActive="active">Overview</a></li>
+        <li><a routerLink="transcription" routerLinkActive="active">Transcription Editor</a></li>
+        <li><a routerLink="search" routerLinkActive="active">Search</a></li>
+        <li><a routerLink="iiif" routerLinkActive="active">IIIF Integration</a></li>
+        <li><a routerLink="metadata" routerLinkActive="active">Metadata & Export</a></li>
+        <li><a routerLink="comments" routerLinkActive="active">Critical Apparatus</a></li>
+        <li><a routerLink="settings" routerLinkActive="active">Settings &amp; Tuning</a></li>
+        <li><a routerLink="use-cases" routerLinkActive="active">Use Cases</a></li>
+      </ul>
+    </aside>
+
+    <main class="manual-content">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>

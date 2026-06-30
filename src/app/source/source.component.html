@@ -214,39 +214,16 @@
             </ng-container>
           </div>
         </div>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0" style="font-size: 0.9rem;">
-            <thead class="table-light">
-              <tr>
-                <th *ngFor="let col of visibleDocCols; let first = first" [class.ps-3]="first">{{ col.label }}</th>
-                <th class="pe-3 text-end">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngIf="documents.length === 0">
-                <td [attr.colspan]="visibleDocCols.length + 1" class="text-center py-4 text-muted">No documents yet.</td>
-              </tr>
-              <tr *ngFor="let d of documents">
-                <td *ngFor="let col of visibleDocCols; let first = first"
-                    [class.ps-3]="first" [class.fw-medium]="first" [class.text-dark]="first">
-                  <span *ngIf="col.key === 'gattung1' || col.key === 'gattung2'"
-                        class="badge bg-light text-dark border">{{ $any(d)[col.key] }}</span>
-                  <span *ngIf="col.key !== 'gattung1' && col.key !== 'gattung2'">{{ $any(d)[col.key] }}</span>
-                </td>
-                <td class="pe-3 text-end">
-                  <div class="d-flex justify-content-end gap-2 align-items-center">
-                    <a class="doc-open-link" [routerLink]="['/document', d.quelle_id, d.id]">
-                      Open <i class="bi bi-arrow-right-short"></i>
-                    </a>
-                    <button class="btn btn-sm btn-outline-danger border-0" (click)="deleteDocument(d)" title="Delete">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <app-smart-table
+          [objects]="documents"
+          [headers]="docHeaders"
+          [canDelete]="true"
+          [filterable]="true"
+          [paginated]="true"
+          [pageSize]="10"
+          (onRowClick)="goToDocument($event)"
+          (onDelete)="deleteDocument($event)">
+        </app-smart-table>
       </div>
 
       <!-- ── Notation Documentation tab ── -->

@@ -1,0 +1,75 @@
+<h1 id="settings-customization">Settings &amp; Customization</h1>
+<p class="lead">Monodi-Zero is highly customizable, allowing researchers to adapt it to their projects' specific metadata schemes, liturgy structures, print layouts, and XML schemas.</p>
+
+<h2 id="settings-tabs">Configuration Tabs</h2>
+<p>Click on <strong>Settings</strong> in the main navigation bar to configure the following areas:</p>
+
+<h3 id="metadata-schemas">1. Metadata Schemas</h3>
+<p>Each musicological project has different indexing requirements. Monodi-Zero lets you customize the database fields:</p>
+<ul>
+  <li><strong>Predefined Values</strong>: Add dropdown options for standard fields (like Origin, Order, Feast Day, or Genre) to ensure consistent spelling and cataloging among different transcribers.</li>
+  <li><strong>Custom Fields</strong>: Need to store something else (like <i>Composer</i>, <i>Scribe</i>, or a <i>Cantus ID</i>)? Click <strong>New Custom Field</strong>, choose whether it applies to the parent Source or individual child Documents, and name it. It will instantly appear in the metadata panel.</li>
+</ul>
+
+<h3 id="github-sync">2. GitHub Synchronization</h3>
+<p>Configure the credentials to back up and share your transcriptions:</p>
+<ul>
+  <li><strong>Connection parameters</strong>: Supply your GitHub username, repository name, branch (e.g. <code>main</code>), and a Personal Access Token (PAT).</li>
+  <li>Ensure your PAT is generated with <code>repo</code> access.</li>
+</ul>
+
+<h3 id="pdf-layout-tuning">3. PDF Export &amp; layout</h3>
+<p>Tune visual details before exporting to PDF. Adjustments are instantly applied to the print rendering engine:</p>
+<ul>
+  <li><strong>Scaling &amp; Margins</strong>: Set the global page scale, apparatus staff sizes, and page margins in points (pt).</li>
+  <li><strong>Staff &amp; Spacing Indents</strong>: Set the indent on the left of staves to leave space for manuscript sigla. Adjust vertical spacing between staves and lyrics offsets.</li>
+  <li><strong>Lemma Brackets</strong>: Fine-tune the thickness, height, and offsets of brackets that group critical apparatus segments.</li>
+  <li><strong>Typography</strong>: Choose between Serif (Times) and Sans-Serif (Helvetica) fonts, and adjust font sizes for titles, metadata, running headers, and apparatus comments.</li>
+</ul>
+
+<h3 id="container-names">4. Dynamic Container Names</h3>
+<p>Chants have different poetic and structural levels (e.g., Strophes, Verses, or Sections). To keep your transcription editor aligned with these structural divisions, you can map <strong>liturgical Genre combinations</strong> (Genre 1 &amp; Genre 2) to custom level labels:</p>
+<ul>
+  <li>For an <i>Antiphon</i>, you might set the levels to: <code>Level 1 = Antiphon</code>, <code>Level 2 = Verse</code>, <code>Level 3 = Syllable</code>.</li>
+  <li>For a <i>Sequence</i>, you might set: <code>Level 1 = Double Strophe</code>, <code>Level 2 = Versicle</code>, <code>Level 3 = Segment</code>.</li>
+  <li>The editor will automatically update its structural labels to match your profile mappings.</li>
+</ul>
+
+<h3 id="mei-tag-mappings">5. MEI XML Export Profiles</h3>
+<p>If you need to load your Monodi-Zero transcriptions into external rendering suites (such as Verovio or MEI databases), you can customize the generated XML tag names:</p>
+<ul>
+  <li>Remap structural tags (e.g., set which XML tag is generated for a <code>ZeileContainer</code> or <code>ParatextContainer</code>).</li>
+  <li>Rename neume tags or note attributes (e.g., custom attributes for liquescents or gaps).</li>
+</ul>
+
+<hr class="my-4">
+
+<h2 id="undo-redo-system">Undo &amp; Redo System</h2>
+<p>To protect your transcription data, Monodi-Zero tracks every edit, insertion, and structural split in an in-memory **Undo/Redo Stack**:</p>
+<ul>
+  <li><strong>History Size</strong>: Configure how many steps are kept in history (default is <code>15</code>) under <i>Editor settings</i>.</li>
+  <li><strong>Scope</strong>: History covers pitch changes, note insertions, line splits, clef adjustments, syllable spelling edits, and comment updates.</li>
+  <li><strong>Keyboard Shortcuts</strong>:
+    <table class="shortcut-table">
+      <thead>
+        <tr>
+          <th>Action</th>
+          <th>Windows/Linux</th>
+          <th>macOS</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Undo</strong></td>
+          <td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td>
+          <td><kbd>Cmd</kbd> + <kbd>Z</kbd></td>
+        </tr>
+        <tr>
+          <td><strong>Redo</strong></td>
+          <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td>
+          <td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td>
+        </tr>
+      </tbody>
+    </table>
+  </li>
+</ul>

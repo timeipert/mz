@@ -25,6 +25,7 @@ svg .note {
 }
 
 .read-only {
+    pointer-events: none;
     .noteText { display: none !important; }
     .syllableText { border: none !important; }
     svg { height: 90px; }

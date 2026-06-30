@@ -21,12 +21,7 @@ export class NavigationService {
     }, 500); // Give it time to load the route and worker
   }
 
-  openEditorForPattern(documentId: string, uuid?: string) {
-    this.router.navigate(['/document', documentId]);
-    if (uuid) {
-      setTimeout(() => {
-        this.focusPatternSource.next({ documentId, uuid });
-      }, 500);
-    }
+  openEditorForPattern(sourceId: string, documentId: string, uuid?: string) {
+    this.router.navigate(['/document', sourceId, documentId], { queryParams: { focus: uuid } });
   }
 }

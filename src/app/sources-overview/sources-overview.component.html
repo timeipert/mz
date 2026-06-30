@@ -3,13 +3,18 @@
     <div class="d-flex align-items-center">
       <h2 class="page-title">Sources</h2>
     </div>
-    <div class="d-flex gap-2">
-      <button class="btn btn-sm btn-secondary" title="Export Workspace" (click)="exportWorkspace()"><i class="bi bi-download me-1"></i>WS</button>
+    <div class="d-flex gap-2 align-items-center">
+      <!-- Workspace-level actions (import / export / HTML edition) moved to
+           Settings → Workspace tab. The file inputs and dialog state still
+           live on this page; they're triggered via `?ws=<action>` query
+           params when the user clicks a card in Settings. -->
       <input type="file" id="importFile" (change)="importWorkspace($event)" style="display: none" accept=".monodijson" />
-      <button class="btn btn-sm btn-secondary" title="Import Workspace" (click)="triggerImport()"><i class="bi bi-upload me-1"></i>WS</button>
-      <input type="file" id="importOmmrFile" (change)="importOmmrZip($event)" style="display: none" accept=".zip" />
-      <button class="btn btn-sm btn-info text-white" title="Import OMMR ZIP" (click)="triggerOmmrImport()"><i class="bi bi-file-zip me-1"></i>OMMR</button>
-      <button class="btn btn-sm btn-warning" [title]="isOnline ? 'Export HTML Edition' : 'HTML Export is not available offline'" [disabled]="!isOnline" (click)="openHtmlExportDialog()"><i class="bi bi-globe me-1"></i>HTML <i *ngIf="!isOnline" class="bi bi-exclamation-circle ms-1"></i></button>
+      <input type="file" id="importOmmrFile" (change)="importZip($event)" style="display: none" accept=".zip" />
+      <a [routerLink]="['/settings']" [queryParams]="{ tab: 'workspace' }"
+         class="btn btn-sm btn-outline-secondary"
+         title="Import, export, storage usage & cleanup in Settings → Workspace">
+        <i class="bi bi-gear me-1"></i>Workspace
+      </a>
       <button class="btn btn-sm btn-primary" title="Add New Source" [routerLink]="['/source']"><i class="bi bi-plus-lg me-1"></i>New</button>
     </div>
   </div>
@@ -64,99 +69,134 @@
   </div>
 </div>
 
-<!-- HTML Export Dialog -->
-<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showHtmlExportDialog">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content shadow-lg">
-      <div class="modal-header bg-light border-0">
-        <h5 class="modal-title fw-bold">
-          <i class="bi bi-globe me-2"></i>Export Static HTML Edition
-        </h5>
-        <button type="button" class="btn-close" (click)="closeHtmlExportDialog()" [disabled]="isGeneratingHtml"></button>
-      </div>
-      <div class="modal-body bg-light p-4">
-        <div *ngIf="!isGeneratingHtml" class="d-flex justify-content-between align-items-center mb-3">
-          <p class="mb-0 text-muted">Select sources/documents to include.</p>
-          <div class="d-flex gap-2 align-items-center">
-            <input type="text" class="form-control form-control-sm" placeholder="Search metadata..." [(ngModel)]="exportFilterText" (input)="applyExportFilter()">
-            
-            <div ngbDropdown class="d-inline-block">
-              <button class="btn btn-sm btn-outline-secondary text-nowrap" id="dropdownColumns" ngbDropdownToggle>
-                <i class="bi bi-layout-three-columns"></i> Columns
-              </button>
-              <div ngbDropdownMenu aria-labelledby="dropdownColumns" class="p-2 shadow">
-                <div class="form-check" *ngFor="let col of exportDocCols">
-                  <input class="form-check-input" type="checkbox" [id]="'ex-col-' + col.key" [(ngModel)]="col.visible">
-                  <label class="form-check-label" [for]="'ex-col-' + col.key">{{ col.label }}</label>
-                </div>
-              </div>
-            </div>
+<!-- ZIP Import Progress Modal -->
+<div class="modal fade show d-block" tabindex="-1"
+     style="background: rgba(0,0,0,0.55); backdrop-filter: blur(2px);"
+     *ngIf="importProgress.active">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+    <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
 
-            <button class="btn btn-sm btn-outline-primary text-nowrap" (click)="selectAllExport()">Select All</button>
-            <button class="btn btn-sm btn-outline-secondary text-nowrap" (click)="selectNoneExport()">Select None</button>
+      <div class="modal-header border-0 pb-2"
+           [style.background]="importProgress.phase === 'done' ? '#e6f4ea' : '#eef3ff'">
+        <h5 class="modal-title fw-bold mb-0 d-flex align-items-center gap-2">
+          <i class="bi"
+             [ngClass]="{
+               'bi-file-zip text-primary': importProgress.phase !== 'done',
+               'bi-check-circle-fill text-success': importProgress.phase === 'done'
+             }"></i>
+          <span>{{ importPhaseLabel }}</span>
+          <span *ngIf="importProgress.phase === 'done'" class="text-muted small fw-normal ms-2">
+            in {{ (importProgress.elapsedMs / 1000).toFixed(1) }} s
+          </span>
+        </h5>
+      </div>
+
+      <div class="modal-body pt-2">
+        <!-- Phase + counts -->
+        <p class="mb-2 text-muted small" style="min-height: 1.3em;">
+          {{ importProgress.message }}
+        </p>
+
+        <!-- Progress bar -->
+        <div class="progress mb-2" style="height: 10px; border-radius: 9999px; background: #e5e7eb;"
+             *ngIf="importProgress.phase !== 'done'">
+          <div class="progress-bar progress-bar-striped progress-bar-animated"
+               role="progressbar"
+               [style.width.%]="importProgressPct"
+               [style.background]="importProgress.phase === 'sources' ? '#16a34a'
+                                  : importProgress.phase === 'documents' ? '#2563eb'
+                                  : importProgress.phase === 'saving' ? '#9333ea'
+                                  : '#0ea5e9'">
           </div>
         </div>
-        
-        <div *ngIf="isGeneratingHtml" class="text-center py-5">
-          <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
-          <h5 class="text-primary">Generating HTML Edition...</h5>
-          <p class="text-muted">{{exportStatusMessage}}</p>
+        <div class="progress mb-2" *ngIf="importProgress.phase === 'done'"
+             style="height: 10px; border-radius: 9999px;">
+          <div class="progress-bar bg-success" style="width: 100%;"></div>
         </div>
 
-        <div *ngIf="!isGeneratingHtml">
-          <ng-container *ngFor="let sourceNode of exportSelection">
-          <div class="card shadow-sm border-0 mb-3" *ngIf="sourceNode.visible">
-            <div class="card-header bg-white border-bottom-0 pt-3 pb-2 d-flex align-items-center justify-content-between">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" [id]="'src-' + sourceNode.source.id" [(ngModel)]="sourceNode.selected" (change)="toggleSourceSelection(sourceNode)">
-                <label class="form-check-label fw-bold text-primary cursor-pointer" [for]="'src-' + sourceNode.source.id">
-                  {{ sourceNode.source.quellensigle || sourceNode.source.id }}
-                </label>
-              </div>
-              <button class="btn btn-sm btn-outline-secondary" (click)="sourceNode.expanded = !sourceNode.expanded">
-                <i class="bi" [ngClass]="sourceNode.expanded ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
-                {{ sourceNode.documents.length }} docs
-              </button>
-            </div>
-            <div class="card-body p-0" *ngIf="sourceNode.expanded">
-              <div class="table-responsive">
-                <table class="table table-sm table-hover mb-0" style="font-size: 0.9rem;">
-                  <thead class="table-light">
-                    <tr>
-                      <th style="width: 40px;" class="text-center">✓</th>
-                      <ng-container *ngFor="let col of exportDocCols">
-                        <th *ngIf="col.visible">{{ col.label }}</th>
-                      </ng-container>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <ng-container *ngFor="let docNode of sourceNode.documents">
-                    <tr *ngIf="docNode.visible">
-                      <td class="text-center align-middle">
-                        <input class="form-check-input mt-0" type="checkbox" [id]="'doc-' + docNode.document.id" [(ngModel)]="docNode.selected" (change)="checkSourceSelection(sourceNode)">
-                      </td>
-                      <ng-container *ngFor="let col of exportDocCols">
-                        <td *ngIf="col.visible" class="align-middle">
-                          <label class="d-block w-100 cursor-pointer m-0" [for]="'doc-' + docNode.document.id">
-                            {{ docNode.document[col.key] || '-' }}
-                          </label>
-                        </td>
-                      </ng-container>
-                    </tr>
-                    </ng-container>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+        <!-- Counter line (current / total) -->
+        <div class="d-flex justify-content-between small text-muted mb-3"
+             *ngIf="importProgress.total > 0 && importProgress.phase !== 'done'">
+          <span>{{ importProgress.current }} / {{ importProgress.total }}</span>
+          <span>{{ importProgressPct }}%</span>
         </div>
-        </ng-container>
+
+        <!-- Per-phase detail line -->
+        <p class="small text-muted mb-3" *ngIf="importProgress.details" style="min-height: 1.2em;">
+          <i class="bi bi-chevron-right me-1"></i>{{ importProgress.details }}
+        </p>
+
+        <!-- Running summary chips -->
+        <div class="d-flex flex-wrap gap-2 mb-1">
+          <span class="badge bg-light text-dark border" *ngIf="importProgress.counts.newSources">
+            <i class="bi bi-plus-lg text-success me-1"></i>{{ importProgress.counts.newSources }} new source{{ importProgress.counts.newSources === 1 ? '' : 's' }}
+          </span>
+          <span class="badge bg-light text-dark border" *ngIf="importProgress.counts.updatedSources">
+            <i class="bi bi-arrow-clockwise text-primary me-1"></i>{{ importProgress.counts.updatedSources }} source{{ importProgress.counts.updatedSources === 1 ? '' : 's' }} updated
+          </span>
+          <span class="badge bg-light text-dark border" *ngIf="importProgress.counts.newDocs">
+            <i class="bi bi-plus-lg text-success me-1"></i>{{ importProgress.counts.newDocs }} new document{{ importProgress.counts.newDocs === 1 ? '' : 's' }}
+          </span>
+          <span class="badge bg-light text-dark border" *ngIf="importProgress.counts.updatedDocs">
+            <i class="bi bi-arrow-clockwise text-primary me-1"></i>{{ importProgress.counts.updatedDocs }} document{{ importProgress.counts.updatedDocs === 1 ? '' : 's' }} updated
+          </span>
+          <span class="badge bg-light border text-warning" *ngIf="importProgress.counts.missingData">
+            <i class="bi bi-exclamation-triangle me-1"></i>{{ importProgress.counts.missingData }} skipped
+          </span>
         </div>
       </div>
-      <div class="modal-footer border-0 bg-white d-flex justify-content-between">
-        <button type="button" class="btn btn-secondary px-4 fw-medium" (click)="closeHtmlExportDialog()" [disabled]="isGeneratingHtml">Cancel</button>
-        <button type="button" class="btn btn-primary px-4 fw-medium" (click)="generateHtmlEdition()" [disabled]="isGeneratingHtml">
-          <span class="spinner-border spinner-border-sm me-2" *ngIf="isGeneratingHtml"></span>
-          Generate & Download ZIP <i class="bi bi-file-zip ms-1" *ngIf="!isGeneratingHtml"></i>
+
+      <div class="modal-footer border-0 pt-2 d-flex justify-content-end">
+        <button type="button" class="btn btn-sm btn-outline-secondary"
+                *ngIf="importProgress.phase !== 'done'"
+                (click)="cancelImport()">
+          <i class="bi bi-x-lg me-1"></i>Cancel
+        </button>
+        <button type="button" class="btn btn-sm btn-success"
+                *ngIf="importProgress.phase === 'done'"
+                (click)="finishImport(true)">
+          <i class="bi bi-check-lg me-1"></i>Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Unified Export Dialog -->
+<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showExportDialog">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content shadow-lg">
+      <div class="modal-header bg-light border-0 px-4 pt-4 pb-2">
+        <h5 class="modal-title fw-bold text-dark">
+          <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip text-info' : 'bi-globe text-warning'"></i>
+          {{ exportMode === 'zip' ? 'Export ZIP for monodi+ / OMMR' : 'Export Static HTML Edition' }}
+        </h5>
+        <button type="button" class="btn-close" (click)="closeExportDialog()" [disabled]="isExporting"></button>
+      </div>
+      
+      <div class="modal-body bg-light px-4 py-3" style="min-height: 300px;">
+        <!-- Selector -->
+        <app-subcorpora-selector 
+          *ngIf="!isExporting"
+          [sources]="sources" 
+          [documents]="allDocuments"
+          (selectionChange)="onExportSelectionChange($event)">
+        </app-subcorpora-selector>
+        
+        <!-- Loading Spinner -->
+        <div *ngIf="isExporting" class="text-center py-5">
+          <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+          <h5 class="text-primary fw-bold">{{ exportMode === 'zip' ? 'Generating ZIP Archive...' : 'Generating HTML Edition...' }}</h5>
+          <p class="text-muted small">{{ exportStatusMessage }}</p>
+        </div>
+      </div>
+      
+      <div class="modal-footer border-top bg-white px-4 py-3 d-flex justify-content-between">
+        <button type="button" class="btn btn-secondary px-4 fw-medium" (click)="closeExportDialog()" [disabled]="isExporting">Cancel</button>
+        <button type="button" class="btn btn-primary px-4 fw-medium" (click)="runExport()" [disabled]="isExporting || !hasSelectedItems">
+          <span class="spinner-border spinner-border-sm me-2" *ngIf="isExporting"></span>
+          {{ exportMode === 'zip' ? 'Generate & Download ZIP' : 'Generate & Download HTML' }}
+          <i class="bi" [ngClass]="exportMode === 'zip' ? 'bi-file-earmark-zip ms-1' : 'bi-globe ms-1'" *ngIf="!isExporting"></i>
         </button>
       </div>
     </div>

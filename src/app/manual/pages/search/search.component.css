@@ -1,0 +1,49 @@
+/* Specific highlighting inside the demo component via ::ng-deep */
+
+::ng-deep .demo-wrapper {
+  transition: all 0.3s ease;
+}
+
+/* 1. Text Search (Quick Search Tab) */
+/* Fallback: Highlight Quick Search Tab if not active */
+::ng-deep .highlight-text-search .nav-pills-container button:nth-child(1):not(.active-pill) {
+  box-shadow: 0 0 0 4px rgba(62, 175, 124, 0.5) !important;
+  background-color: rgba(62, 175, 124, 0.1) !important;
+}
+/* Actual element: The quick search input */
+::ng-deep .highlight-text-search .input-group-lg input {
+  box-shadow: 0 0 0 4px rgba(62, 175, 124, 0.5) !important;
+  border-color: #3eaf7c !important;
+}
+
+/* 2. Pitch Mode & Interval Mode (Melody Tab) */
+/* Fallback: Highlight Melody Tab if not active */
+::ng-deep .highlight-pitch-mode .nav-pills-container button:nth-child(4):not(.active-pill),
+::ng-deep .highlight-interval-mode .nav-pills-container button:nth-child(4):not(.active-pill) {
+  box-shadow: 0 0 0 4px rgba(62, 175, 124, 0.5) !important;
+  background-color: rgba(62, 175, 124, 0.1) !important;
+}
+
+/* Actual elements */
+/* Pitch Mode is the 1st button in the melody tab btn-group */
+::ng-deep .highlight-pitch-mode .btn-tab-option:nth-child(1) {
+  box-shadow: 0 0 0 4px rgba(62, 175, 124, 0.5) !important;
+  background-color: rgba(62, 175, 124, 0.1) !important;
+}
+/* Interval Mode is the 3rd button */
+::ng-deep .highlight-interval-mode .btn-tab-option:nth-child(3) {
+  box-shadow: 0 0 0 4px rgba(62, 175, 124, 0.5) !important;
+  background-color: rgba(62, 175, 124, 0.1) !important;
+}
+
+/* 3. Fuzzy Mode (Quick Search Tab) */
+/* Fallback: Highlight Quick Search Tab if not active */
+::ng-deep .highlight-fuzzy-mode .nav-pills-container button:nth-child(1):not(.active-pill) {
+  box-shadow: 0 0 0 4px rgba(62, 175, 124, 0.5) !important;
+  background-color: rgba(62, 175, 124, 0.1) !important;
+}
+/* Actual element: Fuzzy match button in quick search */
+::ng-deep .highlight-fuzzy-mode .btn-group-sm button:nth-child(4) {
+  box-shadow: 0 0 0 4px rgba(62, 175, 124, 0.5) !important;
+  background-color: rgba(62, 175, 124, 0.1) !important;
+}

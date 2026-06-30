@@ -71,40 +71,29 @@ export class DragMapComponent implements OnDestroy {
     const dz = this.dragState.draggingZipper;
     if (!this.dragState.rootData || !dz) return [];
     
-    const targetDepth = dz.length - 1;
     const items: TreeItem[] = [];
 
     const traverse = (node: any, currentZipper: number[], currentDepth: number) => {
-      // If we are at the target depth, it's a valid drop target (sibling level)
-      if (currentDepth === targetDepth) {
+      // Don't show the dragged item or its descendants in the tree map
+      if (this.dragState.zippersEqual(currentZipper, dz)) {
+        return;
+      }
+
+      if (currentZipper.length > 0) {
         items.push({
           zipper: currentZipper,
           label: this.getLabel(node),
           kind: node.kind,
           depth: currentDepth,
-          isAncestor: false
+          isAncestor: node.kind === 'FormteilContainer' || node.kind === 'MiscContainer'
         });
-        return;
       }
 
-      // If we are above the target depth, it's an ancestor container
-      if (currentDepth < targetDepth) {
-        if (currentZipper.length > 0) {
-          items.push({
-            zipper: currentZipper,
-            label: this.getLabel(node),
-            kind: node.kind,
-            depth: currentDepth,
-            isAncestor: true
-          });
-        }
-
-        // Recurse into children
-        if (node.children && node.children.length > 0) {
-          node.children.forEach((child: any, i: number) => {
-            traverse(child, [...currentZipper, i], currentDepth + 1);
-          });
-        }
+      // Recurse into children
+      if (node.children && node.children.length > 0) {
+        node.children.forEach((child: any, i: number) => {
+          traverse(child, [...currentZipper, i], currentDepth + 1);
+        });
       }
     };
 
@@ -143,8 +132,11 @@ export class DragMapComponent implements OnDestroy {
     const dz = this.dragState.draggingZipper;
     if (!hz || !dz) { this.insertAfterIndex = -1; return; }
 
-    // Ancestors get a "move into" visual — no insertion line
-    if (hz.length < dz.length) { this.insertAfterIndex = -1; return; }
+    const targetItem = this.treeItems.find(item => this.dragState.zippersEqual(item.zipper, hz));
+    if (targetItem && targetItem.isAncestor) {
+      this.insertAfterIndex = -1;
+      return;
+    }
 
     this.insertAfterDepth = hz.length - 1;
     for (let i = 0; i < this.treeItems.length; i++) {
@@ -209,6 +201,6 @@ export class DragMapComponent implements OnDestroy {
   }
 
   isValidSibling(item: TreeItem): boolean {
-    return !item.isAncestor && this.dragState.isValidTarget(item.zipper);
+    return this.dragState.isValidTarget(item.zipper);
   }
 }

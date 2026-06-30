@@ -1,0 +1,267 @@
+.manual-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 65px); /* Subtract main navbar height approx */
+  background-color: #f8fafc;
+}
+
+.manual-container {
+  display: flex;
+  flex: 1;
+}
+
+.manual-sidebar {
+  width: 20rem;
+  border-right: 1px solid var(--border-color);
+  background-color: #ffffff;
+  padding: 2rem 0;
+  position: sticky;
+  top: 65px; /* Stick right under the main app navbar */
+  height: calc(100vh - 65px);
+  overflow-y: auto;
+  box-shadow: 2px 0 8px rgba(15, 23, 42, 0.02);
+}
+
+.sidebar-header {
+  padding: 0 2rem;
+}
+
+.sidebar-links {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sidebar-links li a {
+  display: block;
+  padding: 0.75rem 2rem;
+  color: var(--secondary-color);
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border-left: 0.25rem solid transparent;
+  transition: all 0.2s ease;
+}
+
+.sidebar-links li a:hover {
+  color: var(--accent-color);
+  background-color: rgba(37, 99, 235, 0.02);
+}
+
+.sidebar-links li a.active {
+  color: var(--accent-color);
+  font-weight: 600;
+  border-left-color: var(--accent-color);
+  background-color: rgba(37, 99, 235, 0.06);
+}
+
+.manual-content {
+  flex: 1;
+  padding: 3rem 4rem;
+  max-width: 950px;
+  color: var(--secondary-color);
+  line-height: 1.75;
+  background-color: #ffffff;
+  border-radius: 12px;
+  margin: 1.5rem;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.04);
+}
+
+::ng-deep .manual-content h1 {
+  font-weight: 700;
+  font-size: 2.25rem;
+  color: var(--primary-color);
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.75rem;
+  letter-spacing: -0.5px;
+}
+
+::ng-deep .manual-content h2 {
+  font-weight: 600;
+  font-size: 1.5rem;
+  color: var(--primary-color);
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+::ng-deep .manual-content h3 {
+  font-weight: 600;
+  font-size: 1.2rem;
+  color: var(--primary-color);
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+::ng-deep .manual-content p {
+  margin-bottom: 1.25rem;
+}
+
+::ng-deep .manual-content a {
+  color: var(--accent-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+::ng-deep .manual-content a:hover {
+  text-decoration: underline;
+}
+
+::ng-deep .manual-content code {
+  background-color: rgba(37, 99, 235, 0.05);
+  color: var(--accent-color);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
+  font-size: 85%;
+}
+
+::ng-deep .manual-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+::ng-deep .manual-content .lead {
+  font-size: 1.15rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+/* Shared Highlight trigger style */
+::ng-deep .manual-content .manual-highlight-trigger {
+  cursor: help;
+  border-bottom: 2px dotted var(--accent-color);
+  color: var(--accent-color);
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+::ng-deep .manual-content .manual-highlight-trigger:hover {
+  background-color: rgba(37, 99, 235, 0.08);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin: 0 -4px;
+}
+
+/* Floating Popup for Interactive Previews */
+::ng-deep .manual-page-split {
+  display: block;
+  position: relative;
+}
+
+::ng-deep .manual-page-text {
+  max-width: 700px;
+}
+
+::ng-deep .manual-page-preview {
+  position: fixed;
+  top: 95px;
+  right: 3rem;
+  width: 480px;
+  z-index: 1050;
+  pointer-events: auto;
+  transition: box-shadow 0.2s ease;
+}
+
+/* 3D lift effect when dragging */
+::ng-deep .manual-page-preview.cdk-drag-dragging {
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05) !important;
+  z-index: 1060;
+}
+
+::ng-deep .sticky-preview-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.02);
+  padding: 1.5rem;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Drag handle styling at the top of the preview panel */
+::ng-deep .preview-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+  background-color: rgba(15, 23, 42, 0.03);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  cursor: grab;
+  user-select: none;
+  color: var(--secondary-color);
+}
+
+::ng-deep .preview-drag-handle:active {
+  cursor: grabbing;
+}
+
+::ng-deep .drag-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+}
+
+::ng-deep .drag-title i {
+  font-size: 1.1rem;
+}
+
+::ng-deep .bg-success-soft {
+  background-color: rgba(37, 99, 235, 0.1);
+  color: var(--accent-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+}
+
+/* Beautiful Keyboard Shortcut Table */
+::ng-deep .shortcut-table {
+  width: 100%;
+  margin: 1.5rem 0;
+  border-collapse: collapse;
+}
+
+::ng-deep .shortcut-table th, 
+::ng-deep .shortcut-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+}
+
+::ng-deep .shortcut-table th {
+  background-color: #f8fafc;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+::ng-deep .shortcut-table kbd {
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  box-shadow: 0 2px 0 rgba(15, 23, 42, 0.08);
+  color: var(--primary-color);
+  display: inline-block;
+  font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
+  font-size: 85%;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 0.25rem 0.5rem;
+  white-space: nowrap;
+}
+

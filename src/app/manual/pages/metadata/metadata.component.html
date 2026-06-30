@@ -1,0 +1,98 @@
+<div class="manual-page-split">
+  <div class="manual-page-text">
+    <h1 id="metadata-exporting">Metadata &amp; Exporting</h1>
+    <p class="lead">To support academic cataloging and interoperability, Monodi-Zero includes an advanced metadata indexing system and support for standard scholarly exports (MEI and PDF).</p>
+
+    <h2 id="editing-metadata">Document Metadata Fields</h2>
+    <p>The **Metadata Panel** is located in the document sidebar. Keeping this metadata accurate is essential for project-wide searching and cataloging. Hover over the fields below to see them highlighted in the mock sidebar panel on the right:</p>
+    <ul>
+      <li class="mb-2">
+        <span class="manual-highlight-trigger" appManualHighlightTrigger="doc-id">Document ID</span>: A unique identifier for the chant within your database.
+      </li>
+      <li class="mb-2">
+        <span class="manual-highlight-trigger" appManualHighlightTrigger="initium">Text Initium</span>: The incipit or first few words of the lyrical text, used for quick piece-level searches.
+      </li>
+      <li class="mb-2">
+        <span class="manual-highlight-trigger" appManualHighlightTrigger="genres">Genre 1 &amp; 2</span>: Liturgical genre categories (e.g., <code>Antiphon</code>, <code>Responsorium</code>, <code>Introitus</code>) for catalog classification.
+      </li>
+      <li class="mb-2">
+        <span class="manual-highlight-trigger" appManualHighlightTrigger="feast">Feast / Feast Day</span>: The liturgical feast to which this chant belongs (e.g., <code>In Nativitate Domini</code>).
+      </li>
+      <li class="mb-2">
+        <span class="manual-highlight-trigger" appManualHighlightTrigger="custom-fields">Custom Fields</span>: Project-specific fields defined in settings (e.g., database references like <code>Cantus ID</code> or manuscript shelfmarks).
+      </li>
+    </ul>
+
+    <h2 id="pdf-export">PDF Vector Export</h2>
+    <p>Monodi-Zero features a built-in rendering engine that translates the internal digital representation of staff lines, clefs, syllables, and neumes into publication-quality vector graphics:</p>
+    <ol>
+      <li>Click the <strong>PDF Export</strong> button in the main top-right toolbar.</li>
+      <li>A configuration modal will ask if you want to include a styled <strong>Metadata Header Table</strong> at the top of the sheet.</li>
+      <li>Clicking print will trigger your browser's native print layout. Because the music is rendered using high-fidelity SVGs, the square notation symbols will scale perfectly without any pixelation or loss of quality.</li>
+      <li>Ensure your layout is set to **Portrait**, background graphics are **enabled** in your browser print settings, and select **Save as PDF**.</li>
+    </ol>
+
+    <h2 id="mei-export">MEI (Music Encoding Initiative) Export</h2>
+    <p>The **Music Encoding Initiative (MEI)** is an open, XML-based standard for encoding musical scores, widely used in digital humanities research. When you export to MEI:</p>
+    <ul>
+      <li>Monodi-Zero translates the syllables, staff lines, clefs, and notes into structural XML elements like <code>&lt;syllable&gt;</code>, <code>&lt;neume&gt;</code>, and <code>&lt;nc&gt;</code> (neume component) wrapped inside <code>&lt;staff&gt;</code> and <code>&lt;layer&gt;</code> tags.</li>
+      <li>All metadata edited in the sidebar is automatically mapped to standard MEI header tags (<code>&lt;meiHead&gt;</code>) representing the title, genre, liturgy, and source.</li>
+      <li>The exported <code>.mei</code> XML file can be read and rendered by standard music notation tools (e.g., Verovio) or used for advanced computational corpus analysis.</li>
+    </ul>
+
+    <p><a routerLink="/sources" class="btn btn-primary mt-3">Go to Sources to Edit Metadata</a></p>
+  </div>
+
+  <div class="manual-page-preview" cdkDrag>
+    <div class="sticky-preview-panel flex-column align-items-stretch">
+      <div class="preview-drag-handle" cdkDragHandle>
+        <span class="drag-title"><i class="bi bi-grip-vertical me-2"></i>Sidebar Panel</span>
+        <span class="badge bg-success-soft text-success">Interactive</span>
+      </div>
+      
+      <!-- Mock Sidebar Form -->
+      <div class="demo-wrapper w-100 mt-2">
+        <div class="card p-3 shadow-sm bg-white" style="border: 1px solid #e2e8f0; border-radius: 8px;">
+          <span class="text-uppercase text-muted fw-bold d-block mb-3 border-bottom pb-1" style="font-size: 0.75rem;">Document Metadata</span>
+          
+          <!-- Doc ID -->
+          <div class="mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'doc-id'" [style.border]="activeHighlightId === 'doc-id' ? '1px solid var(--accent-color)' : '1px solid transparent'">
+            <label class="form-label text-muted small fw-semibold d-block mb-1">Document ID</label>
+            <input class="form-control form-control-sm" [(ngModel)]="docId">
+          </div>
+
+          <!-- Initium -->
+          <div class="mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'initium'" [style.border]="activeHighlightId === 'initium' ? '1px solid var(--accent-color)' : '1px solid transparent'">
+            <label class="form-label text-muted small fw-semibold d-block mb-1">Text Initium</label>
+            <input class="form-control form-control-sm" [(ngModel)]="initium">
+          </div>
+
+          <!-- Genres -->
+          <div class="row g-2 mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'genres'" [style.border]="activeHighlightId === 'genres' ? '1px solid var(--accent-color)' : '1px solid transparent'">
+            <label class="form-label text-muted small fw-semibold d-block mb-1 col-12" style="margin-left: 4px;">Genres</label>
+            <div class="col-6">
+              <input class="form-control form-control-sm" [(ngModel)]="genre1">
+            </div>
+            <div class="col-6">
+              <input class="form-control form-control-sm" [(ngModel)]="genre2">
+            </div>
+          </div>
+
+          <!-- Feast -->
+          <div class="mb-3 p-2 rounded transition" [class.bg-warning-subtle]="activeHighlightId === 'feast'" [style.border]="activeHighlightId === 'feast' ? '1px solid var(--accent-color)' : '1px solid transparent'">
+            <label class="form-label text-muted small fw-semibold d-block mb-1">Feast / Celebration</label>
+            <input class="form-control form-control-sm" [(ngModel)]="feast">
+          </div>
+
+          <!-- Custom Fields -->
+          <div class="p-2 rounded transition border-top pt-2" [class.bg-warning-subtle]="activeHighlightId === 'custom-fields'" [style.border]="activeHighlightId === 'custom-fields' ? '1px solid var(--accent-color)' : '1px solid transparent'">
+            <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.65rem;">Custom Schema Fields</span>
+            <label class="form-label text-muted small fw-semibold d-block mb-1">{{customFieldName}}</label>
+            <input class="form-control form-control-sm" [(ngModel)]="customFieldValue">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

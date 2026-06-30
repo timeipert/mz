@@ -9,12 +9,14 @@ import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { EditSyllableTextComponent } from '../edit-syllable-text/edit-syllable-text.component';
 import { spacedToString } from '../notes/notes.component';
 import { musicLanguage } from '../notes/language';
-import { Observable } from 'rxjs';
 import { FocusService } from '../focus.service';
+import { ToolsService } from '../tools.service';
+import { Subscription, Observable } from 'rxjs';
 import { take } from 'rxjs/operators';
 import { ToastrService } from 'ngx-toastr';
 import { v4 as UUID } from "uuid";
 import { UndoService } from '../undoService';
+import { ContextMenuService } from '../context-menu/context-menu.service';
 
 @Component({
   selector: 'app-zeile-section',
@@ -26,13 +28,16 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
   @ViewChildren('linechild')
   children!: QueryList<Focusable>;
   subscription!: Observable<string>;
+  private focusSub?: Subscription;
 
   constructor(
     private modalService: NgbModal,
     private changeRef: ChangeDetectorRef,
     private toastr: ToastrService,
     private focusService: FocusService,
-    private undoService: UndoService
+    private undoService: UndoService,
+    private contextMenuService: ContextMenuService,
+    private toolsService: ToolsService
   ) {
     super('Notenzeile', {}, undoService);
   }
@@ -54,6 +59,12 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
 
   ngOnInit(): void {
     this.updateActionHandlers();
+    this.focusSub = this.focusService.focusedContainerUUID$.subscribe((focusedUuid) => {
+      if (focusedUuid !== this.data.uuid) {
+        this.toolsService.remove(this);
+      }
+      this.changeRef.markForCheck();
+    });
   }
 
   toggleVoice2(): void {
@@ -84,7 +95,51 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
   }
 
   ngOnDestroy(): void {
-    // this.subscription.unsubscribe(); TODO XXXX
+    this.focusSub?.unsubscribe();
+    this.toolsService.remove(this);
+  }
+
+  onContextMenu(me: MouseEvent): void {
+    me.preventDefault();
+    me.stopPropagation();
+
+    const items = [
+      {
+        label: 'Edit Notes Text',
+        action: () => { this.editText({ kind: 'EditNotesTextReqested' }); }
+      },
+      {
+        label: 'Edit Syllables Text',
+        action: () => { this.editText({ kind: 'EditSyllableTextReqested' }); }
+      },
+      {
+        label: this.data.voiceCount === 2 ? 'Remove Voice 2' : 'Add Voice 2',
+        action: () => { this.toggleVoice2(); }
+      },
+      {
+        label: 'Add Line Break Below',
+        action: () => { this.onEvent.emit({ kind: 'NewNoteLineRequsted', container: Model.emptyZeileContainer() }); }
+      },
+      {
+        label: 'Merge with Next Line',
+        action: () => { this.onEvent.emit({ kind: 'MergeWithNextLineRequested', uuid: this.data.uuid }); }
+      }
+    ];
+
+    const docStruct = Model.getStructure(this.documentType);
+    const K = this.documentType === 'Level0' ? 0 : (parseInt(this.documentType.replace(/level/i, ''), 10) || 0);
+    for (let i = 1; i <= K; i++) {
+      const desc = docStruct[i - 1];
+      const levelName = (desc && desc.name) || `L${i}`;
+      items.push({
+        label: `Split ${levelName} Section From Here`,
+        action: () => {
+          this.onEvent.emit({ kind: 'SplitSectionAtLineRequested', lineUuid: this.data.uuid, splitLevel: i } as any);
+        }
+      });
+    }
+
+    this.contextMenuService.open(me, items, 'transcription', 'adding-a-folio-or-line-change');
   }
 
   getSyllableText(): string {
@@ -303,12 +358,6 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
         const copy: Model.ZeileContainer = { uuid: UUID(), kind: this.data.kind, children: [...this.data.children] };
         this.data.children.length = childIndex + 1;
         copy.children.splice(0, childIndex + 1);
-
-        let secondHalf = Model.emptySyllable(this.data.voiceCount)
-        if (child.kind === "Syllable") {
-          secondHalf = this.splitSyllable(child);
-          copy.children.unshift(secondHalf);
-        }
         this.onEvent.emit({ kind: 'NewNoteLineRequsted', container: copy });
         break;
       }
@@ -511,6 +560,108 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
 
   focus(change: FocusChange): void {
     handleFocusChangeFromParent(change, this.children.toArray());
+  }
+
+  isFocused(): boolean {
+    return this.focusService.focusedContainerUUID === this.data.uuid;
+  }
+
+  selectContainer(event: MouseEvent): void {
+    event.stopPropagation();
+
+    // 1. Highlight this line container
+    this.focusService.focusedContainerUUID = this.data.uuid;
+
+    // 2. Build and push line-specific tools to top toolbar
+    const tools: any[] = [];
+
+    // Edit Notes Text Action
+    tools.push({
+      callback: () => {
+        this.editText({ kind: 'EditNotesTextReqested' });
+      },
+      icon: 'file-music text-primary',
+      title: 'Edit Notes Text'
+    });
+
+    // Edit Syllables Text Action
+    tools.push({
+      callback: () => {
+        this.editText({ kind: 'EditSyllableTextReqested' });
+      },
+      icon: 'chat-left-text text-primary',
+      title: 'Edit Syllables Text'
+    });
+
+    // Voice 2 toggle
+    tools.push({
+      callback: () => {
+        this.toggleVoice2();
+        this.selectContainer(event); // Re-build toolbar with updated state
+      },
+      icon: 'music-note text-info',
+      title: this.data.voiceCount === 2 ? 'Remove Voice 2' : 'Add Voice 2'
+    });
+
+    // Add Line Break Below
+    tools.push({
+      callback: () => {
+        this.onEvent.emit({ kind: 'NewNoteLineRequsted', container: Model.emptyZeileContainer() });
+      },
+      icon: 'plus-square text-success',
+      title: 'Add Line Below'
+    });
+
+    // Merge with Next Line
+    tools.push({
+      callback: () => {
+        this.onEvent.emit({ kind: 'MergeWithNextLineRequested', uuid: this.data.uuid });
+      },
+      icon: 'box-arrow-in-down text-warning',
+      title: 'Merge with Next'
+    });
+
+    // Delete Line Action
+    tools.push({
+      callback: () => {
+        if (confirm('Are you sure you want to delete this line?')) {
+          this.onEvent.emit({ kind: 'DeletionRequested', focusLast: true });
+        }
+      },
+      icon: 'trash text-danger',
+      title: 'Delete Line'
+    });
+
+    // Split Section From Here
+    const docStruct = Model.getStructure(this.documentType);
+    const K = this.documentType === 'Level0' ? 0 : (parseInt(this.documentType.replace(/level/i, ''), 10) || 0);
+    for (let i = 1; i <= K; i++) {
+      const desc = docStruct[i - 1];
+      const levelName = (desc && desc.name) || `L${i}`;
+      tools.push({
+        callback: () => {
+          this.onEvent.emit({ kind: 'SplitSectionAtLineRequested', lineUuid: this.data.uuid, splitLevel: i } as any);
+        },
+        icon: 'node-minus text-info',
+        title: `Split ${levelName} Section`
+      });
+    }
+
+    // Clear selection button
+    tools.push({
+      callback: () => {
+        this.focusService.focusedContainerUUID = undefined;
+        this.toolsService.remove(this);
+      },
+      icon: 'x-circle text-secondary',
+      title: 'Clear Selection'
+    });
+
+    this.toolsService.remove(this);
+    this.toolsService.addStack({
+      source: this,
+      tools: tools
+    });
   }
 }
 

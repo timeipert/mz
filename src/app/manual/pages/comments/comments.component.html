@@ -1,0 +1,153 @@
+<div class="manual-page-split">
+  <div class="manual-page-text">
+    <h1 id="critical-apparatus-comments">Critical Apparatus &amp; Comments</h1>
+    <p class="lead">Chant transcription is rarely simple. Different manuscripts of the same chant often contain variant spellings, different pitches, or entire melodic revisions. Monodi-Zero includes a powerful **Critical Apparatus** system to document and analyze these parallel readings inline.</p>
+
+    <h2 id="comment-tree-model">The Comment Tree Model</h2>
+    <p>Unlike standard plain-text comments, Monodi-Zero represents annotations as a **recursive comment tree**. This structure allows you to build complex comparisons. Hover over the nodes below to preview their visual structures in the sidebar:</p>
+    
+    <table class="shortcut-table">
+      <thead>
+        <tr>
+          <th>Node Type</th>
+          <th>Purpose &amp; Behavior</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="manual-highlight-trigger" appManualHighlightTrigger="undecided">Undecided Node</span></td>
+          <td>The initial state of a newly created comment segment. It serves as a placeholder where you choose whether to make the node a simple <strong>Leaf</strong> (content) or a comparative <strong>Grid</strong> (variants).</td>
+        </tr>
+        <tr>
+          <td><span class="manual-highlight-trigger" appManualHighlightTrigger="leaf">Leaf Node</span></td>
+          <td>
+            A node containing concrete content. Leaves support three kinds of content:
+            <ul>
+              <li><strong>Text</strong>: Plain text or markdown for explanations, literature citations, or notes.</li>
+              <li><strong>Notes</strong>: Alternate musical notes/syllables transcribed from variant sources.</li>
+              <li><strong>Bracket</strong>: Grouping containers.</li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="manual-highlight-trigger" appManualHighlightTrigger="grid">Grid Node</span></td>
+          <td>
+            A spreadsheet-like matrix layout. It aligns parallel variants:
+            <ul>
+              <li><strong>Rows</strong> represent different variant manuscripts.</li>
+              <li><strong>Columns</strong> represent sequential melodic segments.</li>
+            </ul>
+            Because the tree is recursive, each cell in a Grid is itself another Comment Tree (which can be Leaf, Undecided, or even nested Grids).
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="editing-comments">Interacting with the Editor</h2>
+    <p>Use the live interactive panel on the right (visible when not hovering over the triggers above) to practice building a critical comment tree:</p>
+    <ol>
+      <li class="mb-2">
+        <strong>Create a Node</strong>: The panel starts with a blue <strong>Undecided</strong> node. Click on <strong>Leaf</strong> or <strong>Grid</strong>.
+      </li>
+      <li class="mb-2">
+        <strong>Choose Leaf Type</strong>: If you chose Leaf, click <strong>Text</strong> or <strong>Notes</strong> to instantiate the editor. Click on the text box to enter comments or notes.
+      </li>
+      <li class="mb-2">
+        <strong>Build a Grid Matrix</strong>: If you chose Grid, you will see a cell. Click the small circular <strong>Action Dot</strong> (<i class="bi bi-three-dots"></i>) adjacent to cells to:
+        <ul>
+          <li>Insert parallel columns (variants over time).</li>
+          <li>Insert parallel rows (different manuscript witnesses).</li>
+          <li>Configure source labels (e.g., click an action dot on the left of a row and choose <i>Set Context</i> to name a row after a specific manuscript shelfmark like <code>CH-E 121</code>).</li>
+        </ul>
+      </li>
+    </ol>
+
+    <h2 id="apparatus-rendering">Scholarly Print Rendering</h2>
+    <p>When you export the document to PDF, the rendering engine reads the grid alignments and formats them horizontally directly under the primary chant line, matching standard critical musicology editions. Text annotations are compiled as numbered footnotes, keeping the sheet clean and easy to read.</p>
+    
+    <p><a routerLink="/sources" class="btn btn-primary mt-3">Go to Sources to Edit Comments</a></p>
+  </div>
+
+  <div class="manual-page-preview" cdkDrag>
+    <div class="sticky-preview-panel flex-column align-items-stretch">
+      <div class="preview-drag-handle" cdkDragHandle>
+        <span class="drag-title"><i class="bi bi-grip-vertical me-2"></i>Apparatus Preview</span>
+        <span class="badge bg-success-soft text-success" *ngIf="!activeHighlightId">Interactive</span>
+        <span class="badge bg-warning-soft text-warning" *ngIf="activeHighlightId">Hover Showcase</span>
+      </div>
+      
+      <div class="demo-wrapper w-100 mt-2">
+        <div class="card p-3 shadow-sm bg-white" style="border: 1px solid #e2e8f0; border-radius: 8px;">
+          
+          <ng-container [ngSwitch]="activeHighlightId">
+            <!-- 1. Undecided Mock -->
+            <div *ngSwitchCase="'undecided'">
+              <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Undecided Node</span>
+              <div class="p-3 rounded border border-primary text-center bg-light" style="border-style: dashed !important;">
+                <p class="small text-muted mb-2">Configure this apparatus node:</p>
+                <div class="d-flex justify-content-center gap-2">
+                  <button class="btn btn-sm btn-primary py-1 px-3">Leaf (Content)</button>
+                  <button class="btn btn-sm btn-primary py-1 px-3">Grid (Variants)</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 2. Leaf Mock -->
+            <div *ngSwitchCase="'leaf'">
+              <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Leaf Node (Annotated Reading)</span>
+              <div class="p-2 border rounded bg-light mb-2">
+                <span class="badge bg-info mb-1" style="font-size: 0.6rem;">Text Commentary</span>
+                <div class="bg-white p-2 border rounded small text-dark">
+                  "Liquescent note on syllable 'fi-' represents an ornamental glissando in Bamberg ms."
+                </div>
+              </div>
+              <div class="p-2 border rounded bg-light">
+                <span class="badge bg-success mb-1" style="font-size: 0.6rem;">Notation Variant</span>
+                <div class="bg-white p-2 border rounded text-center font-monospace text-success small" style="letter-spacing: 0.5px;">
+                  Clef: C-3 &nbsp;|&nbsp; Notes: F G A
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Grid Mock -->
+            <div *ngSwitchCase="'grid'">
+              <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Grid Node (Parallel Matrix)</span>
+              <div class="table-responsive">
+                <table class="table table-bordered table-sm mb-0 text-center" style="font-size: 0.75rem;">
+                  <thead>
+                    <tr class="bg-light">
+                      <th class="text-start">Witness</th>
+                      <th>Syllable 1</th>
+                      <th>Syllable 2</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="text-start fw-bold" style="color: var(--accent-color);">SG 390</td>
+                      <td class="bg-light">fi- <br> <span class="font-monospace small text-muted">F G</span></td>
+                      <td class="bg-light">-de- <br> <span class="font-monospace small text-muted">A</span></td>
+                    </tr>
+                    <tr>
+                      <td class="text-start fw-bold" style="color: var(--accent-color);">E 121</td>
+                      <td class="bg-light">fi- <br> <span class="font-monospace small text-muted">F</span></td>
+                      <td class="bg-light">-de- <br> <span class="font-monospace small text-muted">G A</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <small class="text-muted d-block mt-2" style="font-size: 0.65rem;">Rows compare different manuscripts side-by-side.</small>
+            </div>
+
+            <!-- Default: Live apparatus tree -->
+            <div *ngSwitchDefault>
+              <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Live Comment Editor</span>
+              <app-comment-tree [tree]="demoTree" (treeEvent)="treeEvent($event)"></app-comment-tree>
+            </div>
+
+          </ng-container>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

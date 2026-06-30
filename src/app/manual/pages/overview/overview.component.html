@@ -1,0 +1,34 @@
+<h1 id="overview-what-can-you-do-with-monodi-zero">Overview: What can you do with Monodi-Zero?</h1>
+<p class="lead">Monodi-Zero is a state-of-the-art web application designed for the digital transcription, cataloging, and analysis of historical musical sources—specifically medieval chants in square and neume notation. It brings together a keyboard-driven notation editor, a IIIF manuscript image viewer, an advanced melodic/text search engine, and a critical apparatus into a single cohesive research environment.</p>
+
+<h2 id="data-model">Logical Data Structure</h2>
+<p>To understand how to navigate and use Monodi-Zero, it is helpful to understand how information is structured hierarchically:</p>
+<ul>
+  <li><strong>Sources</strong>: The top-level containers representing a physical manuscript or collection (e.g., a specific codex).</li>
+  <li><strong>Documents</strong>: Individual musical pieces, chants, or sections within a Source (e.g., an Introit or Alleluia).</li>
+  <li><strong>Sections</strong>: Structural partitions within a Document (e.g., different parts of a chant).</li>
+  <li><strong>Folios &amp; Lines</strong>: Physical references mapping the text directly to the source manuscript page (Folio) and line number.</li>
+  <li><strong>Syllables &amp; Notes</strong>: The core music-text bond. Notes are bound directly to their corresponding textual syllable to preserve the alignment of chant lyrics and melody.</li>
+</ul>
+
+<h2 id="key-features">Key Features</h2>
+<ol class="mt-3">
+  <li class="mb-3">
+    <strong>Transcription Editor</strong>: A specialized editor designed around a "keyboard-first" workflow. You can input syllables, pitches, clefs, and custom neume shapes without touching your mouse, enabling extremely high-speed data entry.
+  </li>
+  <li class="mb-3">
+    <strong>Critical Apparatus (Complex Comments)</strong>: Document melodic and textual variants across different parallel manuscripts. Monodi-Zero uses a recursive tree structure (grids and leaves) to align and compare version differences side-by-side.
+  </li>
+  <li class="mb-3">
+    <strong>Melodic &amp; Textual Search</strong>: A powerful search panel supporting literal text search, absolute pitch search (e.g., finding the sequence `F G A`), relative contour interval search (e.g., finding steps like `+2 -2`), and fuzzy matching using Levenshtein distance.
+  </li>
+  <li class="mb-3">
+    <strong>IIIF Manuscript Integration</strong>: Link your transcription line-by-line to digitized high-resolution manuscript pages served via the International Image Interoperability Framework (IIIF). Draw zones and link them to scroll in sync.
+  </li>
+  <li class="mb-3">
+    <strong>Academic Exports</strong>: Export your transcriptions to standard MEI (Music Encoding Initiative) XML files for interoperability, or print them as high-quality publication-ready PDFs featuring square notation graphics.
+  </li>
+</ol>
+
+<p class="mt-4">Use the sidebar navigation to dive deeper into each of these features!</p>
+

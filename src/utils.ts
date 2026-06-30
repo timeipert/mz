@@ -3,8 +3,14 @@ import { Focusable, FocusChange } from "./app/types/Focus";
 import { EventEmitter } from "@angular/core";
 
 export function textWidth(text: string, font: string = "Times", size: string = "16px"): number {
-    let canvas = document.getElementById('canvas');
-    let ctx: CanvasRenderingContext2D = (canvas as any).getContext("2d");
+    let canvas = document.getElementById('canvas') as HTMLCanvasElement;
+    if (!canvas) {
+        canvas = document.createElement('canvas');
+    }
+    let ctx = canvas.getContext("2d");
+    if (!ctx) {
+        return text.length * 8; // fallback estimation
+    }
     ctx.font = `${size} ${font}`;
     return ctx.measureText(text).width;
 }

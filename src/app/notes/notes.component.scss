@@ -65,6 +65,8 @@ svg .note {
 }
 
 .read-only {
+    pointer-events: none;
+
     .noteText {
         display: none;
     }

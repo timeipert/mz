@@ -65,6 +65,12 @@ export class BoxComponent implements OnInit, OnDestroy, AfterViewChecked, Focusa
   }
 
   keyDown(e: KeyboardEvent): void {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      return;
+    }
+    if (e.key === 'Escape') {
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
 

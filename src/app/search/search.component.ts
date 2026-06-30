@@ -1,11 +1,29 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
-import { Router } from '@angular/router';
+import { Component, OnInit, OnDestroy, AfterViewChecked, ChangeDetectorRef } from '@angular/core';
+import { Router, ActivatedRoute } from '@angular/router';
+import { ToastrService } from 'ngx-toastr';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { APIService, SourceQuery, DocumentQuery, Source, Document, ProjectSettings } from '../api.service';
 import { UserService, User } from '../user.service';
-import { Subscription, forkJoin } from 'rxjs';
+import { Subscription, forkJoin, Subject } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
 import { PageTitleService } from '../page-title.service';
+import { NotesStore } from '../notes-store';
 import * as VM from '../types/model';
+import { textWidth } from '../../utils';
+import * as localforage from 'localforage';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import {
+  LoadedDoc,
+  PatternOccurrence,
+  PatternGroup,
+  arrayLevenshtein,
+  levenshteinDistance,
+  computePatternGroups,
+  toPitchNames,
+  toContour,
+  toIntervals
+} from './pattern-algo';
 
 // ─── Column config ────────────────────────────────────────────────────────────
 
@@ -62,6 +80,15 @@ export interface QuickResult {
   subtitle: string;
   extra: string;
   snippet?: TextSnippet;   // present when match was found in transcription text
+
+  /** Relevance score 0–100. 100 = exact-substring match in the title.
+   *  Lower scores reflect: match in a less-important field, or fuzzy match
+   *  with edit distance > 0. Used to sort results and to render a small
+   *  badge so the user can tell strong matches from weak ones at a glance. */
+  score: number;
+  /** Human-readable label for *where* the match was found, used as a
+   *  tooltip on the relevance badge. */
+  matchedIn: string;
 }
 
 // ─── Melody-search result ─────────────────────────────────────────────────────
@@ -72,8 +99,49 @@ export interface MelodyResult {
   noteCount: number;
   matchingSyllables: VM.Syllable[];
   matchSylSet: Set<string>; // Set of matching syllable UUIDs
+  matchNoteSet: Set<string>; // Set of matching note UUIDs
   distance?: number;     // Levenshtein distance for display
 }
+
+// PatternOccurrence and PatternGroup interfaces are imported from pattern-algo.ts
+
+export interface TimelineDocOccurrence {
+  groupId: number;
+  occurrence: PatternOccurrence;
+  color: string;
+  startPct: number;
+  endPct: number;
+  widthPct: number;
+  length: number;
+}
+
+export interface TimelineDoc {
+  doc: Document;
+  sourceSigle: string;
+  totalNotes: number;
+  occurrences: TimelineDocOccurrence[];
+}
+
+// LoadedDoc interface is imported from pattern-algo.ts
+
+
+// ─── Synoptic Alignment definitions ───────────────────────────────────────────
+
+export interface AlignedLineElement {
+  kind: 'clef' | 'syllable' | 'placeholder';
+  element: VM.Syllable | VM.Clef | null;
+}
+
+export interface AlignedNode {
+  kind: 'container' | 'leaf';
+  level: number;
+  signature: string;
+  containers: (VM.FormteilContainer | null)[];
+  children: AlignedNode[];
+  items: (VM.FormteilChildren | null)[];
+  alignedLineElements?: AlignedLineElement[][];
+}
+
 
 // ─── Transcription utilities ──────────────────────────────────────────────────
 
@@ -130,27 +198,7 @@ function extractSyllableText(root: VM.RootContainer): string {
   return joined + ' ' + joined.replace(/-/g, '');
 }
 
-function toPitchNames(notes: VM.Note[], withOctave: boolean): string[] {
-  return notes.map(n => {
-    let name = n.base.toLowerCase();
-    if (n.noteType === VM.NoteType.Flat) {
-      name += 'b';
-    } else if (n.noteType === VM.NoteType.Sharp) {
-      name += '#';
-    }
-    return withOctave ? `${name}${n.octave}` : name;
-  });
-}
-
-function toContour(notes: VM.Note[]): string[] {
-  const result: string[] = [];
-  for (let i = 1; i < notes.length; i++) {
-    const p = notes[i - 1].octave * 7 + VM.baseNoteIndexes[notes[i - 1].base];
-    const c = notes[i].octave * 7 + VM.baseNoteIndexes[notes[i].base];
-    result.push(c > p ? 'u' : c < p ? 'd' : 'r');
-  }
-  return result;
-}
+export { arrayLevenshtein } from './pattern-algo';
 
 export interface SequenceMatch {
   start: number;
@@ -158,30 +206,6 @@ export interface SequenceMatch {
   distance: number;
 }
 
-function levenshteinDistance(s1: string, s2: string): number {
-  const m = s1.length;
-  const n = s2.length;
-  const dp: number[][] = [];
-
-  for (let i = 0; i <= m; i++) {
-    dp[i] = [i];
-  }
-  for (let j = 1; j <= n; j++) {
-    dp[0][j] = j;
-  }
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,
-        dp[i][j - 1] + 1,
-        dp[i - 1][j - 1] + cost
-      );
-    }
-  }
-  return dp[m][n];
-}
 
 function isFuzzySubstring(target: string, query: string, maxDistance: number): { matched: boolean; matchedSub?: string } {
   const N = query.length;
@@ -283,7 +307,7 @@ function findSubsequenceMatches(sequence: string[], pattern: string[], maxDistan
   return filteredMatches.sort((a, b) => a.start - b.start);
 }
 
-function parseMelodyPattern(raw: string, searchType: 'pitch' | 'contour', withOctave: boolean): string[] {
+function parseMelodyPattern(raw: string, searchType: 'pitch' | 'contour' | 'interval', withOctave: boolean): string[] {
   const clean = raw.trim();
   if (searchType === 'contour') {
     if (clean.includes(' ')) {
@@ -291,6 +315,17 @@ function parseMelodyPattern(raw: string, searchType: 'pitch' | 'contour', withOc
     } else {
       return clean.split('').filter(char => !/\s/.test(char)).map(p => p.toLowerCase());
     }
+  }
+
+  if (searchType === 'interval') {
+    const matches: string[] = [];
+    const regex = /([+-]?\d+)/g;
+    let match;
+    while ((match = regex.exec(clean)) !== null) {
+      const num = parseInt(match[1], 10);
+      matches.push(num > 0 ? `+${num}` : `${num}`);
+    }
+    return matches;
   }
 
   // Pitch matching
@@ -376,11 +411,22 @@ function findTextSnippet(text: string, query: string, window = 35): TextSnippet 
   templateUrl: './search.component.html',
   styleUrls: ['./search.component.css']
 })
-export class SearchComponent implements OnInit, OnDestroy {
+export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   activeTab: 'quick' | 'sources' | 'documents' | 'melody' = 'quick';
   user: User | null = null;
   subs: Subscription[] = [];
   settings: ProjectSettings | null = null;
+
+  // ── Synoptic Comparison ───────────────────────────────────────────────────
+  selectedDocs: Document[] = [];
+  showSynopsis = false;
+  synopsisLoading = false;
+  alignedTree: AlignedNode[] = [];
+  docSigles: { [docId: string]: string } = {};
+  alignmentMode: 'structure' | 'sequential' | 'melody' | 'text' = 'melody';
+  chunkedMelodyRows: AlignedLineElement[][][] = [];
+  cachedRootContainers: VM.RootContainer[] = [];
+  cachedDocIds: string[] = [];
 
   // ── Quick / Full-text search ──────────────────────────────────────────────
   quickText = '';
@@ -418,8 +464,9 @@ export class SearchComponent implements OnInit, OnDestroy {
 
   // ── Melody search ─────────────────────────────────────────────────────────
   melodyPattern = '';
-  melodySearchType: 'pitch' | 'contour' = 'pitch';
+  melodySearchType: 'pitch' | 'contour' | 'interval' = 'pitch';
   melodyWithOctave = false;
+  melodyOnlyWithinSyllables = false;
   melodyResults: MelodyResult[] = [];
   melodySearched = false;
   melodySearching = false;
@@ -427,15 +474,168 @@ export class SearchComponent implements OnInit, OnDestroy {
   melodyWithNotes = 0;
   melodyMaxDistance = 0;
 
+  // ── Search results pagination ─────────────────────────────────────────────
+  quickPage = 1;
+  quickPageSize = 25;
+  sourcesPage = 1;
+  sourcesPageSize = 25;
+  documentsPage = 1;
+  documentsPageSize = 25;
+  melodyPage = 1;
+  melodyPageSize = 10;
+
   // ── Recent searches ───────────────────────────────────────────────────────
   recentSearches: string[] = [];
+
+  // ── Pattern analysis state ────────────────────────────────────────────────
+  showPatternAnalysis = false;
+  patternLength = 8;
+  patternType: 'pitch' | 'interval' | 'contour' = 'interval';
+  patternWithOctave = false;
+  patternStrictness: 'exact' | 'fuzzy' = 'exact';
+  patternProgress = { phase: '', current: 0, total: 0, percent: 0 };
+  patternSearching = false;
+  patternCancelled = false;
+  patternGroups: PatternGroup[] = [];
+  /**
+   * Pattern-list pagination.
+   *
+   * Pre-redesign we used an ever-growing `visiblePatternGroupsLimit` and a
+   * "Show more" button — fine for sequential scanning, but it couldn't
+   * support *jumping* to a specific pattern (e.g. clicking a coloured
+   * rectangle in the timeline overview) without first having scrolled all
+   * pages of cards into the DOM. With real pagination we can compute
+   * which page a group lives on and navigate straight there.
+   */
+  patternPage = 1;
+  patternPageSize = 20;
+  /** Group ID we should auto-scroll to after the next render — set by the
+   *  timeline-click handler. Consumed by `ngAfterViewChecked` so the scroll
+   *  happens once the page's cards are actually in the DOM. */
+  private pendingPatternScrollId: number | null = null;
+  patternViewMode: 'list' | 'overview' = 'overview';
+  patternTimelineDocs: TimelineDoc[] = [];
+  patternDocTotalNotes = new Map<string, number>();
+  patternMergeEnabled = false;
+  patternMinMergeOverlap = 1;
+  patternDeduplicateEnabled = true;
+  detectedDuplicates: { doc1: LoadedDoc; doc2: LoadedDoc; similarity: number }[] = [];
+  hoveredGroupId: number | null = null;
+  patternWorker: Worker | null = null;
+  hoveredOccurrence: any = null;
+  tooltipX = 0;
+  tooltipY = 0;
+  showSavedSessionsPopover = false;
+  showSaveSessionForm = false;
+  newSessionName = '';
+  savedPatternSessions: { id: string; name: string; date: number; data: any }[] = [];
+
+
+  // ── Performance knobs ─────────────────────────────────────────────────────
+  /** Documents processed per yield in the chunked search loops. ~50 keeps
+   *  the progress bar smooth on a low-end laptop without amortising too
+   *  many extra Promise scheduling steps. */
+  private static readonly SEARCH_BATCH_SIZE = 50;
+
+  /** Hard cap on how many results are *rendered* at once. Way over this and
+   *  Angular spends all its time in change-detection / DOM updates on
+   *  result rows the user can't even see. They can ask for more via the
+   *  "Show more" buttons. */
+  private static readonly INITIAL_RESULT_LIMIT = 100;
+
+  /** Current visible-result caps; incremented by `showMore*()`. */
+  visibleQuickLimit    = SearchComponent.INITIAL_RESULT_LIMIT;
+  visibleSourceLimit   = SearchComponent.INITIAL_RESULT_LIMIT;
+  visibleDocumentLimit = SearchComponent.INITIAL_RESULT_LIMIT;
+  visibleMelodyLimit   = SearchComponent.INITIAL_RESULT_LIMIT;
+
+  /** Live progress while a long search is running. */
+  searchProgress: { current: number; total: number; matched: number; } = { current: 0, total: 0, matched: 0 };
+
+  /** Set to true while a chunked loop is in flight; used so the user can
+   *  cancel a long search without waiting for it to finish on its own. */
+  searchCancelled = false;
+
+  // ── Cache for quick search ────────────────────────────────────────────────
+  static cachedQuickText = '';
+  static cachedQuickResults: QuickResult[] = [];
+  static cachedQuickSearched = false;
+  static cachedQuickMode: 'phrase' | 'words-and' | 'words-or' | 'fuzzy' = 'phrase';
+  static cachedQuickTolerance = true;
+  static cachedQuickDistance = 2;
+
+  // ── Cache for pattern grouping ─────────────────────────────────────────────
+  static cachedPatternGroups: PatternGroup[] = [];
+  static cachedPatternLength = 8;
+  static cachedPatternType: 'pitch' | 'interval' | 'contour' = 'interval';
+  static cachedPatternWithOctave = false;
+  static cachedPatternStrictness: 'exact' | 'fuzzy' = 'exact';
+  static cachedShowPatternAnalysis = false;
+  static cachedPatternProgress = { phase: '', current: 0, total: 0, percent: 0 };
+  static cachedPatternViewMode: 'list' | 'overview' = 'overview';
+  static cachedPatternTimelineDocs: TimelineDoc[] = [];
+  static cachedPatternDocTotalNotes = new Map<string, number>();
+  static cachedPatternMergeEnabled = false;
+  static cachedPatternMinMergeOverlap = 1;
+  static cachedPatternDeduplicateEnabled = true;
+  static cachedDetectedDuplicates: { doc1: LoadedDoc; doc2: LoadedDoc; similarity: number }[] = [];
+  static cachedPatternPage = 1;
+
+
+  // ── Cached sort results (avoid recomputing per CD pass) ──────────────────
+  /** Precomputed sorted view; mirror of `sourceResults` / `documentResults`
+   *  but recomputed only when the data or sort spec actually changes. The
+   *  prior code used getters that ran the sort on *every* change detection
+   *  pass, which is O(N log N) per CD on huge result sets. */
+  private _sortedSources: Source[] = [];
+  private _sortedDocs:    Document[] = [];
+  private _srcSortKey = ''; // composite "col|asc" cache key
+  private _docSortKey = '';
+  private _srcResultsRef: Source[] | null = null;
+  private _docResultsRef: Document[] | null = null;
+
+  // ── Post-search filter ───────────────────────────────────────────────────
+  /** Text typed into the in-result filter bars. Empty = no filter. Each
+   *  search tab keeps its own filter so switching tabs doesn't lose state. */
+  quickFilterText    = '';
+  sourceFilterText   = '';
+  documentFilterText = '';
+  melodyFilterText   = '';
+
+  /** Debounced values that actually drive the getter filters. */
+  quickFilterValue    = '';
+  sourceFilterValue   = '';
+  documentFilterValue = '';
+  melodyFilterValue   = '';
+
+  private filterSubject = new Subject<'quick' | 'source' | 'document' | 'melody'>();
+
+  /** Memoised filtered lists. Recomputed only when the underlying results
+   *  array reference or filter string actually changes — otherwise the
+   *  cached array is returned, so a CD-heavy parent component doesn't
+   *  cause a substring scan on every tick. */
+  private _filteredQuick:    QuickResult[]  = [];
+  private _filteredSrc:      Source[]       = [];
+  private _filteredDoc:      Document[]     = [];
+  private _filteredMelody:   MelodyResult[] = [];
+  private _quickFilterKey  = '__init__';
+  private _srcFilterKey    = '__init__';
+  private _docFilterKey    = '__init__';
+  private _melodyFilterKey = '__init__';
+  private _quickFilterRef:  QuickResult[]  | null = null;
+  private _srcFilterRef:    Source[]       | null = null;
+  private _docFilterRef:    Document[]     | null = null;
+  private _melodyFilterRef: MelodyResult[] | null = null;
 
   constructor(
     private api: APIService,
     private router: Router,
+    private route: ActivatedRoute,
     private userService: UserService,
     private pageTitle: PageTitleService,
     private sanitizer: DomSanitizer,
+    private cdRef: ChangeDetectorRef,
+    private toastr: ToastrService,
   ) {
     this.loadCols();
     this.loadRecentSearches();
@@ -445,20 +645,101 @@ export class SearchComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.pageTitle.set('Search');
-    this.subs.push(this.userService.user.subscribe(user => {
+
+    // Restore cached pattern analysis state
+    this.showPatternAnalysis = SearchComponent.cachedShowPatternAnalysis;
+    this.patternLength = SearchComponent.cachedPatternLength;
+    this.patternType = SearchComponent.cachedPatternType;
+    this.patternWithOctave = SearchComponent.cachedPatternWithOctave;
+    this.patternStrictness = SearchComponent.cachedPatternStrictness;
+    this.patternGroups = SearchComponent.cachedPatternGroups;
+    this.patternProgress = SearchComponent.cachedPatternProgress;
+    this.patternViewMode = SearchComponent.cachedPatternViewMode;
+    this.patternTimelineDocs = SearchComponent.cachedPatternTimelineDocs;
+    this.patternDocTotalNotes = SearchComponent.cachedPatternDocTotalNotes;
+    this.patternMergeEnabled = SearchComponent.cachedPatternMergeEnabled;
+    this.patternMinMergeOverlap = SearchComponent.cachedPatternMinMergeOverlap;
+    this.patternDeduplicateEnabled = SearchComponent.cachedPatternDeduplicateEnabled;
+    this.detectedDuplicates = SearchComponent.cachedDetectedDuplicates || [];
+    this.patternPage = SearchComponent.cachedPatternPage || 1;
+
+    this.subs.push(
+      this.filterSubject.pipe(debounceTime(300)).subscribe(which => {
+        switch (which) {
+          case 'quick':    this.quickFilterValue = this.quickFilterText; break;
+          case 'source':   this.sourceFilterValue = this.sourceFilterText; break;
+          case 'document': this.documentFilterValue = this.documentFilterText; break;
+          case 'melody':   this.melodyFilterValue = this.melodyFilterText; break;
+        }
+        this.applyFilterLimitReset(which);
+      })
+    );
+
+    this.subs.push(this.userService.user.subscribe(async user => {
       this.user = user;
       if (this.user) {
         this.api.getSettings(this.user.token).subscribe(res => {
           if (res.kind === 'SettingsRetrieved') this.settings = res.settings;
         });
+        await this.loadFromIndexedDB();
+        this.restoreStateFromUrl();
+        // If the page was opened with a URL fragment like
+        // `#pattern-group-7`, jump directly to that pattern. We do this
+        // after restoring state so the patternGroups list is populated.
+        this.honourPatternHashIfPresent();
       }
     }));
   }
 
-  ngOnDestroy() { this.subs.forEach(s => s.unsubscribe()); }
+  /** If `location.hash` looks like `#pattern-group-<id>`, navigate to that
+   *  pattern in the list view. Idempotent — safe to call multiple times. */
+  private honourPatternHashIfPresent(): void {
+    if (typeof location === 'undefined') return;
+    const m = /^#pattern-group-(\d+)$/.exec(location.hash);
+    if (!m) return;
+    const id = parseInt(m[1], 10);
+    if (!isFinite(id)) return;
+    if (!this.showPatternAnalysis) this.showPatternAnalysis = true;
+    this.openPatternGroupById(id);
+  }
 
-  matchText(text: string, query: string, mode: 'phrase' | 'words-and' | 'words-or' | 'fuzzy', spellingTolerance: boolean, maxDistance: number): { matched: boolean; snippet?: TextSnippet } {
-    if (!text) return { matched: false };
+  /**
+   * Honour any pending "scroll to pattern N" request once Angular has
+   * actually flushed the DOM for the page change. Doing this in a setTimeout
+   * inside the click handler raced with the page swap; AfterViewChecked
+   * guarantees the target card is mounted.
+   */
+  ngAfterViewChecked(): void {
+    if (this.pendingPatternScrollId === null) return;
+    const id = this.pendingPatternScrollId;
+    const el = document.getElementById('pattern-group-' + id);
+    if (!el) return; // not yet — try again on the next CD cycle
+    this.pendingPatternScrollId = null;
+    // Defer the actual scroll to the next animation frame so the
+    // post-render layout has settled (otherwise scrollIntoView can
+    // sometimes calculate offsets against the pre-mount layout on
+    // Chromium).
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight-pulse');
+      setTimeout(() => el.classList.remove('highlight-pulse'), 2000);
+    });
+  }
+
+  ngOnDestroy() {
+    this.subs.forEach(s => s.unsubscribe());
+    if (this.patternWorker) {
+      this.patternWorker.terminate();
+      this.patternWorker = null;
+    }
+    const styleEl = document.getElementById('dynamic-hover-styles');
+    if (styleEl) {
+      styleEl.remove();
+    }
+  }
+
+  matchText(text: string, query: string, mode: 'phrase' | 'words-and' | 'words-or' | 'fuzzy', spellingTolerance: boolean, maxDistance: number): { matched: boolean; snippet?: TextSnippet; score: number } {
+    if (!text) return { matched: false, score: 0 };
     const norm = (s: string) => {
       let res = s.toLowerCase();
       if (spellingTolerance) {
@@ -482,21 +763,21 @@ export class SearchComponent implements OnInit, OnDestroy {
           const matchStart = idx;
           const matchEnd = idx + queryNorm.length;
           const snippet = findTextSnippet(text, text.substring(Math.max(0, matchStart), Math.min(text.length, matchEnd))) || { before: '', match: query, after: '' };
-          return { matched: true, snippet };
+          return { matched: true, snippet, score: 90 };
         }
-        return { matched: false };
+        return { matched: false, score: 0 };
       } else {
         const idx = text.toLowerCase().indexOf(query.toLowerCase());
         if (idx !== -1) {
-          return { matched: true, snippet: findTextSnippet(text, query) };
+          return { matched: true, snippet: findTextSnippet(text, query), score: 100 };
         }
-        return { matched: false };
+        return { matched: false, score: 0 };
       }
     }
 
     if (mode === 'words-and' || mode === 'words-or') {
       const words = query.trim().split(/\s+/).filter(Boolean);
-      if (words.length === 0) return { matched: false };
+      if (words.length === 0) return { matched: false, score: 0 };
 
       const wordMatches = words.map(w => {
         const wNorm = norm(w);
@@ -512,18 +793,18 @@ export class SearchComponent implements OnInit, OnDestroy {
         for (const w of words) {
           const idx = text.toLowerCase().indexOf(w.toLowerCase());
           if (idx !== -1) {
-            return { matched: true, snippet: findTextSnippet(text, w) };
+            return { matched: true, snippet: findTextSnippet(text, w), score: mode === 'words-and' ? 80 : 70 };
           }
         }
-        return { matched: true, snippet: { before: '', match: text.substring(0, Math.min(text.length, 25)), after: '…' } };
+        return { matched: true, snippet: { before: '', match: text.substring(0, Math.min(text.length, 25)), after: '…' }, score: mode === 'words-and' ? 80 : 70 };
       }
-      return { matched: false };
+      return { matched: false, score: 0 };
     }
 
     if (mode === 'fuzzy') {
       const targetWords = text.toLowerCase().split(/\s+/).filter(Boolean);
       const queryWords = query.toLowerCase().split(/\s+/).filter(Boolean);
-      if (queryWords.length === 0) return { matched: false };
+      if (queryWords.length === 0) return { matched: false, score: 0 };
 
       const matchedWords = queryWords.map(qw => {
         let bestDist = 999;
@@ -539,124 +820,260 @@ export class SearchComponent implements OnInit, OnDestroy {
             }
           }
         }
-        return { matched: bestDist <= maxDistance, word: matchedTargetWord };
+        return { matched: bestDist <= maxDistance, word: matchedTargetWord, dist: bestDist };
       });
 
       const matched = matchedWords.every(mw => mw.matched);
       if (matched && matchedWords.length > 0) {
+        const avgDist = matchedWords.reduce((sum, mw) => sum + mw.dist, 0) / matchedWords.length;
+        const score = Math.max(10, 60 - avgDist * 10);
+        
         const firstMatch = matchedWords[0].word;
         if (firstMatch) {
           const origIdx = text.toLowerCase().indexOf(firstMatch);
           const origWord = origIdx !== -1 ? text.substring(origIdx, origIdx + firstMatch.length) : firstMatch;
           const snippet = findTextSnippet(text, origWord);
-          return { matched: true, snippet };
+          return { matched: true, snippet, score };
         }
-        return { matched: true };
+        return { matched: true, score };
       }
-      return { matched: false };
+      return { matched: false, score: 0 };
     }
 
-    return { matched: false };
+    return { matched: false, score: 0 };
   }
 
-  searchQuick() {
+  /**
+   * Quick / full-text search across every source and document.
+   *
+   * Performance strategy on workspaces with thousands of documents:
+   *   1. Sources are tiny; process them in one synchronous pass.
+   *   2. Documents are processed in batches of `SEARCH_BATCH_SIZE`. Between
+   *      batches we `await yieldToUI()` so the browser can paint progress
+   *      updates and accept input events (including the Cancel button).
+   *   3. Notes are fetched on demand per-document via `NotesStore.get(id)`
+   *      rather than loading the whole `monodi_notes_*` set up front
+   *      (`getAllDocumentNotes` allocates O(workspace size) before any
+   *      matching can start — enough to lock up the tab on huge libraries).
+   *   4. The result list is published incrementally so the user sees
+   *      matches arrive instead of a frozen page.
+   */
+  async searchQuick() {
     if (!this.user || !this.quickText.trim()) return;
+    this.updateUrl();
+
+    if (
+      SearchComponent.cachedQuickSearched &&
+      SearchComponent.cachedQuickText === this.quickText &&
+      SearchComponent.cachedQuickMode === this.quickSearchMode &&
+      SearchComponent.cachedQuickTolerance === this.quickMedievalTolerance &&
+      SearchComponent.cachedQuickDistance === this.quickFuzzyDistance
+    ) {
+      this.quickResults = SearchComponent.cachedQuickResults.slice();
+      this.quickSearched = true;
+      this.searchProgress = { current: this.quickResults.length, total: this.quickResults.length, matched: this.quickResults.length };
+      this.cdRef.markForCheck();
+      return;
+    }
+
     this.quickSearching = true;
     this.quickSearched = false;
+    this.searchCancelled = false;
+    this.searchProgress = { current: 0, total: 0, matched: 0 };
+    this.visibleQuickLimit = SearchComponent.INITIAL_RESULT_LIMIT;
+    this.quickPage = 1;
+    this.quickFilterText = '';
     this.addRecentSearch(this.quickText);
 
-    forkJoin({
-      sources: this.api.listSources(this.user.token),
-      docs:    this.api.listDocuments(this.user.token),
-      notes:   this.api.getAllDocumentNotes(this.user.token),
-    }).subscribe(({ sources, docs, notes }) => {
-      const results: QuickResult[] = [];
-      const allNotes = notes as unknown as { [id: string]: VM.RootContainer };
+    try {
+      const [sources, docs] = await Promise.all([
+        this.api.listSources(this.user.token).toPromise(),
+        this.api.listDocuments(this.user.token).toPromise(),
+      ]);
 
-      if (sources.kind === 'SourcesRetrieved') {
+      const results: QuickResult[] = [];
+
+      // -------- sources --------
+      if (sources?.kind === 'SourcesRetrieved') {
         for (const s of sources.sources) {
-          const metaFields = Object.values(s).filter(v => typeof v === 'string').map(v => v as string);
-          let matched = false;
-          for (const val of metaFields) {
-            const matchRes = this.matchText(val, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
-            if (matchRes.matched) {
-              matched = true;
-              break;
+          if (this.searchCancelled) { this.finishQuickSearch(results); return; }
+          let bestMatch: {score: number, matchedIn: string} | null = null;
+          
+          const metaMap: {[key: string]: string} = {
+            'Siglum': s.quellensigle || s.bibliothekssignatur || '',
+            'Institution': s.herkunftsinstitution || '',
+            'Location': s.herkunftsort || '',
+            'Type': s.quellentyp || '',
+            'Dating': s.datierung || ''
+          };
+
+          for (const [key, val] of Object.entries(metaMap)) {
+            if (typeof val === 'string' && val.trim() !== '') {
+               const res = this.matchText(val, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
+               if (res.matched && (!bestMatch || res.score > bestMatch.score)) {
+                 const finalScore = key === 'Siglum' ? Math.min(100, res.score + 5) : res.score;
+                 bestMatch = { score: finalScore, matchedIn: key };
+               }
             }
           }
-          if (matched) {
+          
+          if (bestMatch) {
             results.push({
               kind: 'source', id: s.id!,
               title:    s.quellensigle || s.bibliothekssignatur || '(no siglum)',
               subtitle: [s.herkunftsinstitution, s.herkunftsort].filter(Boolean).join(', '),
               extra:    [s.quellentyp, s.datierung].filter(Boolean).join(' · '),
+              score: bestMatch.score,
+              matchedIn: `Metadata: ${bestMatch.matchedIn}`,
             });
           }
         }
       }
 
-      if (docs.kind === 'DocumentsRetrieved') {
-        for (const d of docs.documents) {
-          const metaFields = Object.values(d).filter(v => typeof v === 'string').map(v => v as string);
-          const root    = allNotes[d.id];
-          
-          const sylsList = root ? extractSyllables(root).map(s => s.text) : [];
-          const sylRaw  = sylsList.join('');
-          const sylClean = sylRaw.replace(/-/g, '');
-          const sylSpaced = sylsList.join(' ').replace(/-/g, ' ');
+      // -------- documents (chunked + lazy notes) --------
+      const allDocs = docs?.kind === 'DocumentsRetrieved' ? docs.documents : [];
+      this.searchProgress = { current: 0, total: allDocs.length, matched: results.length };
+      this.cdRef.markForCheck();
 
-          let matchMeta = false;
-          let metaSnippet: TextSnippet | undefined;
-          for (const val of metaFields) {
-            const matchRes = this.matchText(val, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
-            if (matchRes.matched) {
-              matchMeta = true;
-              metaSnippet = matchRes.snippet;
-              break;
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < allDocs.length; i += BATCH_SIZE) {
+        if (this.searchCancelled) { this.finishQuickSearch(results); return; }
+        
+        const batch = allDocs.slice(i, i + BATCH_SIZE);
+        const promises = batch.map(async (d) => {
+          // Metadata pass first
+          let bestMeta: {score: number, matchedIn: string, snippet?: TextSnippet} | null = null;
+          const dMap: {[key: string]: string} = {
+            'Incipit': d.textinitium || '',
+            'Doc ID': d.dokumenten_id || '',
+            'Genre': d.gattung1 || d.gattung2 || '',
+            'Feast': d.festtag || '',
+            'Celebration': d.feier || ''
+          };
+          for (const [key, val] of Object.entries(dMap)) {
+            if (typeof val === 'string' && val.trim() !== '') {
+               const m = this.matchText(val, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
+               if (m.matched && (!bestMeta || m.score > bestMeta.score)) {
+                  const finalScore = key === 'Incipit' ? Math.min(100, m.score + 5) : m.score;
+                  bestMeta = { score: finalScore, matchedIn: key, snippet: m.snippet };
+               }
             }
           }
 
-          const matchSylRaw = this.matchText(sylRaw, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
-          const matchSylClean = this.matchText(sylClean, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
-          const matchSylSpaced = this.matchText(sylSpaced, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
-
-          const matchSyl = matchSylRaw.matched || matchSylClean.matched || matchSylSpaced.matched;
-
-          if (matchMeta || matchSyl) {
-            let snippet = metaSnippet;
-            if (matchSyl && !matchMeta) {
-              snippet = matchSylSpaced.snippet ?? matchSylClean.snippet ?? matchSylRaw.snippet;
-            } else if (matchSyl && matchMeta && !snippet) {
-              snippet = matchSylSpaced.snippet ?? matchSylClean.snippet ?? matchSylRaw.snippet;
+          // Syllable-text pass — load notes lazily for this single doc.
+          let bestSyl: {score: number, matchedIn: string, snippet?: TextSnippet} | null = null;
+          try {
+            const root = await NotesStore.get(d.id);
+            if (root) {
+              const sylsList = extractSyllables(root).map(s => s.text);
+              const sylRaw    = sylsList.join('');
+              const sylClean  = sylRaw.replace(/-/g, '');
+              const sylSpaced = sylsList.join(' ').replace(/-/g, ' ');
+              const ms1 = this.matchText(sylSpaced, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
+              const ms2 = !ms1.matched ? this.matchText(sylClean, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance) : ms1;
+              const ms3 = !ms2.matched ? this.matchText(sylRaw,    this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance) : ms2;
+              
+              const bestM = ms1.matched ? ms1 : ms2.matched ? ms2 : ms3.matched ? ms3 : null;
+              if (bestM) {
+                 bestSyl = { score: bestM.score, matchedIn: 'Transcription', snippet: bestM.snippet };
+              }
             }
+          } catch (e) {
+            console.warn(`Skipping notes for ${d.id}:`, e);
+          }
 
+          const bestOverall = (bestMeta && bestSyl) ? (bestMeta.score >= bestSyl.score ? bestMeta : bestSyl) : (bestMeta || bestSyl);
+
+          if (bestOverall) {
             results.push({
               kind: 'document', id: d.id, sourceId: d.quelle_id,
               title:    d.textinitium || d.dokumenten_id || '(no incipit)',
               subtitle: [d.gattung1, d.gattung2].filter(Boolean).join(' / '),
               extra:    [d.festtag, d.feier].filter(Boolean).join(' · '),
-              snippet,
+              snippet:  bestOverall.snippet,
+              score:    bestOverall.score,
+              matchedIn: bestOverall.matchedIn === 'Transcription' ? 'Transcription' : `Metadata: ${bestOverall.matchedIn}`
             });
           }
-        }
+        });
+
+        await Promise.all(promises);
+
+        const currentProgress = Math.min(i + BATCH_SIZE, allDocs.length);
+        this.searchProgress.current = currentProgress;
+        this.searchProgress.matched = results.length;
+        this.quickResults = results.slice();   // publish streaming results
+        this.cdRef.markForCheck();
+        await this.yieldToUI();
       }
 
-      this.quickResults = results;
-      this.quickSearched = true;
+      this.finishQuickSearch(results);
+    } catch (err) {
+      console.error('Quick search failed:', err);
       this.quickSearching = false;
-    });
+      this.quickSearched = true;
+      this.cdRef.markForCheck();
+    }
   }
+
+  /** Final settle once the quick search finishes (or is cancelled). */
+  private finishQuickSearch(results: QuickResult[]): void {
+    results.sort((a, b) => b.score - a.score);
+    this.quickResults = results;
+    this.quickSearched = true;
+    this.quickSearching = false;
+
+    // Cache the results
+    SearchComponent.cachedQuickText = this.quickText;
+    SearchComponent.cachedQuickMode = this.quickSearchMode;
+    SearchComponent.cachedQuickTolerance = this.quickMedievalTolerance;
+    SearchComponent.cachedQuickDistance = this.quickFuzzyDistance;
+    SearchComponent.cachedQuickResults = this.quickResults.slice();
+    SearchComponent.cachedQuickSearched = true;
+
+    this.saveSearchStateToIndexedDB();
+    this.cdRef.markForCheck();
+  }
+
+  /** Asks the browser to repaint before resuming the loop. `setTimeout(0)`
+   *  beats microtasks here because microtasks would drain before any paint
+   *  and progress wouldn't visibly update. */
+  private yieldToUI(): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, 0));
+  }
+
+  /** Cancel button on the in-flight progress card. */
+  cancelSearch(): void {
+    this.searchCancelled = true;
+  }
+
+  /** "Show more" handlers for each result list. */
+  showMoreQuick():     void { this.visibleQuickLimit    += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
+  showMoreSources():   void { this.visibleSourceLimit   += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
+  showMoreDocuments(): void { this.visibleDocumentLimit += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
+  showMoreMelody():    void { this.visibleMelodyLimit   += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
+
+  /** Stable trackBy fns so big lists don't re-create DOM nodes. */
+  trackQuick   = (_: number, r: QuickResult)  => r.id;
+  trackSource  = (_: number, s: Source)       => s.id ?? '';
+  trackDoc     = (_: number, d: Document)     => d.id;
+  trackMelody  = (_: number, r: MelodyResult) => r.document.id;
 
   // ── Source search ─────────────────────────────────────────────────────────
 
   searchSources() {
     if (!this.user) return;
+    this.updateUrl();
     this.sourceSearching = true;
     this.sourceSearched = false;
+    this.sourceFilterText = '';
+    this.sourcesPage = 1;
+    this.visibleSourceLimit = SearchComponent.INITIAL_RESULT_LIMIT;
     this.api.querySources(this.user.token, this.sourceQuery).subscribe(res => {
       if (res.kind === 'SourcesRetrieved') this.sourceResults = res.sources;
       this.sourceSearched = true;
       this.sourceSearching = false;
+      this.saveSearchStateToIndexedDB();
     });
   }
 
@@ -665,18 +1082,24 @@ export class SearchComponent implements OnInit, OnDestroy {
     this.sourceResults = [];
     this.sourceSearched = false;
     this.srcSortCol = '';
+    this.saveSearchStateToIndexedDB();
   }
 
   // ── Document search ───────────────────────────────────────────────────────
 
   searchDocuments() {
     if (!this.user) return;
+    this.updateUrl();
     this.documentSearching = true;
     this.documentSearched = false;
+    this.documentFilterText = '';
+    this.documentsPage = 1;
+    this.visibleDocumentLimit = SearchComponent.INITIAL_RESULT_LIMIT;
     this.api.queryDocuments(this.user.token, this.documentQuery).subscribe(res => {
       if (res.kind === 'DocumentsRetrieved') this.documentResults = res.documents;
       this.documentSearched = true;
       this.documentSearching = false;
+      this.saveSearchStateToIndexedDB();
     });
   }
 
@@ -690,90 +1113,149 @@ export class SearchComponent implements OnInit, OnDestroy {
     this.documentResults = [];
     this.documentSearched = false;
     this.docSortCol = '';
+    this.saveSearchStateToIndexedDB();
   }
 
   // ── Melody search ─────────────────────────────────────────────────────────
 
-  searchMelody() {
+  /**
+   * Melodic-pattern search. Same chunked + lazy-notes strategy as
+   * `searchQuick`: each document's chant is fetched on demand from the
+   * per-document NotesStore, the loop yields to the browser every
+   * `SEARCH_BATCH_SIZE` docs, and progress (current / total / matched)
+   * is published live so the user sees something happening.
+   */
+  async searchMelody() {
     if (!this.user || !this.melodyPattern.trim()) return;
+    this.updateUrl();
     this.melodySearching  = true;
     this.melodySearched   = false;
     this.melodyScanned    = 0;
     this.melodyWithNotes  = 0;
+    this.searchCancelled  = false;
+    this.searchProgress = { current: 0, total: 0, matched: 0 };
+    this.visibleMelodyLimit = SearchComponent.INITIAL_RESULT_LIMIT;
+    this.melodyPage = 1;
+    this.melodyFilterText = '';
+
     const pattern = parseMelodyPattern(this.melodyPattern, this.melodySearchType, this.melodyWithOctave);
 
-    forkJoin({
-      docsRes:    this.api.listDocuments(this.user.token),
-      notesRes:   this.api.getAllDocumentNotes(this.user.token),
-      sourcesRes: this.api.listSources(this.user.token),
-    }).subscribe(({ docsRes, notesRes, sourcesRes }) => {
-      const allDocs    = docsRes.kind    === 'DocumentsRetrieved' ? docsRes.documents  : [];
-      const allNotes   = notesRes as unknown as { [id: string]: VM.RootContainer };
-      const allSources = sourcesRes.kind === 'SourcesRetrieved'  ? sourcesRes.sources  : [];
+    try {
+      const [docsRes, sourcesRes] = await Promise.all([
+        this.api.listDocuments(this.user.token).toPromise(),
+        this.api.listSources(this.user.token).toPromise(),
+      ]);
+      const allDocs    = docsRes?.kind    === 'DocumentsRetrieved' ? docsRes.documents  : [];
+      const allSources = sourcesRes?.kind === 'SourcesRetrieved'   ? sourcesRes.sources : [];
+      const sourceMap  = new Map<string, Source>(allSources.map(s => [s.id ?? '', s]));
       const results: MelodyResult[] = [];
 
       this.melodyScanned = allDocs.length;
+      this.searchProgress = { current: 0, total: allDocs.length, matched: 0 };
+      this.cdRef.markForCheck();
 
-      for (const doc of allDocs) {
-        const root = allNotes[doc.id];
-        if (!root) continue;
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < allDocs.length; i += BATCH_SIZE) {
+        if (this.searchCancelled) { this.finishMelodySearch(results); return; }
+        
+        const batch = allDocs.slice(i, i + BATCH_SIZE);
+        const promises = batch.map(async (doc) => {
+          // Lazy-load notes for THIS document only.
+          let root: VM.RootContainer | null = null;
+          try { root = await NotesStore.get(doc.id); }
+          catch (e) { console.warn(`Skipping ${doc.id}:`, e); }
 
-        const syllables = extractSyllables(root);
-        const { notes, sylIdx } = flattenNotes(syllables);
-        if (notes.length === 0) continue;
-        this.melodyWithNotes++;
+          if (root) {
+            const syllables = extractSyllables(root);
+            const { notes, sylIdx } = flattenNotes(syllables);
+            if (notes.length > 0) {
+              this.melodyWithNotes++;
 
-        // Build the sequence to search
-        const sequence = this.melodySearchType === 'pitch'
-          ? toPitchNames(notes, this.melodyWithOctave)
-          : toContour(notes);
+              const sequence = this.melodySearchType === 'pitch'
+                ? toPitchNames(notes, this.melodyWithOctave)
+                : this.melodySearchType === 'contour'
+                ? toContour(notes)
+                : toIntervals(notes);
 
-        const matches = findSubsequenceMatches(sequence, pattern, this.melodyMaxDistance);
-        if (matches.length === 0) continue;
+              let matches = findSubsequenceMatches(sequence, pattern, this.melodyMaxDistance);
+              if (this.melodyOnlyWithinSyllables) {
+                matches = matches.filter(m => {
+                  const startNote = m.start;
+                  const endNote = (this.melodySearchType === 'contour' || this.melodySearchType === 'interval') ? m.end + 1 : m.end;
+                  return sylIdx[startNote] === sylIdx[endNote];
+                });
+              }
 
-        // Take the best match (minimum distance)
-        const bestMatch = matches[0];
-        const matchStart = bestMatch.start;
-        const matchEndNote = bestMatch.end;
-        const distance = bestMatch.distance;
+              if (matches.length > 0) {
+                const bestMatch = matches[0];
+                const matchStart = bestMatch.start;
+                const matchEndNote = (this.melodySearchType === 'contour' || this.melodySearchType === 'interval')
+                  ? bestMatch.end + 1
+                  : bestMatch.end;
+                const distance = bestMatch.distance;
 
-        // Determine which syllables are "in the match"
-        const matchSylSet = new Set<string>();
-        for (let ni = matchStart; ni <= matchEndNote && ni < sylIdx.length; ni++) {
-          const syl = syllables[sylIdx[ni]];
-          if (syl?.uuid) {
-            matchSylSet.add(syl.uuid);
+                const matchSylSet = new Set<string>();
+                for (let ni = matchStart; ni <= matchEndNote && ni < sylIdx.length; ni++) {
+                  const syl = syllables[sylIdx[ni]];
+                  if (syl?.uuid) matchSylSet.add(syl.uuid);
+                }
+
+                const matchNoteSet = new Set<string>();
+                for (let ni = matchStart; ni <= matchEndNote && ni < notes.length; ni++) {
+                  const note = notes[ni];
+                  if (note?.uuid) matchNoteSet.add(note.uuid);
+                }
+
+                const matchingSyllableIndices: number[] = [];
+                for (let ni = matchStart; ni <= matchEndNote && ni < sylIdx.length; ni++) {
+                  matchingSyllableIndices.push(sylIdx[ni]);
+                }
+                const matchSylMin = Math.min(...matchingSyllableIndices);
+                const matchSylMax = Math.max(...matchingSyllableIndices);
+                const ctxFirst = Math.max(0, matchSylMin - 3);
+                const ctxLast  = Math.min(syllables.length - 1, matchSylMax + 3);
+                const contextSyllables = syllables.slice(ctxFirst, ctxLast + 1);
+
+                results.push({
+                  document:   doc,
+                  sourceSigle: sourceMap.get(doc.quelle_id)?.quellensigle ?? '',
+                  noteCount:  notes.length,
+                  matchingSyllables: contextSyllables,
+                  matchSylSet,
+                  matchNoteSet,
+                  distance,
+                });
+              }
+            }
           }
-        }
-
-        // Context window: 3 syllables of padding before and after the match
-        const matchingSyllableIndices = [];
-        for (let ni = matchStart; ni <= matchEndNote && ni < sylIdx.length; ni++) {
-          matchingSyllableIndices.push(sylIdx[ni]);
-        }
-        const matchSylMin = Math.min(...matchingSyllableIndices);
-        const matchSylMax = Math.max(...matchingSyllableIndices);
-        const ctxFirst = Math.max(0, matchSylMin - 3);
-        const ctxLast  = Math.min(syllables.length - 1, matchSylMax + 3);
-
-        const contextSyllables = syllables.slice(ctxFirst, ctxLast + 1);
-
-        const source = allSources.find(s => s.id === doc.quelle_id);
-        results.push({
-          document:   doc,
-          sourceSigle: source?.quellensigle ?? '',
-          noteCount:  notes.length,
-          matchingSyllables: contextSyllables,
-          matchSylSet,
-          distance,
         });
+
+        await Promise.all(promises);
+
+        const currentProgress = Math.min(i + BATCH_SIZE, allDocs.length);
+        this.searchProgress.current = currentProgress;
+        this.searchProgress.matched = results.length;
+        // Stream results so users see matches arrive (sorted by best-so-far).
+        this.melodyResults = results.slice().sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
+        this.cdRef.markForCheck();
+        await this.yieldToUI();
       }
 
-      // Sort results: exact matches first, then sorted by distance, then by document metadata
-      this.melodyResults  = results.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
-      this.melodySearched = true;
+      this.finishMelodySearch(results);
+    } catch (err) {
+      console.error('Melody search failed:', err);
       this.melodySearching = false;
-    });
+      this.melodySearched = true;
+      this.cdRef.markForCheck();
+    }
+  }
+
+  private finishMelodySearch(results: MelodyResult[]): void {
+    this.melodyResults  = results.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
+    this.melodySearched = true;
+    this.melodySearching = false;
+    this.saveSearchStateToIndexedDB();
+    this.cdRef.markForCheck();
   }
 
   get melodyPatternHint(): string {
@@ -781,8 +1263,10 @@ export class SearchComponent implements OnInit, OnDestroy {
       return this.melodyWithOctave
         ? 'e.g. C4D4E4F4  (note names + octave, no spaces needed)'
         : 'e.g. CDEFG  (note names A–G, no spaces needed)';
+    } else if (this.melodySearchType === 'contour') {
+      return 'e.g. uudrud  (u=up, d=down, r=repeat)';
     }
-    return 'e.g. uudrud  (u=up, d=down, r=repeat)';
+    return 'e.g. +1-2+0  (signed step differences, spaces optional)';
   }
 
   // ── Sorting ───────────────────────────────────────────────────────────────
@@ -806,8 +1290,277 @@ export class SearchComponent implements OnInit, OnDestroy {
     });
   }
 
-  get sortedSourceResults(): Source[]   { return this.sortArr(this.sourceResults,   this.srcSortCol, this.srcSortAsc); }
-  get sortedDocumentResults(): Document[] { return this.sortArr(this.documentResults, this.docSortCol, this.docSortAsc); }
+  /**
+   * Sorted-result accessors used by the template's `*ngFor`.
+   *
+   * These USED to be eager `sortArr(...)` getters which re-ran the entire
+   * O(N log N) sort on every Angular change-detection pass — on big result
+   * sets that meant the browser was doing thousands of comparisons per
+   * scroll tick. The cached implementation keeps the previous output and
+   * only re-sorts when either the underlying array reference or the sort
+   * key/direction actually changes.
+   */
+  get sortedSourceResults(): Source[] {
+    const key = this.srcSortCol + '|' + this.srcSortAsc;
+    if (this._srcResultsRef !== this.sourceResults || this._srcSortKey !== key) {
+      this._sortedSources = this.sortArr(this.sourceResults, this.srcSortCol, this.srcSortAsc);
+      this._srcResultsRef = this.sourceResults;
+      this._srcSortKey = key;
+    }
+    return this._sortedSources;
+  }
+  get sortedDocumentResults(): Document[] {
+    const key = this.docSortCol + '|' + this.docSortAsc;
+    if (this._docResultsRef !== this.documentResults || this._docSortKey !== key) {
+      this._sortedDocs = this.sortArr(this.documentResults, this.docSortCol, this.docSortAsc);
+      this._docResultsRef = this.documentResults;
+      this._docSortKey = key;
+    }
+    return this._sortedDocs;
+  }
+  // ── Post-search filtering ──────────────────────────────────────────────
+  /**
+   * Generic substring filter. `keyFn` returns a string of all the text the
+   * row should be matchable by (e.g. concatenated metadata). The filter
+   * text is split on whitespace into AND-terms so the user can type
+   * `Aa 13 Karolus` to narrow to rows containing *both* "Aa 13" and
+   * "Karolus" — feels natural for refining a large result set.
+   */
+  private applyFilter<T>(arr: T[], filterText: string, keyFn: (row: T) => string): T[] {
+    const trimmed = filterText.trim().toLowerCase();
+    if (!trimmed) return arr;
+    const terms = trimmed.split(/\s+/).filter(Boolean);
+    return arr.filter(row => {
+      const haystack = keyFn(row).toLowerCase();
+      return terms.every(t => haystack.includes(t));
+    });
+  }
+
+  /** Cached filtered views — keyed on (results ref, filter text) so a CD
+   *  pass that didn't change either skips the substring scan entirely. */
+  get filteredQuickResults(): QuickResult[] {
+    const key = this.quickFilterValue;
+    if (this._quickFilterRef !== this.quickResults || this._quickFilterKey !== key) {
+      this._filteredQuick = this.applyFilter(this.quickResults, key,
+        r => `${r.title} ${r.subtitle} ${r.extra} ${r.snippet?.before ?? ''} ${r.snippet?.match ?? ''} ${r.snippet?.after ?? ''}`);
+      this._quickFilterRef = this.quickResults;
+      this._quickFilterKey = key;
+    }
+    return this._filteredQuick;
+  }
+  get filteredSourceResults(): Source[] {
+    const sorted = this.sortedSourceResults;
+    const key = this.sourceFilterValue;
+    if (this._srcFilterRef !== sorted || this._srcFilterKey !== key) {
+      this._filteredSrc = this.applyFilter(sorted, key,
+        s => Object.values(s).filter(v => typeof v === 'string').join(' '));
+      this._srcFilterRef = sorted;
+      this._srcFilterKey = key;
+    }
+    return this._filteredSrc;
+  }
+  get filteredDocumentResults(): Document[] {
+    const sorted = this.sortedDocumentResults;
+    const key = this.documentFilterValue;
+    if (this._docFilterRef !== sorted || this._docFilterKey !== key) {
+      this._filteredDoc = this.applyFilter(sorted, key,
+        d => Object.values(d).filter(v => typeof v === 'string').join(' '));
+      this._docFilterRef = sorted;
+      this._docFilterKey = key;
+    }
+    return this._filteredDoc;
+  }
+  get filteredMelodyResults(): MelodyResult[] {
+    const key = this.melodyFilterValue;
+    if (this._melodyFilterRef !== this.melodyResults || this._melodyFilterKey !== key) {
+      this._filteredMelody = this.applyFilter(this.melodyResults, key, r => {
+        const d = r.document;
+        return `${r.sourceSigle} ${d.textinitium ?? ''} ${d.dokumenten_id ?? ''} ${d.gattung1 ?? ''} ${d.gattung2 ?? ''} ${d.festtag ?? ''} ${d.feier ?? ''} ${d.foliostart ?? ''}`;
+      });
+      this._melodyFilterRef = this.melodyResults;
+      this._melodyFilterKey = key;
+    }
+    return this._filteredMelody;
+  }
+
+  /** Visible-cap slicing — keeps the DOM small on huge result sets. Slices
+   *  AFTER filtering so "Show more" pages through the filtered view. */
+  get visibleQuickResults():    QuickResult[]  { return this.filteredQuickResults.slice(0, this.visibleQuickLimit); }
+  get visibleSourceResults():   Source[]       { return this.filteredSourceResults.slice(0, this.visibleSourceLimit); }
+  get visibleDocumentResults(): Document[]     { return this.filteredDocumentResults.slice(0, this.visibleDocumentLimit); }
+  get visibleMelodyResults():   MelodyResult[] { return this.filteredMelodyResults.slice(0, this.visibleMelodyLimit); }
+
+  // ── Search pagination helper and getters ──────────────────────────────────
+
+  getPagerWindow(currentPage: number, totalPages: number): number[] {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const out: number[] = [1];
+    const winStart = Math.max(2, currentPage - 2);
+    const winEnd   = Math.min(totalPages - 1, currentPage + 2);
+    if (winStart > 2) out.push(-1);
+    for (let p = winStart; p <= winEnd; p++) out.push(p);
+    if (winEnd < totalPages - 1) out.push(-1);
+    out.push(totalPages);
+    return out;
+  }
+
+  // Quick Search Pagination
+  get quickTotalPages(): number {
+    return Math.max(1, Math.ceil(this.filteredQuickResults.length / this.quickPageSize));
+  }
+  get pagedQuickResults(): QuickResult[] {
+    const start = (this.quickPage - 1) * this.quickPageSize;
+    return this.filteredQuickResults.slice(start, start + this.quickPageSize);
+  }
+  get quickPageFromIndex(): number {
+    if (this.filteredQuickResults.length === 0) return 0;
+    return (this.quickPage - 1) * this.quickPageSize + 1;
+  }
+  get quickPageToIndex(): number {
+    return Math.min(this.filteredQuickResults.length, this.quickPage * this.quickPageSize);
+  }
+  get quickPagerWindow(): number[] {
+    return this.getPagerWindow(this.quickPage, this.quickTotalPages);
+  }
+  goToQuickPage(p: number): void {
+    if (this.filteredQuickResults.length === 0) return;
+    this.quickPage = Math.max(1, Math.min(this.quickTotalPages, p));
+    this.saveSearchStateToIndexedDB();
+    this.cdRef.markForCheck();
+  }
+  goToFirstQuickPage(): void { this.goToQuickPage(1); }
+  goToLastQuickPage():  void { this.goToQuickPage(this.quickTotalPages); }
+  goToPrevQuickPage():  void { this.goToQuickPage(this.quickPage - 1); }
+  goToNextQuickPage():  void { this.goToQuickPage(this.quickPage + 1); }
+
+  // Sources Search Pagination
+  get sourcesTotalPages(): number {
+    return Math.max(1, Math.ceil(this.filteredSourceResults.length / this.sourcesPageSize));
+  }
+  get pagedSourceResults(): Source[] {
+    const start = (this.sourcesPage - 1) * this.sourcesPageSize;
+    return this.filteredSourceResults.slice(start, start + this.sourcesPageSize);
+  }
+  get sourcesPageFromIndex(): number {
+    if (this.filteredSourceResults.length === 0) return 0;
+    return (this.sourcesPage - 1) * this.sourcesPageSize + 1;
+  }
+  get sourcesPageToIndex(): number {
+    return Math.min(this.filteredSourceResults.length, this.sourcesPage * this.sourcesPageSize);
+  }
+  get sourcesPagerWindow(): number[] {
+    return this.getPagerWindow(this.sourcesPage, this.sourcesTotalPages);
+  }
+  goToSourcesPage(p: number): void {
+    if (this.filteredSourceResults.length === 0) return;
+    this.sourcesPage = Math.max(1, Math.min(this.sourcesTotalPages, p));
+    this.saveSearchStateToIndexedDB();
+    this.cdRef.markForCheck();
+  }
+  goToFirstSourcesPage(): void { this.goToSourcesPage(1); }
+  goToLastSourcesPage():  void { this.goToSourcesPage(this.sourcesTotalPages); }
+  goToPrevSourcesPage():  void { this.goToSourcesPage(this.sourcesPage - 1); }
+  goToNextSourcesPage():  void { this.goToSourcesPage(this.sourcesPage + 1); }
+
+  // Documents Search Pagination
+  get documentsTotalPages(): number {
+    return Math.max(1, Math.ceil(this.filteredDocumentResults.length / this.documentsPageSize));
+  }
+  get pagedDocumentResults(): Document[] {
+    const start = (this.documentsPage - 1) * this.documentsPageSize;
+    return this.filteredDocumentResults.slice(start, start + this.documentsPageSize);
+  }
+  get documentsPageFromIndex(): number {
+    if (this.filteredDocumentResults.length === 0) return 0;
+    return (this.documentsPage - 1) * this.documentsPageSize + 1;
+  }
+  get documentsPageToIndex(): number {
+    return Math.min(this.filteredDocumentResults.length, this.documentsPage * this.documentsPageSize);
+  }
+  get documentsPagerWindow(): number[] {
+    return this.getPagerWindow(this.documentsPage, this.documentsTotalPages);
+  }
+  goToDocumentsPage(p: number): void {
+    if (this.filteredDocumentResults.length === 0) return;
+    this.documentsPage = Math.max(1, Math.min(this.documentsTotalPages, p));
+    this.saveSearchStateToIndexedDB();
+    this.cdRef.markForCheck();
+  }
+  goToFirstDocumentsPage(): void { this.goToDocumentsPage(1); }
+  goToLastDocumentsPage():  void { this.goToDocumentsPage(this.documentsTotalPages); }
+  goToPrevDocumentsPage():  void { this.goToDocumentsPage(this.documentsPage - 1); }
+  goToNextDocumentsPage():  void { this.goToDocumentsPage(this.documentsPage + 1); }
+
+  // Melody Search Pagination
+  get melodyTotalPages(): number {
+    return Math.max(1, Math.ceil(this.filteredMelodyResults.length / this.melodyPageSize));
+  }
+  get pagedMelodyResults(): MelodyResult[] {
+    const start = (this.melodyPage - 1) * this.melodyPageSize;
+    return this.filteredMelodyResults.slice(start, start + this.melodyPageSize);
+  }
+  get melodyPageFromIndex(): number {
+    if (this.filteredMelodyResults.length === 0) return 0;
+    return (this.melodyPage - 1) * this.melodyPageSize + 1;
+  }
+  get melodyPageToIndex(): number {
+    return Math.min(this.filteredMelodyResults.length, this.melodyPage * this.melodyPageSize);
+  }
+  get melodyPagerWindow(): number[] {
+    return this.getPagerWindow(this.melodyPage, this.melodyTotalPages);
+  }
+  goToMelodyPage(p: number): void {
+    if (this.filteredMelodyResults.length === 0) return;
+    this.melodyPage = Math.max(1, Math.min(this.melodyTotalPages, p));
+    this.saveSearchStateToIndexedDB();
+    this.cdRef.markForCheck();
+  }
+  goToFirstMelodyPage(): void { this.goToMelodyPage(1); }
+  goToLastMelodyPage():  void { this.goToMelodyPage(this.melodyTotalPages); }
+  goToPrevMelodyPage():  void { this.goToMelodyPage(this.melodyPage - 1); }
+  goToNextMelodyPage():  void { this.goToMelodyPage(this.melodyPage + 1); }
+
+  /** Reset visible cap whenever the filter changes so users don't have to
+   *  click "Show more" to discover that their narrower filter already fits. */
+  onFilterChange(which: 'quick' | 'source' | 'document' | 'melody'): void {
+    this.filterSubject.next(which);
+  }
+
+  applyFilterLimitReset(which: 'quick' | 'source' | 'document' | 'melody'): void {
+    switch (which) {
+      case 'quick':
+        this.visibleQuickLimit    = SearchComponent.INITIAL_RESULT_LIMIT;
+        this.quickPage = 1;
+        break;
+      case 'source':
+        this.visibleSourceLimit   = SearchComponent.INITIAL_RESULT_LIMIT;
+        this.sourcesPage = 1;
+        break;
+      case 'document':
+        this.visibleDocumentLimit = SearchComponent.INITIAL_RESULT_LIMIT;
+        this.documentsPage = 1;
+        break;
+      case 'melody':
+        this.visibleMelodyLimit   = SearchComponent.INITIAL_RESULT_LIMIT;
+        this.melodyPage = 1;
+        break;
+    }
+    this.cdRef.markForCheck();
+  }
+
+  /** Clears the filter for the given tab. */
+  clearFilter(which: 'quick' | 'source' | 'document' | 'melody'): void {
+    switch (which) {
+      case 'quick':    this.quickFilterText = ''; this.quickFilterValue = ''; break;
+      case 'source':   this.sourceFilterText = ''; this.sourceFilterValue = ''; break;
+      case 'document': this.documentFilterText = ''; this.documentFilterValue = ''; break;
+      case 'melody':   this.melodyFilterText = ''; this.melodyFilterValue = ''; break;
+    }
+    this.applyFilterLimitReset(which);
+  }
+
   get visibleSrcCols() { return this.srcResultCols.filter(c => c.visible); }
   get visibleDocCols() { return this.docResultCols.filter(c => c.visible); }
 
@@ -921,4 +1674,1799 @@ export class SearchComponent implements OnInit, OnDestroy {
       });
     }
   }
+
+  // ── Synoptic Comparison methods ───────────────────────────────────────────
+
+  toggleDocSelection(doc: Document, event: Event) {
+    event.stopPropagation();
+    const idx = this.selectedDocs.findIndex(d => d.id === doc.id);
+    if (idx > -1) {
+      this.selectedDocs.splice(idx, 1);
+    } else {
+      this.selectedDocs.push(doc);
+    }
+    this.updateUrl();
+  }
+
+  toggleQuickResultSelection(r: QuickResult, event: Event) {
+    event.stopPropagation();
+    const doc: Document = {
+      id: r.id,
+      quelle_id: r.sourceId || '',
+      dokumenten_id: r.title || r.id,
+      textinitium: r.title || '',
+      gattung1: '',
+      gattung2: '',
+      festtag: '',
+      feier: '',
+      bibliographischerverweis: '',
+      druckausgabe: '',
+      zeilenstart: '',
+      foliostart: '',
+      kommentar: '',
+      editionsstatus: ''
+    };
+    this.toggleDocSelection(doc, event);
+  }
+
+  isDocSelected(id: string): boolean {
+    return this.selectedDocs.some(d => d.id === id);
+  }
+
+  clearDocSelection() {
+    this.selectedDocs = [];
+    this.cachedRootContainers = [];
+    this.cachedDocIds = [];
+    this.updateUrl();
+  }
+
+  selectTab(tab: 'quick' | 'sources' | 'documents' | 'melody') {
+    this.activeTab = tab;
+    this.updateUrl();
+    this.saveSearchStateToIndexedDB();
+  }
+
+  exitSynopsis() {
+    this.showSynopsis = false;
+    this.updateUrl();
+  }
+
+  updateUrl() {
+    // NOTE: we intentionally no longer persist the search query/filters
+    // (q_text, src_*, doc_*, mel_*) into the URL.  Doing so caused a refresh
+    // to silently re-run the last search; searches must be explicit.  Only
+    // view state that the user expects to be shareable/bookmarkable is kept:
+    // the active tab and the synopsis-comparison selection.
+    const queryParams: any = {
+      tab: this.activeTab,
+
+      // Synopsis comparison (explicit, shareable)
+      compare: this.selectedDocs.length > 0 ? this.selectedDocs.map(d => d.id).join(',') : null,
+      synopsis: this.showSynopsis ? 'true' : null,
+      align: this.alignmentMode || null
+    };
+
+    // Clean up null/undefined values
+    Object.keys(queryParams).forEach(key => {
+      if (queryParams[key] === null || queryParams[key] === undefined) {
+        delete queryParams[key];
+      }
+    });
+
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams,
+      replaceUrl: true
+    });
+  }
+
+  restoreStateFromUrl() {
+    const params = this.route.snapshot.queryParams;
+    if (!params) return;
+
+    // We deliberately DO NOT restore the search query (q_text / src_* / doc_* /
+    // mel_*) from the URL, and we never auto-execute a search on load.  A
+    // search must always be triggered explicitly by the user clicking
+    // "Search" — opening or refreshing the page should show a clean form.
+    // Only non-search view state is honoured below: the active tab and the
+    // synopsis-comparison deep link (which is an explicit shareable action).
+
+    if (params.tab) this.activeTab = params.tab;
+    if (params.align) this.alignmentMode = params.align;
+
+    // Restore selected documents and open synopsis comparison if requested
+    if (params.compare) {
+      const docIds = params.compare.split(',');
+      const observables = docIds.map((id: string) => this.api.getDocument(this.user!.token, id));
+      (forkJoin(observables) as any).subscribe({
+        next: (results: any[]) => {
+          const docs: Document[] = [];
+          for (const res of results) {
+            if (res.kind === 'DocumentRetrieved') {
+              docs.push(res.document);
+            }
+          }
+          this.selectedDocs = docs;
+          
+          if (params.synopsis === 'true' && this.selectedDocs.length >= 2) {
+            this.enterSynopsis();
+          }
+        },
+        error: (err: any) => {
+          console.error('Error restoring compared documents:', err);
+        }
+      });
+    }
+  }
+
+  getMatchedCount(node: AlignedNode): number {
+    return (node.containers || []).filter(c => c !== null).length;
+  }
+
+  getElementWidth(item: AlignedLineElement): number {
+    if (!item || item.kind === 'placeholder' || !item.element) {
+      return 0;
+    }
+    if (item.kind === 'clef') {
+      return 35; // app-clef width
+    }
+    const syl = item.element as VM.Syllable;
+    const text = (syl.text || '').trim();
+    const textW = textWidth(text, 'Times', '15px');
+    
+    let noteCount = 0;
+    const spaced = syl.notes?.spaced || [];
+    spaced.forEach(ns => (ns.nonSpaced || []).forEach(g => (g.grouped || []).forEach(() => noteCount++)));
+    const notesW = noteCount > 0 ? (noteCount * 14 + 10) : 0;
+    
+    return Math.max(40, textW, notesW) + 12;
+  }
+
+  getColumnWidth(col: AlignedLineElement[]): number {
+    if (!col) return 0;
+    let maxWidth = 0;
+    let hasClef = false;
+    for (const item of col) {
+      if (!item) continue;
+      if (item.kind === 'clef') {
+        hasClef = true;
+      }
+      const w = this.getElementWidth(item);
+      if (w > maxWidth) {
+        maxWidth = w;
+      }
+    }
+    if (hasClef) {
+      return Math.max(35, maxWidth);
+    }
+    return Math.max(60, maxWidth);
+  }
+
+  onAlignmentModeChange(mode: 'structure' | 'sequential' | 'melody' | 'text') {
+    this.alignmentMode = mode;
+    this.enterSynopsis();
+  }
+
+  alignNodeChildren(parentNodes: (VM.FormteilContainer | VM.RootContainer | null)[], depth: number): AlignedNode[] {
+    const K = parentNodes.length;
+
+    // 1. Extract and flatten child lists for each document
+    const childLists: VM.FormteilChildren[][] = parentNodes.map(node => {
+      if (!node) return [];
+      const result: VM.FormteilChildren[] = [];
+      const rawChildren = node.children || [];
+      for (const child of rawChildren) {
+        if (!child) continue;
+        if (child.kind === 'MiscContainer') {
+          result.push(...(child.children || []).filter(c => c !== null && c !== undefined));
+        } else {
+          result.push(child as VM.FormteilChildren);
+        }
+      }
+      return result;
+    });
+
+    // 2. Separate leafs (ZeileContainer, ParatextContainer) and containers (FormteilContainer) for each list
+    const leafs: VM.FormteilChildren[][] = childLists.map(list => 
+      list.filter(c => c && (c.kind === 'ZeileContainer' || c.kind === 'ParatextContainer'))
+    );
+    const containers: VM.FormteilContainer[][] = childLists.map(list => 
+      list.filter(c => c && c.kind === 'FormteilContainer') as VM.FormteilContainer[]
+    );
+
+    const alignedNodes: AlignedNode[] = [];
+
+    // 3. Align leaf elements sequentially by index
+    const maxLeafCount = Math.max(...leafs.map(l => l.length));
+    for (let idx = 0; idx < maxLeafCount; idx++) {
+      const items = leafs.map(list => list[idx] || null);
+      
+      const leafNode: AlignedNode = {
+        kind: 'leaf',
+        level: depth,
+        signature: '',
+        containers: [],
+        children: [],
+        items: items
+      };
+
+      // If any of the matched items is a ZeileContainer, pre-align its syllables/clefs
+      const lineElements: (VM.Syllable | VM.Clef)[][] = items.map(item => {
+        if (item && item.kind === 'ZeileContainer') {
+          return (item.children || []).filter(c => c && (c.kind === 'Syllable' || c.kind === 'Clef')) as (VM.Syllable | VM.Clef)[];
+        }
+        return [];
+      });
+
+      const maxLineElCount = Math.max(...lineElements.map(el => el.length));
+      if (maxLineElCount > 0) {
+        leafNode.alignedLineElements = [];
+        for (let col = 0; col < maxLineElCount; col++) {
+          const column: AlignedLineElement[] = [];
+          for (let docIdx = 0; docIdx < K; docIdx++) {
+            const el = lineElements[docIdx][col] || null;
+            if (el) {
+              column.push({
+                kind: el.kind === 'Clef' ? 'clef' : 'syllable',
+                element: el
+              });
+            } else {
+              column.push({
+                kind: 'placeholder',
+                element: null
+              });
+            }
+          }
+          leafNode.alignedLineElements.push(column);
+        }
+      }
+
+      alignedNodes.push(leafNode);
+    }
+
+    // 4. Align structural FormteilContainers by Level/Signature
+    while (containers.some(list => list.length > 0)) {
+      // Find the first available signature among the active container lists
+      let sig = '';
+      for (let docIdx = 0; docIdx < K; docIdx++) {
+        if (containers[docIdx].length > 0) {
+          const firstContainer = containers[docIdx][0];
+          sig = (firstContainer && firstContainer.data || []).find((d: any) => d && d.name === 'Signatur')?.data || '';
+          break;
+        }
+      }
+
+      // Match and consume the first container with this signature in each document
+      const matchedContainers: (VM.FormteilContainer | null)[] = [];
+      for (let docIdx = 0; docIdx < K; docIdx++) {
+        const list = containers[docIdx];
+        const idx = list.findIndex(c => {
+          const s = (c && c.data || []).find((d: any) => d && d.name === 'Signatur')?.data || '';
+          return s === sig;
+        });
+        if (idx > -1) {
+          matchedContainers.push(list[idx]);
+          list.splice(idx, 1);
+        } else {
+          matchedContainers.push(null);
+        }
+      }
+
+      // Recurse into the children of these matched containers
+      const subChildren = this.alignNodeChildren(matchedContainers, depth + 1);
+
+      alignedNodes.push({
+        kind: 'container',
+        level: depth,
+        signature: sig,
+        containers: matchedContainers,
+        children: subChildren,
+        items: []
+      });
+    }
+
+    return alignedNodes;
+  }
+
+  alignSequential(rootContainers: VM.RootContainer[]): AlignedNode[] {
+    const K = rootContainers.length;
+    
+    // For each document, extract all lines and paratexts
+    const leafs: VM.FormteilChildren[][] = rootContainers.map(root => {
+      const result: VM.FormteilChildren[] = [];
+      const traverse = (node: any) => {
+        if (!node) return;
+        if (node.kind === 'ZeileContainer' || node.kind === 'ParatextContainer') {
+          result.push(node);
+        } else if (node.kind === 'MiscContainer') {
+          (node.children || []).forEach((c: any) => traverse(c));
+        } else if (node.children) {
+          node.children.forEach((c: any) => traverse(c));
+        }
+      };
+      traverse(root);
+      return result;
+    });
+
+    const alignedNodes: AlignedNode[] = [];
+    const maxLeafCount = Math.max(...leafs.map(l => l.length));
+
+    for (let idx = 0; idx < maxLeafCount; idx++) {
+      const items = leafs.map(list => list[idx] || null);
+      
+      const leafNode: AlignedNode = {
+        kind: 'leaf',
+        level: 1,
+        signature: '',
+        containers: [],
+        children: [],
+        items: items
+      };
+
+      const lineElements: (VM.Syllable | VM.Clef)[][] = items.map(item => {
+        if (item && item.kind === 'ZeileContainer') {
+          return (item.children || []).filter(c => c && (c.kind === 'Syllable' || c.kind === 'Clef')) as (VM.Syllable | VM.Clef)[];
+        }
+        return [];
+      });
+
+      const maxLineElCount = Math.max(...lineElements.map(el => el.length));
+      if (maxLineElCount > 0) {
+        leafNode.alignedLineElements = [];
+        for (let col = 0; col < maxLineElCount; col++) {
+          const column: AlignedLineElement[] = [];
+          for (let docIdx = 0; docIdx < K; docIdx++) {
+            const el = lineElements[docIdx][col] || null;
+            if (el) {
+              column.push({
+                kind: el.kind === 'Clef' ? 'clef' as const : 'syllable' as const,
+                element: el
+              });
+            } else {
+              column.push({
+                kind: 'placeholder',
+                element: null
+              });
+            }
+          }
+          leafNode.alignedLineElements.push(column);
+        }
+      }
+
+      alignedNodes.push(leafNode);
+    }
+
+    return alignedNodes;
+  }
+
+  alignMelody(rootContainers: VM.RootContainer[], mode: 'melody' | 'text' = 'melody'): AlignedLineElement[][] {
+    const K = rootContainers.length;
+    if (K === 0) return [];
+
+    // Extract flat elements for each document
+    const flatSeqs: (VM.Clef | VM.Syllable)[][] = rootContainers.map(r => extractFlatElements(r));
+    const seq0 = flatSeqs[0];
+
+    // Initialize aligned columns with just doc 0 elements
+    let alignedCols: AlignedLineElement[][] = seq0.map(el => {
+      const col: AlignedLineElement[] = Array(K).fill(null).map(() => ({ kind: 'placeholder', element: null }));
+      col[0] = { kind: el.kind === 'Clef' ? 'clef' as const : 'syllable' as const, element: el };
+      return col;
+    });
+
+    // Align each subsequent document to the profile accumulated so far and merge
+    for (let docIdx = 1; docIdx < K; docIdx++) {
+      const seqi = flatSeqs[docIdx];
+      const { aligned1, aligned2 } = needlemanWunschProfile(alignedCols, seqi, docIdx, mode);
+
+      const nextAlignedCols: AlignedLineElement[][] = [];
+      for (let idx = 0; idx < aligned1.length; idx++) {
+        const existingCol = aligned1[idx];
+        const eli = aligned2[idx];
+
+        if (existingCol !== null) {
+          // Merge eli into the existing column
+          if (eli) {
+            existingCol[docIdx] = {
+              kind: eli.kind === 'Clef' ? 'clef' as const : 'syllable' as const,
+              element: eli
+            };
+          } else {
+            existingCol[docIdx] = { kind: 'placeholder', element: null };
+          }
+          nextAlignedCols.push(existingCol);
+        } else {
+          // Insertion: create a new column with placeholders for docs 0..docIdx-1
+          const newCol: AlignedLineElement[] = Array(K).fill(null).map(() => ({ kind: 'placeholder', element: null }));
+          if (eli) {
+            newCol[docIdx] = {
+              kind: eli.kind === 'Clef' ? 'clef' as const : 'syllable' as const,
+              element: eli
+            };
+          }
+          nextAlignedCols.push(newCol);
+        }
+      }
+      alignedCols = nextAlignedCols;
+    }
+
+    return alignedCols;
+  }
+
+  enterSynopsis() {
+    if (!this.user || this.selectedDocs.length < 2) return;
+    this.synopsisLoading = true;
+    this.showSynopsis = false;
+
+    const token = this.user.token;
+    const currentDocIds = this.selectedDocs.map(d => d.id);
+    
+    // Check if cache matches current selection
+    const isCached = currentDocIds.length === this.cachedDocIds.length && 
+                     currentDocIds.every((id, idx) => id === this.cachedDocIds[idx]) &&
+                     this.cachedRootContainers.length === this.selectedDocs.length;
+
+    if (isCached) {
+      this.runAlignment(this.cachedRootContainers);
+      this.showSynopsis = true;
+      this.updateUrl();
+      this.synopsisLoading = false;
+      return;
+    }
+
+    // Fetch notes and sigles
+    const notesObservables = this.selectedDocs.map(d => this.api.getDocumentNotes(token, d.id));
+    const sigleObservables = this.selectedDocs.map(d => this.api.getSigle(token, d.quelle_id));
+
+    forkJoin({
+      notes: forkJoin(notesObservables),
+      sigles: forkJoin(sigleObservables)
+    }).subscribe({
+      next: (res: any) => {
+        const rootContainers: VM.RootContainer[] = [];
+        this.docSigles = {};
+        
+        for (let i = 0; i < this.selectedDocs.length; i++) {
+          const doc = this.selectedDocs[i];
+          const sigleRes = res.sigles[i];
+          this.docSigles[doc.id] = (sigleRes.kind === 'SigleRetrieved') ? sigleRes.sigle : doc.dokumenten_id;
+          
+          const notesRes = res.notes[i];
+          if (notesRes.kind === 'NotesRetrieved') {
+            rootContainers.push(notesRes.data);
+          } else {
+            rootContainers.push({
+              kind: VM.ContainerKind.RootContainer,
+              uuid: doc.id,
+              children: [],
+              comments: [],
+              documentType: VM.DocumentType.Level1
+            });
+          }
+        }
+
+        // Cache the loaded models
+        this.cachedRootContainers = rootContainers;
+        this.cachedDocIds = currentDocIds;
+
+        this.runAlignment(rootContainers);
+        this.showSynopsis = true;
+        this.updateUrl();
+        this.synopsisLoading = false;
+      },
+      error: (err) => {
+        console.error('Error entering synopsis:', err);
+        this.synopsisLoading = false;
+      }
+    });
+  }
+
+  runAlignment(rootContainers: VM.RootContainer[]) {
+    if (this.alignmentMode === 'structure') {
+      this.alignedTree = this.alignNodeChildren(rootContainers, 1);
+    } else if (this.alignmentMode === 'sequential') {
+      this.alignedTree = this.alignSequential(rootContainers);
+    } else if (this.alignmentMode === 'melody' || this.alignmentMode === 'text') {
+      const melodyCols = this.alignMelody(rootContainers, this.alignmentMode);
+      this.chunkedMelodyRows = [];
+      const chunkSize = 8;
+      for (let i = 0; i < melodyCols.length; i += chunkSize) {
+        this.chunkedMelodyRows.push(melodyCols.slice(i, i + chunkSize));
+      }
+    }
+  }
+
+  // ── Pattern Analysis Methods ──────────────────────────────────────────────
+
+  get patternTargetDocsCount(): number {
+    if (this.activeTab === 'quick') {
+      return this.filteredQuickResults.filter(r => r.kind === 'document').length;
+    } else if (this.activeTab === 'sources') {
+      return this.filteredSourceResults.length;
+    } else if (this.activeTab === 'documents') {
+      return this.filteredDocumentResults.length;
+    } else if (this.activeTab === 'melody') {
+      return this.filteredMelodyResults.length;
+    }
+    return 0;
+  }
+
+  // Expanded pattern group IDs to paginate/collapse occurrences inside cards
+  expandedGroupIds = new Set<number>();
+
+  toggleGroupExpand(groupId: number) {
+    if (this.expandedGroupIds.has(groupId)) {
+      this.expandedGroupIds.delete(groupId);
+    } else {
+      this.expandedGroupIds.add(groupId);
+    }
+    this.cdRef.markForCheck();
+  }
+
+  visibleOccurrences(g: PatternGroup): PatternOccurrence[] {
+    if (this.expandedGroupIds.has(g.id)) {
+      return g.occurrences;
+    }
+    return g.occurrences.slice(0, 3);
+  }
+
+  async getCurrentSearchDocIds(): Promise<string[]> {
+    if (!this.user) return [];
+    try {
+      const docsRes = await this.api.listDocuments(this.user.token).toPromise();
+      const allDocs = docsRes?.kind === 'DocumentsRetrieved' ? docsRes.documents : [];
+      
+      const docIds: string[] = [];
+      if (this.activeTab === 'quick') {
+        const docResults = this.filteredQuickResults.filter(r => r.kind === 'document');
+        docIds.push(...docResults.map(r => r.id));
+      } else if (this.activeTab === 'sources') {
+        const sourceIds = new Set(this.filteredSourceResults.map(s => s.id));
+        for (const doc of allDocs) {
+          if (sourceIds.has(doc.quelle_id)) {
+            docIds.push(doc.id!);
+          }
+        }
+      } else if (this.activeTab === 'documents') {
+        docIds.push(...this.filteredDocumentResults.map(d => d.id!));
+      } else if (this.activeTab === 'melody') {
+        docIds.push(...this.filteredMelodyResults.map(mr => mr.document.id!));
+      }
+      return docIds;
+    } catch (e) {
+      console.warn('Failed to get current search doc IDs:', e);
+      return [];
+    }
+  }
+
+  async openPatternAnalysis() {
+    this.showPatternAnalysis = true;
+    this.patternSearching = false;
+    this.patternCancelled = false;
+    this.patternPage = 1;
+    this.expandedGroupIds.clear();
+
+    const currentDocIds = await this.getCurrentSearchDocIds();
+    const analyzedDocIds = Array.from(this.patternDocTotalNotes.keys());
+
+    currentDocIds.sort();
+    analyzedDocIds.sort();
+
+    const isSame = currentDocIds.length === analyzedDocIds.length &&
+                   currentDocIds.every((id, idx) => id === analyzedDocIds[idx]);
+
+    if (!isSame) {
+      this.patternGroups = [];
+      this.patternTimelineDocs = [];
+      this.patternDocTotalNotes.clear();
+      this.detectedDuplicates = [];
+      this.patternProgress = { phase: '', current: 0, total: 0, percent: 0 };
+      this.updatePatternCache();
+    } else {
+      this.updatePatternCache();
+    }
+    
+    this.cdRef.markForCheck();
+  }
+
+  exitPatternAnalysis() {
+    this.showPatternAnalysis = false;
+    this.patternCancelled = true;
+    this.updatePatternCache();
+    this.cdRef.markForCheck();
+  }
+
+  cancelPatternGrouping() {
+    this.patternCancelled = true;
+    this.patternSearching = false;
+    this.patternProgress.phase = 'Cancelled';
+    if (this.patternWorker) {
+      this.patternWorker.terminate();
+      this.patternWorker = null;
+    }
+    this.updatePatternCache();
+    this.cdRef.markForCheck();
+  }
+
+  // ── Pattern-list pagination ─────────────────────────────────────────────
+
+  /** Total number of pages for the current pattern result set. */
+  get patternTotalPages(): number {
+    return Math.max(1, Math.ceil(this.patternGroups.length / this.patternPageSize));
+  }
+
+  /** The slice of pattern groups visible on the current page. The template
+   *  iterates this rather than slicing inline so that page changes update
+   *  cleanly with a single recompute. */
+  get pagedPatternGroups(): PatternGroup[] {
+    const start = (this.patternPage - 1) * this.patternPageSize;
+    return this.patternGroups.slice(start, start + this.patternPageSize);
+  }
+
+  /** 1-based index of the first pattern shown on the current page. */
+  get patternPageFromIndex(): number {
+    if (this.patternGroups.length === 0) return 0;
+    return (this.patternPage - 1) * this.patternPageSize + 1;
+  }
+
+  /** 1-based index of the last pattern shown on the current page. */
+  get patternPageToIndex(): number {
+    return Math.min(this.patternGroups.length, this.patternPage * this.patternPageSize);
+  }
+
+  /**
+   * A compact list of page numbers to render in the pager. Always shows
+   * the first and last page; in between we surround the current page with
+   * a small window. Gaps are represented by `-1` so the template can
+   * render an ellipsis. Yields something like
+   *   1 … 4 5 [6] 7 8 … 42
+   * for total=42, current=6.
+   */
+  get patternPagerWindow(): number[] {
+    const total = this.patternTotalPages;
+    const cur = this.patternPage;
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const out: number[] = [1];
+    const winStart = Math.max(2, cur - 2);
+    const winEnd   = Math.min(total - 1, cur + 2);
+    if (winStart > 2) out.push(-1);
+    for (let p = winStart; p <= winEnd; p++) out.push(p);
+    if (winEnd < total - 1) out.push(-1);
+    out.push(total);
+    return out;
+  }
+
+  /** Jump to a specific page; clamps to valid range. */
+  goToPatternPage(p: number): void {
+    if (this.patternGroups.length === 0) return;
+    const clamped = Math.max(1, Math.min(this.patternTotalPages, p));
+    if (clamped === this.patternPage) return;
+    this.patternPage = clamped;
+    this.updatePatternCache();
+    this.cdRef.markForCheck();
+  }
+  goToFirstPatternPage(): void { this.goToPatternPage(1); }
+  goToLastPatternPage():  void { this.goToPatternPage(this.patternTotalPages); }
+  goToPrevPatternPage():  void { this.goToPatternPage(this.patternPage - 1); }
+  goToNextPatternPage():  void { this.goToPatternPage(this.patternPage + 1); }
+
+  static computePatternGroups = computePatternGroups;
+
+  updatePatternCache() {
+    SearchComponent.cachedPatternGroups = this.patternGroups;
+    SearchComponent.cachedPatternLength = this.patternLength;
+    SearchComponent.cachedPatternType = this.patternType;
+    SearchComponent.cachedPatternWithOctave = this.patternWithOctave;
+    SearchComponent.cachedPatternStrictness = this.patternStrictness;
+    SearchComponent.cachedShowPatternAnalysis = this.showPatternAnalysis;
+    SearchComponent.cachedPatternProgress = this.patternProgress;
+    SearchComponent.cachedPatternViewMode = this.patternViewMode;
+    SearchComponent.cachedPatternTimelineDocs = this.patternTimelineDocs;
+    SearchComponent.cachedPatternDocTotalNotes = this.patternDocTotalNotes;
+    SearchComponent.cachedPatternMergeEnabled = this.patternMergeEnabled;
+    SearchComponent.cachedPatternMinMergeOverlap = this.patternMinMergeOverlap;
+    SearchComponent.cachedPatternDeduplicateEnabled = this.patternDeduplicateEnabled;
+    SearchComponent.cachedDetectedDuplicates = this.detectedDuplicates;
+    SearchComponent.cachedPatternPage = this.patternPage;
+    this.savePatternStateToIndexedDB();
+  }
+
+  setPatternViewMode(mode: 'list' | 'overview') {
+    this.patternViewMode = mode;
+    this.updatePatternCache();
+    this.cdRef.markForCheck();
+  }
+
+  getPatternColor(groupId: number): string {
+    const colors = [
+      '#3b82f6', // blue-500
+      '#10b981', // emerald-500
+      '#f59e0b', // amber-500
+      '#8b5cf6', // violet-500
+      '#ec4899', // pink-500
+      '#06b6d4', // cyan-500
+      '#ef4444', // red-500
+      '#84cc16', // lime-500
+      '#14b8a6', // teal-500
+      '#f97316', // orange-500
+      '#a855f7', // purple-500
+      '#6366f1'  // indigo-500
+    ];
+    return colors[(groupId - 1) % colors.length];
+  }
+
+  getPatternGroupKey(groupId: number): string {
+    const group = this.patternGroups.find(g => g.id === groupId);
+    return group ? group.representativeKey : '';
+  }
+
+  updateHoverStyles(groupId: number | null) {
+    let styleEl = document.getElementById('dynamic-hover-styles');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'dynamic-hover-styles';
+      document.head.appendChild(styleEl);
+    }
+    if (groupId === null) {
+      styleEl.innerHTML = '';
+    } else {
+      styleEl.innerHTML = `
+        .pattern-marker {
+          fill-opacity: 0.15 !important;
+        }
+        .group-marker-${groupId} {
+          fill-opacity: 1.0 !important;
+          stroke: #000000 !important;
+          stroke-width: 1px !important;
+        }
+      `;
+    }
+  }
+
+  onPatternFamilyHover(groupId: number | null) {
+    this.hoveredGroupId = groupId;
+    this.updateHoverStyles(groupId);
+  }
+
+  showTooltip(event: MouseEvent, occ: any, doc: any, groupId: number, repKey: string) {
+    this.hoveredGroupId = groupId;
+    this.updateHoverStyles(groupId);
+    
+    // Get matching syllables text
+    const sylText = occ.matchingSyllables.map((s: any) => s.text).join(' ');
+    
+    // Calculate page coordinates
+    this.hoveredOccurrence = {
+      docTitle: doc.doc.textinitium || doc.doc.dokumenten_id,
+      sourceSigle: doc.sourceSigle,
+      groupId,
+      repKey,
+      start: occ.startNoteIdx,
+      end: occ.endNoteIdx,
+      syllables: sylText,
+      pitches: occ.notes.map((n: any) => n.base + (n.octave !== undefined ? n.octave : '')).join(' - ')
+    };
+    this.updateTooltipPosition(event);
+  }
+
+  updateTooltipPosition(event: MouseEvent) {
+    this.tooltipX = event.clientX + 15;
+    this.tooltipY = event.clientY + 15;
+  }
+
+  hideTooltip() {
+    this.hoveredGroupId = null;
+    this.updateHoverStyles(null);
+    this.hoveredOccurrence = null;
+  }
+
+  private hexToRgb(hex: string): { r: number, g: number, b: number } {
+    const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+    const fullHex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 128, g: 128, b: 128 };
+  }
+
+  async exportPatternAnalysisPDF() {
+    try {
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+      const pageHeight = 842;
+      const pageWidth = 595;
+      const margin = 40;
+      let y = margin;
+
+      // 1. Title
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(37, 99, 235);
+      doc.text("Melodic Pattern Analysis Report", margin, y);
+      y += 24;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, margin, y);
+      y += 20;
+
+      // 2. Settings & Stats Table
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("Analysis Parameters & Statistics", margin, y);
+      y += 10;
+
+      const strictnessText = this.patternStrictness === 'exact' ? 'Exact Match' : 'Fuzzy Match (edit distance <= 1)';
+      const mergeText = this.patternMergeEnabled ? `Enabled (min overlap ${this.patternMinMergeOverlap})` : 'Disabled';
+      const dedupText = this.patternDeduplicateEnabled ? 'Enabled' : 'Disabled';
+      
+      const statsRows = [
+        ['Parameter', 'Value', 'Metric', 'Value'],
+        ['Pattern Type', this.patternType.toUpperCase(), 'Total Documents', this.patternTimelineDocs.length.toString()],
+        ['Pattern Length', this.patternLength.toString(), 'Patterns Identified', this.patternGroups.length.toString()],
+        ['Match Strictness', strictnessText, 'Total Occurrences', this.patternGroups.reduce((acc, g) => acc + g.occurrences.length, 0).toString()],
+        ['Merge Overlaps', mergeText, 'Excluded Duplicates', this.detectedDuplicates.length.toString()],
+        ['Deduplication', dedupText, '', '']
+      ];
+
+      autoTable(doc, {
+        startY: y,
+        head: [statsRows[0]],
+        body: statsRows.slice(1),
+        theme: 'striped',
+        headStyles: { fillColor: [79, 70, 229] },
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8 },
+        didDrawPage: (data) => {
+          y = data.cursor ? data.cursor.y : y;
+        }
+      });
+      y += 35;
+
+      // 3. Timeline Overview
+      if (this.patternTimelineDocs.length > 0) {
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(30, 41, 59);
+        doc.text("Timeline Overview", margin, y);
+        y += 10;
+
+        const timelineBody = this.patternTimelineDocs.map((docRow) => {
+          const title = docRow.doc.textinitium || docRow.doc.dokumenten_id || 'Untitled';
+          const genre = docRow.doc.gattung1 ? ` (${docRow.doc.gattung1})` : '';
+          return [`${docRow.sourceSigle} - ${title}${genre}`, ''];
+        });
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Document Metadata', 'Pattern Timeline']],
+          body: timelineBody,
+          theme: 'grid',
+          headStyles: { fillColor: [37, 99, 235] },
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 8, valign: 'middle' },
+          columnStyles: {
+            0: { cellWidth: 220 },
+            1: { cellWidth: 'auto' }
+          },
+          didDrawCell: (data) => {
+            if (data.section === 'body' && data.column.index === 1) {
+              const docRow = this.patternTimelineDocs[data.row.index];
+              const cell = data.cell;
+              
+              // Draw light background line
+              doc.setDrawColor(233, 236, 239);
+              doc.setLineWidth(1.5);
+              const lineY = cell.y + cell.height / 2;
+              doc.line(cell.x + 5, lineY, cell.x + cell.width - 5, lineY);
+
+              // Draw each pattern occurrence
+              for (const occ of docRow.occurrences) {
+                const startX = cell.x + 5 + (occ.startPct / 100) * (cell.width - 10);
+                const width = (occ.widthPct / 100) * (cell.width - 10);
+                const colorRgb = this.hexToRgb(occ.color);
+                doc.setFillColor(colorRgb.r, colorRgb.g, colorRgb.b);
+                doc.rect(startX, cell.y + 4, Math.max(width, 2), cell.height - 8, 'F');
+              }
+            }
+          },
+          didDrawPage: (data) => {
+            y = data.cursor ? data.cursor.y : y;
+          }
+        });
+        y += 35;
+      }
+
+      // Add a page break for the detailed list
+      doc.addPage();
+      y = margin;
+
+      // 4. Detailed Patterns List (limit to first 100 patterns to avoid huge PDFs)
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      doc.text("Detailed Pattern List", margin, y);
+      y += 10;
+
+      const detailedBody = this.patternGroups.slice(0, 100).map((g) => {
+        const occs = g.occurrences.map((occ) => {
+          const syllablesText = occ.matchingSyllables
+            ? occ.matchingSyllables.map((s: any) => s.text || '').join(' ').trim()
+            : '';
+          const cleanSylText = syllablesText.replace(/\s+/g, ' ');
+          return `• [${occ.sourceSigle}] ${occ.doc.textinitium || 'Untitled'} (notes ${occ.startNoteIdx}-${occ.endNoteIdx}): "${cleanSylText}"`;
+        }).join('\n');
+
+        return [
+          `Pattern #${g.id}\n(Freq: ${g.occurrences.length})`,
+          `Key: ${g.representativeKey}\n\nPitches: ${g.representativePitches}${g.isCompound ? '\n[Compound]' : ''}`,
+          occs
+        ];
+      });
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Pattern ID', 'Sequence Details', 'Occurrences List']],
+        body: detailedBody,
+        theme: 'striped',
+        headStyles: { fillColor: [15, 23, 42] },
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8, cellPadding: 6, valign: 'top' },
+        columnStyles: {
+          0: { cellWidth: 70 },
+          1: { cellWidth: 160 },
+          2: { cellWidth: 'auto' }
+        },
+        didDrawPage: (data) => {
+          y = data.cursor ? data.cursor.y : y;
+        }
+      });
+
+      const filename = `pattern-analysis-report-${this.patternType}-${this.patternLength}.pdf`;
+      doc.save(filename);
+      this.toastr.success('PDF report exported successfully!');
+    } catch (e) {
+      console.error('Failed to export PDF:', e);
+      this.toastr.error('Failed to export PDF report');
+    }
+  }
+
+  async saveCurrentPatternSession() {
+    if (!this.newSessionName.trim()) {
+      this.toastr.error('Please enter a session name');
+      return;
+    }
+
+    try {
+      const sessionData = {
+        patternGroups: this.patternGroups,
+        patternLength: this.patternLength,
+        patternType: this.patternType,
+        patternStrictness: this.patternStrictness,
+        patternViewMode: this.patternViewMode,
+        patternTimelineDocs: this.patternTimelineDocs,
+        patternDocTotalNotes: Array.from(this.patternDocTotalNotes.entries()),
+        patternMergeEnabled: this.patternMergeEnabled,
+        patternMinMergeOverlap: this.patternMinMergeOverlap,
+        patternDeduplicateEnabled: this.patternDeduplicateEnabled,
+        detectedDuplicates: this.detectedDuplicates,
+        patternPage: this.patternPage
+      };
+
+      const newSession = {
+        id: Math.random().toString(36).substring(2, 11) + '-' + Date.now(),
+        name: this.newSessionName.trim(),
+        date: Date.now(),
+        data: sessionData
+      };
+
+      this.savedPatternSessions = [newSession, ...this.savedPatternSessions];
+      await localforage.setItem('saved_pattern_sessions', this.savedPatternSessions);
+
+      this.newSessionName = '';
+      this.showSaveSessionForm = false;
+      this.toastr.success('Session saved successfully');
+      this.cdRef.markForCheck();
+    } catch (e) {
+      console.error('Failed to save session:', e);
+      this.toastr.error('Failed to save session');
+    }
+  }
+
+  async loadPatternSession(id: string) {
+    const session = this.savedPatternSessions.find(s => s.id === id);
+    if (!session) {
+      this.toastr.error('Session not found');
+      return;
+    }
+
+    try {
+      const data = session.data;
+      this.patternGroups = data.patternGroups || [];
+      this.patternLength = data.patternLength ?? 8;
+      this.patternType = data.patternType ?? 'interval';
+      this.patternStrictness = data.patternStrictness ?? 'exact';
+      this.patternViewMode = data.patternViewMode ?? 'overview';
+      this.patternTimelineDocs = data.patternTimelineDocs || [];
+      this.patternMergeEnabled = !!data.patternMergeEnabled;
+      this.patternMinMergeOverlap = data.patternMinMergeOverlap ?? 1;
+      this.patternDeduplicateEnabled = data.patternDeduplicateEnabled !== false;
+      this.detectedDuplicates = data.detectedDuplicates || [];
+      this.patternPage = data.patternPage || 1;
+      
+      if (data.patternDocTotalNotes) {
+        this.patternDocTotalNotes = new Map<string, number>(data.patternDocTotalNotes);
+      } else {
+        this.patternDocTotalNotes = new Map<string, number>();
+      }
+
+      this.updatePatternCache();
+      this.showSavedSessionsPopover = false;
+      this.toastr.success(`Session "${session.name}" loaded`);
+      this.cdRef.markForCheck();
+    } catch (e) {
+      console.error('Failed to load session:', e);
+      this.toastr.error('Failed to load session');
+    }
+  }
+
+  async deletePatternSession(id: string, event: MouseEvent) {
+    event.stopPropagation();
+    try {
+      this.savedPatternSessions = this.savedPatternSessions.filter(s => s.id !== id);
+      await localforage.setItem('saved_pattern_sessions', this.savedPatternSessions);
+      this.toastr.success('Session deleted');
+      this.cdRef.markForCheck();
+    } catch (e) {
+      console.error('Failed to delete session:', e);
+      this.toastr.error('Failed to delete session');
+    }
+  }
+
+  exportPatternSessionJSON() {
+    try {
+      const sessionData = {
+        patternGroups: this.patternGroups,
+        patternLength: this.patternLength,
+        patternType: this.patternType,
+        patternStrictness: this.patternStrictness,
+        patternViewMode: this.patternViewMode,
+        patternTimelineDocs: this.patternTimelineDocs,
+        patternDocTotalNotes: Array.from(this.patternDocTotalNotes.entries()),
+        patternMergeEnabled: this.patternMergeEnabled,
+        patternMinMergeOverlap: this.patternMinMergeOverlap,
+        patternDeduplicateEnabled: this.patternDeduplicateEnabled,
+        detectedDuplicates: this.detectedDuplicates,
+        patternPage: this.patternPage
+      };
+
+      const filename = `pattern-analysis-${this.patternType}-${this.patternLength}.json`;
+      const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      this.toastr.success('JSON file exported');
+    } catch (e) {
+      console.error('Failed to export JSON:', e);
+      this.toastr.error('Failed to export JSON file');
+    }
+  }
+
+  triggerImportJSON() {
+    const input = document.getElementById('patternImportJsonInput');
+    if (input) {
+      input.click();
+    }
+  }
+
+  importPatternSessionJSON(event: any) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e: any) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data || !Array.isArray(data.patternGroups)) {
+          this.toastr.error('Invalid pattern analysis session file');
+          return;
+        }
+
+        this.patternGroups = data.patternGroups;
+        this.patternLength = data.patternLength ?? 8;
+        this.patternType = data.patternType ?? 'interval';
+        this.patternStrictness = data.patternStrictness ?? 'exact';
+        this.patternViewMode = data.patternViewMode ?? 'overview';
+        this.patternTimelineDocs = data.patternTimelineDocs || [];
+        this.patternMergeEnabled = !!data.patternMergeEnabled;
+        this.patternMinMergeOverlap = data.patternMinMergeOverlap ?? 1;
+        this.patternDeduplicateEnabled = data.patternDeduplicateEnabled !== false;
+        this.detectedDuplicates = data.detectedDuplicates || [];
+        this.patternPage = data.patternPage || 1;
+        
+        if (data.patternDocTotalNotes) {
+          this.patternDocTotalNotes = new Map<string, number>(data.patternDocTotalNotes);
+        } else {
+          this.patternDocTotalNotes = new Map<string, number>();
+        }
+
+        this.updatePatternCache();
+        this.showSavedSessionsPopover = false;
+        this.toastr.success('Session imported successfully');
+        this.cdRef.markForCheck();
+      } catch (err) {
+        console.error('Failed to parse JSON:', err);
+        this.toastr.error('Failed to parse JSON file');
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+
+
+  async saveSearchStateToIndexedDB() {
+    try {
+      const searchData = {
+        activeTab: this.activeTab,
+        quickText: this.quickText,
+        quickPage: this.quickPage,
+        sourcesPage: this.sourcesPage,
+        documentsPage: this.documentsPage,
+        melodyPage: this.melodyPage,
+        quickSearchMode: this.quickSearchMode,
+        quickMedievalTolerance: this.quickMedievalTolerance,
+        quickFuzzyDistance: this.quickFuzzyDistance,
+        sourceQuery: this.sourceQuery,
+        documentQuery: this.documentQuery,
+        melodyPattern: this.melodyPattern,
+        melodySearchType: this.melodySearchType,
+        melodyWithOctave: this.melodyWithOctave,
+        melodyOnlyWithinSyllables: this.melodyOnlyWithinSyllables,
+        melodyMaxDistance: this.melodyMaxDistance
+      };
+      await localforage.setItem('search_state', searchData);
+    } catch (e) {
+      console.warn('Failed to save search state to IndexedDB:', e);
+    }
+  }
+
+  async savePatternStateToIndexedDB() {
+    // ─── What we persist ────────────────────────────────────────────────────
+    //
+    // patternGroups and patternTimelineDocs each embed full VM.Syllable[] /
+    // VM.Note[] / Set<string> objects — potentially tens of MB — and silently
+    // fail the structured-clone write when the workspace is large.  We
+    // therefore do NOT try to persist the computed results; instead we save
+    // only the small, plain-JSON settings needed to re-run the analysis.
+    //
+    // Two-track persistence:
+    //   • localStorage  ("monodi_pattern_params") — synchronous, survives
+    //     reload, holds just the params + a flag that analysis was active.
+    //     Used on the next page load to auto-retrigger the worker.
+    //   • IndexedDB ("pattern_state") — holds equally-small state that the
+    //     in-session cache already covers but which is nice to restore on
+    //     reload (view mode, current page, etc.).
+    //
+    // In-session navigation (navigate away → back) is handled entirely by the
+    // static cache and does NOT go through this path.
+
+    // 1. Small params → localStorage (synchronous, never fails on size)
+    try {
+      const params = {
+        showPatternAnalysis: this.showPatternAnalysis,
+        patternType: this.patternType,
+        patternLength: this.patternLength,
+        patternWithOctave: this.patternWithOctave,
+        patternStrictness: this.patternStrictness,
+        patternMergeEnabled: this.patternMergeEnabled,
+        patternMinMergeOverlap: this.patternMinMergeOverlap,
+        patternDeduplicateEnabled: this.patternDeduplicateEnabled,
+        patternViewMode: this.patternViewMode,
+        patternPage: this.patternPage,
+        savedAt: new Date().toISOString(),
+      };
+      if (this.showPatternAnalysis && this.patternGroups.length > 0) {
+        localStorage.setItem('monodi_pattern_params', JSON.stringify(params));
+      } else if (!this.showPatternAnalysis) {
+        // User explicitly closed the panel — don't auto-restore on next load.
+        localStorage.removeItem('monodi_pattern_params');
+      }
+    } catch (e) {
+      console.warn('Failed to save pattern params to localStorage:', e);
+    }
+
+    // 2. Small auxiliary state → IndexedDB (view mode, page, etc.)
+    try {
+      const patternData = {
+        showPatternAnalysis: this.showPatternAnalysis,
+        patternLength: this.patternLength,
+        patternType: this.patternType,
+        patternWithOctave: this.patternWithOctave,
+        patternStrictness: this.patternStrictness,
+        patternViewMode: this.patternViewMode,
+        patternMergeEnabled: this.patternMergeEnabled,
+        patternMinMergeOverlap: this.patternMinMergeOverlap,
+        patternDeduplicateEnabled: this.patternDeduplicateEnabled,
+        patternPage: this.patternPage,
+        // NOTE: patternGroups / patternTimelineDocs / detectedDuplicates are
+        // intentionally omitted — too large for a reliable structured-clone.
+      };
+      await localforage.setItem('pattern_state', patternData);
+    } catch (e) {
+      console.warn('Failed to save pattern state to IndexedDB:', e);
+    }
+  }
+
+  async loadFromIndexedDB() {
+    try {
+      // 0. Load saved pattern sessions list
+      try {
+        const saved: any = await localforage.getItem('saved_pattern_sessions');
+        if (Array.isArray(saved)) {
+          this.savedPatternSessions = saved;
+        } else {
+          this.savedPatternSessions = [];
+        }
+      } catch (e) {
+        console.warn('Failed to load saved pattern sessions:', e);
+        this.savedPatternSessions = [];
+      }
+
+      // 1. Load pattern analysis state
+      //
+      // Two-track restore:
+      //   a) In-session navigation  → static cache already populated; skip.
+      //   b) Fresh page load        → static cache is empty; restore params
+      //      from storage and auto-retrigger the analysis in the background.
+      //
+      // We detect "fresh load" by checking whether the static cache still
+      // holds results from a prior navigation in this session.
+      const staticCachePopulated = SearchComponent.cachedPatternGroups.length > 0
+                                || SearchComponent.cachedShowPatternAnalysis;
+
+      if (!staticCachePopulated) {
+        // Fresh page load — read the small params snapshot we wrote to
+        // localStorage.  (patternGroups / patternTimelineDocs are NOT stored
+        // because they embed full note trees and silently fail the write.)
+        let savedParams: any = null;
+        try {
+          const raw = localStorage.getItem('monodi_pattern_params');
+          if (raw) savedParams = JSON.parse(raw);
+        } catch { /* ignore */ }
+
+        if (savedParams?.showPatternAnalysis) {
+          // Restore UI settings so the panel looks right while the worker runs.
+          this.patternLength           = savedParams.patternLength           ?? this.patternLength;
+          this.patternType             = savedParams.patternType             ?? this.patternType;
+          this.patternWithOctave       = !!savedParams.patternWithOctave;
+          this.patternStrictness       = savedParams.patternStrictness       ?? this.patternStrictness;
+          this.patternMergeEnabled     = !!savedParams.patternMergeEnabled;
+          this.patternMinMergeOverlap  = savedParams.patternMinMergeOverlap  ?? this.patternMinMergeOverlap;
+          this.patternDeduplicateEnabled = savedParams.patternDeduplicateEnabled !== false;
+          this.patternViewMode         = savedParams.patternViewMode         ?? this.patternViewMode;
+          this.patternPage             = savedParams.patternPage             ?? 1;
+          this.showPatternAnalysis     = true;
+
+          // Sync to static cache immediately so a quick in-session navigation
+          // before the worker finishes still sees the right settings.
+          SearchComponent.cachedPatternLength           = this.patternLength;
+          SearchComponent.cachedPatternType             = this.patternType;
+          SearchComponent.cachedPatternWithOctave       = this.patternWithOctave;
+          SearchComponent.cachedPatternStrictness       = this.patternStrictness;
+          SearchComponent.cachedPatternMergeEnabled     = this.patternMergeEnabled;
+          SearchComponent.cachedPatternMinMergeOverlap  = this.patternMinMergeOverlap;
+          SearchComponent.cachedPatternDeduplicateEnabled = this.patternDeduplicateEnabled;
+          SearchComponent.cachedPatternViewMode         = this.patternViewMode;
+          SearchComponent.cachedPatternPage             = this.patternPage;
+          SearchComponent.cachedShowPatternAnalysis     = true;
+
+          // Auto-retrigger the analysis.  We schedule it after the current
+          // microtask queue drains so the component has finished initialising
+          // (the user subscription and restoreStateFromUrl() come after us).
+          setTimeout(() => {
+            if (this.showPatternAnalysis && this.patternGroups.length === 0) {
+              this.runPatternGrouping();
+            }
+          }, 0);
+        }
+      }
+
+      // 2. Restore only lightweight VIEW PREFERENCES from the last session.
+      //
+      //    We deliberately DO NOT restore the query text, the filled-in
+      //    metadata filters, the result lists, or the "searched" flags — a
+      //    fresh page load must show an empty form and run nothing until the
+      //    user explicitly clicks "Search".  What we DO keep are the
+      //    non-destructive toggles (which tab was open, the search mode, the
+      //    medieval-tolerance / fuzzy-distance, melody type/octave options),
+      //    because those are user preferences rather than a "last search".
+      const searchData: any = await localforage.getItem('search_state');
+      if (searchData) {
+        if (searchData.activeTab) this.activeTab = searchData.activeTab;
+
+        // Quick-search MODE toggles (not the query, not the results)
+        if (searchData.quickSearchMode) this.quickSearchMode = searchData.quickSearchMode;
+        this.quickMedievalTolerance = !!searchData.quickMedievalTolerance;
+        if (searchData.quickFuzzyDistance !== undefined) this.quickFuzzyDistance = searchData.quickFuzzyDistance;
+
+        // Melody-search OPTION toggles (not the pattern, not the results)
+        if (searchData.melodySearchType) this.melodySearchType = searchData.melodySearchType;
+        this.melodyWithOctave = !!searchData.melodyWithOctave;
+        this.melodyOnlyWithinSyllables = !!searchData.melodyOnlyWithinSyllables;
+        if (searchData.melodyWithNotes !== undefined) this.melodyWithNotes = searchData.melodyWithNotes;
+        if (searchData.melodyMaxDistance !== undefined) this.melodyMaxDistance = searchData.melodyMaxDistance;
+      }
+
+      this.cdRef.markForCheck();
+    } catch (e) {
+      console.warn('Error loading state from IndexedDB:', e);
+    }
+  }
+
+  /**
+   * Entry point from the overview timeline. Switches to the list view,
+   * flips the page to the one that contains this pattern, expands the
+   * card, and then scrolls the user to the matching anchor with a brief
+   * pulse highlight so they don't lose context after the jump.
+   */
+  selectPatternGroupFromTimeline(groupId: number) {
+    this.openPatternGroupById(groupId);
+  }
+
+  /**
+   * Centralised "jump to a pattern by id" helper. Used by the timeline
+   * click handler AND by URL-hash deep-linking (`#pattern-group-7`) so the
+   * navigation behaviour stays consistent across both entry points.
+   */
+  openPatternGroupById(groupId: number): void {
+    const idx = this.patternGroups.findIndex(g => g.id === groupId);
+    if (idx < 0) return;
+
+    this.patternViewMode = 'list';
+    this.expandedGroupIds.add(groupId);
+    this.patternPage = Math.floor(idx / this.patternPageSize) + 1;
+    // The actual scroll happens in ngAfterViewChecked once the new page's
+    // cards are in the DOM. Setting only the id avoids racing with the
+    // page change above — *Timer would target a stale layout otherwise.
+    this.pendingPatternScrollId = groupId;
+    this.updatePatternCache();
+
+    // Reflect the jump in the URL fragment so the user can bookmark or
+    // share the specific pattern.
+    try {
+      if (typeof history !== 'undefined' && history.replaceState) {
+        history.replaceState(null, '', '#pattern-group-' + groupId);
+      }
+    } catch { /* ignore — file:// origin etc. */ }
+
+    this.cdRef.markForCheck();
+  }
+
+  async runPatternGrouping() {
+    if (!this.user) return;
+    this.patternSearching = true;
+    this.patternCancelled = false;
+    this.patternGroups = [];
+    this.patternPage = 1;
+    this.expandedGroupIds.clear();
+    this.patternProgress = { phase: 'Initializing...', current: 0, total: 0, percent: 0 };
+    this.cdRef.markForCheck();
+
+    try {
+      this.patternProgress.phase = 'Loading library metadata...';
+      this.cdRef.markForCheck();
+      
+      const [docsRes, sourcesRes] = await Promise.all([
+        this.api.listDocuments(this.user.token).toPromise(),
+        this.api.listSources(this.user.token).toPromise()
+      ]);
+
+      if (this.patternCancelled) return;
+
+      const allDocs = docsRes?.kind === 'DocumentsRetrieved' ? docsRes.documents : [];
+      const allSources = sourcesRes?.kind === 'SourcesRetrieved' ? sourcesRes.sources : [];
+      
+      const docMap = new Map<string, Document>(allDocs.map(d => [d.id!, d]));
+      const sourceMap = new Map<string, Source>(allSources.map(s => [s.id!, s]));
+
+      let targetDocs: { doc: Document; sourceSigle: string }[] = [];
+
+      if (this.activeTab === 'quick') {
+        const docResults = this.filteredQuickResults.filter(r => r.kind === 'document');
+        for (const qr of docResults) {
+          const doc = docMap.get(qr.id);
+          if (doc) {
+            const sigle = sourceMap.get(doc.quelle_id)?.quellensigle ?? '';
+            targetDocs.push({ doc, sourceSigle: sigle });
+          }
+        }
+      } else if (this.activeTab === 'sources') {
+        const sourceIds = new Set(this.filteredSourceResults.map(s => s.id));
+        for (const doc of allDocs) {
+          if (sourceIds.has(doc.quelle_id)) {
+            const sigle = sourceMap.get(doc.quelle_id)?.quellensigle ?? '';
+            targetDocs.push({ doc, sourceSigle: sigle });
+          }
+        }
+      } else if (this.activeTab === 'documents') {
+        for (const d of this.filteredDocumentResults) {
+          const sigle = sourceMap.get(d.quelle_id)?.quellensigle ?? '';
+          targetDocs.push({ doc: d, sourceSigle: sigle });
+        }
+      } else if (this.activeTab === 'melody') {
+        for (const mr of this.filteredMelodyResults) {
+          const sigle = mr.sourceSigle || (sourceMap.get(mr.document.quelle_id)?.quellensigle ?? '');
+          targetDocs.push({ doc: mr.document, sourceSigle: sigle });
+        }
+      }
+
+      if (targetDocs.length === 0) {
+        this.patternProgress = { phase: 'No documents in results to analyze', current: 0, total: 0, percent: 100 };
+        this.patternSearching = false;
+        this.updatePatternCache();
+        this.cdRef.markForCheck();
+        return;
+      }
+
+      this.patternProgress = { phase: 'Loading document melodies...', current: 0, total: targetDocs.length, percent: 0 };
+      this.cdRef.markForCheck();
+
+      const loadedDocs: LoadedDoc[] = [];
+
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < targetDocs.length; i += BATCH_SIZE) {
+        if (this.patternCancelled) return;
+        
+        const batch = targetDocs.slice(i, i + BATCH_SIZE);
+        const promises = batch.map(async (target) => {
+          try {
+            const root = await NotesStore.get(target.doc.id);
+            if (root) {
+              const syllables = extractSyllables(root);
+              const { notes, sylIdx } = flattenNotes(syllables);
+              if (notes.length > 0) {
+                let sequence: string[] = [];
+                if (this.patternType === 'pitch') {
+                  sequence = toPitchNames(notes, this.patternWithOctave);
+                } else if (this.patternType === 'contour') {
+                  sequence = toContour(notes);
+                } else if (this.patternType === 'interval') {
+                  sequence = toIntervals(notes);
+                }
+
+                loadedDocs.push({
+                  doc: target.doc,
+                  sourceSigle: target.sourceSigle,
+                  notes,
+                  syllables,
+                  sylIdx,
+                  sequence
+                });
+              }
+            }
+          } catch (e) {
+            console.warn(`Failed to fetch notes for ${target.doc.id}:`, e);
+          }
+        });
+
+        await Promise.all(promises);
+
+        const currentProgress = Math.min(i + BATCH_SIZE, targetDocs.length);
+        this.patternProgress.current = currentProgress;
+        this.patternProgress.percent = Math.round((currentProgress / targetDocs.length) * 100);
+        this.cdRef.markForCheck();
+        await this.yieldToUI();
+      }
+
+      if (this.patternCancelled) return;
+
+      if (loadedDocs.length === 0) {
+        this.patternProgress = { phase: 'No melodies with notes found', current: 0, total: 0, percent: 100 };
+        this.patternSearching = false;
+        this.updatePatternCache();
+        this.cdRef.markForCheck();
+        return;
+      }
+
+      this.patternProgress.phase = 'Handing analysis to background worker…';
+      this.patternProgress.percent = 0;
+      this.cdRef.markForCheck();
+      await this.yieldToUI();
+
+      // Reset prior dedup state — the worker reports a fresh set with the
+      // success message. We pre-seed `patternDocTotalNotes` with every
+      // doc's note count and prune it down once the worker tells us which
+      // ones were dropped as duplicates.
+      this.detectedDuplicates = [];
+      this.patternDocTotalNotes.clear();
+      for (const ld of loadedDocs) {
+        this.patternDocTotalNotes.set(ld.doc.id!, ld.notes.length);
+      }
+
+      if (this.patternWorker) {
+        this.patternWorker.terminate();
+      }
+
+      this.patternWorker = new Worker(new URL('./pattern.worker', import.meta.url), { type: 'module' });
+
+      this.patternWorker.onmessage = ({ data }) => {
+        if (this.patternCancelled) {
+          if (this.patternWorker) {
+            this.patternWorker.terminate();
+            this.patternWorker = null;
+          }
+          return;
+        }
+
+        // Incremental progress message from the worker.
+        if (data.kind === 'progress') {
+          this.patternProgress = {
+            phase:   data.phase,
+            current: data.current,
+            total:   data.total,
+            percent: data.percent,
+          };
+          this.cdRef.markForCheck();
+          return;
+        }
+
+        if (data.kind === 'success') {
+          const groups = data.groups;
+          this.patternGroups = groups;
+
+          // Apply the worker's dedup decisions to the main-thread caches.
+          // We have to do this before timeline construction so that any
+          // dedup-excluded docs are removed from `patternDocTotalNotes`
+          // (otherwise the timeline view would still show their lanes).
+          this.detectedDuplicates = data.detectedDuplicates || [];
+          if (this.patternDeduplicateEnabled && Array.isArray(data.excludedDocIds)) {
+            for (const id of data.excludedDocIds as string[]) {
+              this.patternDocTotalNotes.delete(id);
+            }
+          }
+
+          this.patternTimelineDocs = data.patternTimelineDocs || [];
+
+          this.patternSearching = false;
+          this.patternProgress = { phase: 'Analysis completed successfully', current: groups.length, total: groups.length, percent: 100 };
+          this.updatePatternCache();
+          this.cdRef.markForCheck();
+        } else {
+          console.error('Worker reported error:', data.error);
+          this.patternSearching = false;
+          this.patternProgress.phase = 'Failed with error: ' + data.error;
+          this.updatePatternCache();
+          this.cdRef.markForCheck();
+        }
+
+        if (this.patternWorker) {
+          this.patternWorker.terminate();
+          this.patternWorker = null;
+        }
+      };
+
+      this.patternWorker.onerror = (err) => {
+        console.error('Worker error:', err);
+        this.patternSearching = false;
+        this.patternProgress.phase = 'Failed with worker error';
+        this.updatePatternCache();
+        this.cdRef.markForCheck();
+        if (this.patternWorker) {
+          this.patternWorker.terminate();
+          this.patternWorker = null;
+        }
+      };
+
+      // Hand the full list to the worker — duplicate detection happens
+      // there too, so we no longer need a main-thread pre-filter.
+      this.patternWorker.postMessage({
+        loadedDocs,
+        patternType: this.patternType,
+        patternLength: this.patternLength,
+        patternStrictness: this.patternStrictness,
+        patternMergeEnabled: this.patternMergeEnabled,
+        patternMinMergeOverlap: this.patternMinMergeOverlap,
+        patternDeduplicateEnabled: this.patternDeduplicateEnabled,
+      });
+      this.updatePatternCache();
+      this.cdRef.markForCheck();
+
+    } catch (err) {
+      console.error('Melodic Pattern Grouping failed:', err);
+      this.patternSearching = false;
+      this.patternProgress.phase = 'Failed with error: ' + (err as Error).message;
+      this.updatePatternCache();
+      this.cdRef.markForCheck();
+    }
+  }
+
+  enableDeduplicationAndReRun() {
+    this.patternDeduplicateEnabled = true;
+    this.runPatternGrouping();
+  }
+
+  clearDetectedDuplicates() {
+    this.detectedDuplicates = [];
+    this.updatePatternCache();
+    this.cdRef.markForCheck();
+  }
+}
+
+
+// ─── Needleman-Wunsch Alignment & Extraction Utilities ────────────────────────
+
+function extractFlatElements(root: VM.RootContainer): (VM.Clef | VM.Syllable)[] {
+  const result: (VM.Clef | VM.Syllable)[] = [];
+  
+  const walk = (node: any) => {
+    if (!node) return;
+    if (node.kind === 'Clef' || node.kind === 'Syllable') {
+      result.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        walk(item);
+      }
+    } else if (typeof node === 'object') {
+      if (node.children && Array.isArray(node.children)) {
+        walk(node.children);
+      } else {
+        for (const key of Object.keys(node)) {
+          if (typeof node[key] === 'object') {
+            walk(node[key]);
+          }
+        }
+      }
+    }
+  };
+  
+  walk(root.children);
+  return result;
+}
+
+function needlemanWunschProfile(
+  alignedCols: AlignedLineElement[][],
+  seq2: (VM.Clef | VM.Syllable)[],
+  docLimit: number,
+  mode: 'melody' | 'text' = 'melody'
+): { aligned1: (AlignedLineElement[] | null)[]; aligned2: (VM.Clef | VM.Syllable | null)[] } {
+  const M = alignedCols.length;
+  const N = seq2.length;
+  const GAP_PENALTY = -1;
+
+  const scoreFnSingle = (el1: VM.Clef | VM.Syllable, el2: VM.Clef | VM.Syllable): number => {
+    if (el1.kind !== el2.kind) return -3;
+    if (el1.kind === 'Clef') {
+      const c1 = el1 as VM.Clef;
+      const c2 = el2 as VM.Clef;
+      return c1.shape === c2.shape ? 2 : 0;
+    } else {
+      const s1 = el1 as VM.Syllable;
+      const s2 = el2 as VM.Syllable;
+      const t1 = (s1.text || '').trim().toLowerCase();
+      const t2 = (s2.text || '').trim().toLowerCase();
+
+      // Pitch extraction
+      const spaced1 = s1.notes?.spaced ?? [];
+      const pitches1: string[] = [];
+      spaced1.forEach(ns => (ns.nonSpaced ?? []).forEach(g => (g.grouped ?? []).forEach(n => pitches1.push(n.base))));
+      
+      const spaced2 = s2.notes?.spaced ?? [];
+      const pitches2: string[] = [];
+      spaced2.forEach(ns => (ns.nonSpaced ?? []).forEach(g => (g.grouped ?? []).forEach(n => pitches2.push(n.base))));
+      
+      const pitchString1 = pitches1.join(',');
+      const pitchString2 = pitches2.join(',');
+
+      if (mode === 'text') {
+        if (t1 && t2) {
+          if (t1 === t2) return 4;
+          if (t1.length > 1 && t2.length > 1 && (t1.includes(t2) || t2.includes(t1))) return 3;
+          let d = 0;
+          let p1 = 0, p2 = 0;
+          while (p1 < t1.length && p2 < t2.length) {
+            if (t1[p1] !== t2[p2]) {
+              d++;
+              if (t1.length > t2.length) p1++;
+              else if (t2.length > t1.length) p2++;
+              else { p1++; p2++; }
+            } else {
+              p1++; p2++;
+            }
+          }
+          d += (t1.length - p1) + (t2.length - p2);
+          if (d <= 1) return 3;
+        }
+        if (pitchString1 && pitchString2 && pitchString1 === pitchString2) {
+          return 1;
+        }
+        return 0;
+      } else {
+        if (pitchString1 && pitchString2 && pitchString1 === pitchString2) {
+          return 4;
+        }
+        if (pitches1.length > 0 && pitches2.length > 0 && Math.abs(pitches1.length - pitches2.length) <= 1) {
+          let matches = 0;
+          for (const p of pitches1) {
+            if (pitches2.includes(p)) matches++;
+          }
+          if (matches >= Math.max(pitches1.length, pitches2.length) - 1) {
+            return 2;
+          }
+        }
+        if (t1 && t2 && t1 === t2) {
+          return 1;
+        }
+        return 0;
+      }
+    }
+  };
+
+  const scoreFnProfile = (col: AlignedLineElement[], el2: VM.Clef | VM.Syllable): number => {
+    let maxScore = -999;
+    let hasComparison = false;
+    for (let d = 0; d < docLimit; d++) {
+      const el1 = col[d]?.element;
+      if (el1) {
+        const s = scoreFnSingle(el1, el2);
+        if (s > maxScore) {
+          maxScore = s;
+        }
+        hasComparison = true;
+      }
+    }
+    return hasComparison ? maxScore : GAP_PENALTY;
+  };
+
+  const dp: number[][] = Array.from({ length: M + 1 }, () => Array(N + 1).fill(0));
+  for (let i = 0; i <= M; i++) dp[i][0] = i * GAP_PENALTY;
+  for (let j = 0; j <= N; j++) dp[0][j] = j * GAP_PENALTY;
+
+  for (let i = 1; i <= M; i++) {
+    for (let j = 1; j <= N; j++) {
+      const match = dp[i - 1][j - 1] + scoreFnProfile(alignedCols[i - 1], seq2[j - 1]);
+      const deleteScore = dp[i - 1][j] + GAP_PENALTY;
+      const insertScore = dp[i][j - 1] + GAP_PENALTY;
+      dp[i][j] = Math.max(match, deleteScore, insertScore);
+    }
+  }
+
+  const aligned1: (AlignedLineElement[] | null)[] = [];
+  const aligned2: (VM.Clef | VM.Syllable | null)[] = [];
+  let i = M;
+  let j = N;
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0) {
+      const score = scoreFnProfile(alignedCols[i - 1], seq2[j - 1]);
+      if (dp[i][j] === dp[i - 1][j - 1] + score) {
+        aligned1.unshift(alignedCols[i - 1]);
+        aligned2.unshift(seq2[j - 1]);
+        i--;
+        j--;
+        continue;
+      }
+    }
+    if (i > 0 && (j === 0 || dp[i][j] === dp[i - 1][j] + GAP_PENALTY)) {
+      aligned1.unshift(alignedCols[i - 1]);
+      aligned2.unshift(null);
+      i--;
+    } else {
+      aligned1.unshift(null);
+      aligned2.unshift(seq2[j - 1]);
+      j--;
+    }
+  }
+
+  return { aligned1, aligned2 };
 }

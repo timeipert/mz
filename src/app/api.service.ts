@@ -4,11 +4,14 @@ import { delay } from 'rxjs/operators';
 import * as VM from './types/model';
 import { v4 as uuidv4 } from 'uuid';
 import * as localforage from 'localforage';
+import { NotesStore } from './notes-store';
 
 @Injectable({
   providedIn: 'root'
 })
 export class APIService {
+  private sourcesCache: Source[] | null = null;
+  private documentsCache: Document[] | null = null;
 
   constructor() { 
     localforage.config({
@@ -18,19 +21,40 @@ export class APIService {
     this.initStorage();
   }
 
-  private async initStorage() {
+  public invalidateCache() {
+    this.sourcesCache = null;
+    this.documentsCache = null;
+  }
+
+  private async getSources(): Promise<Source[]> {
+    if (this.sourcesCache) return this.sourcesCache;
     const sources = await localforage.getItem<Source[]>('monodi_sources');
-    if (!sources) {
-      await localforage.setItem('monodi_sources', []);
-    }
+    this.sourcesCache = sources || [];
+    return this.sourcesCache;
+  }
+
+  private async saveSources(sources: Source[]): Promise<void> {
+    this.sourcesCache = sources;
+    await localforage.setItem('monodi_sources', sources);
+  }
+
+  private async getDocuments(): Promise<Document[]> {
+    if (this.documentsCache) return this.documentsCache;
     const docs = await localforage.getItem<Document[]>('monodi_documents');
-    if (!docs) {
-      await localforage.setItem('monodi_documents', []);
-    }
-    const notes = await localforage.getItem<any>('monodi_notes');
-    if (!notes) {
-      await localforage.setItem('monodi_notes', {});
-    }
+    this.documentsCache = docs || [];
+    return this.documentsCache;
+  }
+
+  private async saveDocuments(docs: Document[]): Promise<void> {
+    this.documentsCache = docs;
+    await localforage.setItem('monodi_documents', docs);
+  }
+
+  private async initStorage() {
+    // Warm up the caches at startup
+    await this.getSources();
+    await this.getDocuments();
+    await NotesStore.ensureMigrated();
   }
 
   public logout(): Observable<null> {
@@ -63,18 +87,18 @@ export class APIService {
 
   public listSources(token: string): Observable<LoginRequired | SourcesRetrieved> {
     return from((async () => {
-      const sources = await localforage.getItem<Source[]>('monodi_sources') || [];
+      const sources = await this.getSources();
       return { kind: "SourcesRetrieved" as const, sources: sources };
     })());
   }
 
   public updateSource(token: string, source: Source): Observable<LoginRequired | Ok | SourceNotFound> {
     return from((async () => {
-      let sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+      let sources = await this.getSources();
       const index = sources.findIndex((s: Source) => s.id === source.id);
       if (index !== -1) {
         sources[index] = source;
-        await localforage.setItem('monodi_sources', sources);
+        await this.saveSources(sources);
         return { kind: "Ok" as const };
       }
       return { kind: "SourceNotFound" as const };
@@ -83,7 +107,7 @@ export class APIService {
 
   public getSource(token: string, id: string): Observable<LoginRequired | SourceRetrieved | SourceNotFound | InsufficientPermissions> {
     return from((async () => {
-      const sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+      const sources = await this.getSources();
       const source = sources.find((s: Source) => s.id === id);
       if (source) {
         return { kind: "SourceRetrieved" as const, source: source };
@@ -94,7 +118,7 @@ export class APIService {
 
   public getSigle(token: string, id: string): Observable<LoginRequired | SigleRetrieved | SourceNotFound> {
     return from((async () => {
-      const sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+      const sources = await this.getSources();
       const source = sources.find((s: Source) => s.id === id);
       if (source) {
         return { kind: "SigleRetrieved" as const, sigle: source.quellensigle };
@@ -105,7 +129,7 @@ export class APIService {
 
   public querySources(token: string, query: SourceQuery): Observable<LoginRequired | SourcesRetrieved> {
     return from((async () => {
-      let sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+      let sources = await this.getSources();
       if (query) {
         sources = sources.filter((s: Source) => {
           for (const [key, value] of Object.entries(query)) {
@@ -123,7 +147,7 @@ export class APIService {
 
   public fullTextSearchSources(token: string, text: string): Observable<LoginRequired | SourcesRetrieved> {
     return from((async () => {
-      const sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+      const sources = await this.getSources();
       if (!text.trim()) return { kind: "SourcesRetrieved" as const, sources };
       const q = text.toLowerCase();
       const filtered = sources.filter((s: Source) => {
@@ -136,11 +160,11 @@ export class APIService {
 
   public createSource(token: string, source: Source): Observable<LoginRequired | SourceCreated> {
     return from((async () => {
-      let sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
+      let sources = await this.getSources();
       const newId = uuidv4();
       source.id = newId;
       sources.push(source);
-      await localforage.setItem('monodi_sources', sources);
+      await this.saveSources(sources);
       return { kind: "SourceCreated" as const, id: newId };
     })());
   }
@@ -160,14 +184,14 @@ export class APIService {
   public deleteDocuments(token: string, data: string): Observable<LoginRequired | UploadFinished | InsufficientPermissions> {
     return from((async () => {
       const docIdsToRemove = JSON.parse(data) as string[];
-      let documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
-      let notes = (await localforage.getItem<any>('monodi_notes')) || {};
+      let documents = await this.getDocuments();
 
       documents = documents.filter((d: Document) => !docIdsToRemove.includes(d.id));
-      docIdsToRemove.forEach(id => delete notes[id]);
-
-      await localforage.setItem('monodi_documents', documents);
-      await localforage.setItem('monodi_notes', notes);
+      await this.saveDocuments(documents);
+      // Per-document deletion via NotesStore avoids re-saving the whole
+      // notes dict (which can exceed the IndexedDB structured-clone limit
+      // on large workspaces).
+      await NotesStore.removeMany(docIdsToRemove);
       return { kind: "UploadFinished" as const, errors: [] };
     })());
   }
@@ -175,41 +199,37 @@ export class APIService {
   public deleteSources(token: string, data: string): Observable<LoginRequired | UploadFinished | InsufficientPermissions> {
     return from((async () => {
       const sourceIdsToRemove = JSON.parse(data) as string[];
-      let sources = (await localforage.getItem<Source[]>('monodi_sources')) || [];
-      let documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
-      let notes = (await localforage.getItem<any>('monodi_notes')) || {};
+      let sources = await this.getSources();
+      let documents = await this.getDocuments();
 
       sources = sources.filter((s: Source) => !sourceIdsToRemove.includes(s.id!));
-      
+
       const docIdsToRemove = documents.filter((d: Document) => sourceIdsToRemove.includes(d.quelle_id)).map(d => d.id);
       documents = documents.filter((d: Document) => !sourceIdsToRemove.includes(d.quelle_id));
-      docIdsToRemove.forEach(id => delete notes[id]);
 
-      await localforage.setItem('monodi_sources', sources);
-      await localforage.setItem('monodi_documents', documents);
-      await localforage.setItem('monodi_notes', notes);
+      await this.saveSources(sources);
+      await this.saveDocuments(documents);
+      await NotesStore.removeMany(docIdsToRemove);
       return { kind: "UploadFinished" as const, errors: [] };
     })());
   }
 
   public listDocuments(token: string): Observable<LoginRequired | DocumentsRetrieved> {
     return from((async () => {
-      const documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
+      const documents = await this.getDocuments();
       return { kind: "DocumentsRetrieved" as const, documents: documents };
     })());
   }
 
   public updateDocument(token: string, update: CreateDocument): Observable<LoginRequired | Ok | DocumentNotFound | InsufficientPermissions> {
     return from((async () => {
-      let documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
-      let notes = (await localforage.getItem<any>('monodi_notes')) || {};
+      let documents = await this.getDocuments();
 
       const index = documents.findIndex((d: Document) => d.id === update.document.id);
       if (index !== -1) {
         documents[index] = update.document;
-        notes[update.document.id] = update.notes;
-        await localforage.setItem('monodi_documents', documents);
-        await localforage.setItem('monodi_notes', notes);
+        await this.saveDocuments(documents);
+        await NotesStore.set(update.document.id, update.notes);
         return { kind: "Ok" as const };
       }
       return { kind: "DocumentNotFound" as const };
@@ -218,7 +238,7 @@ export class APIService {
 
   public getDocument(token: string, id: string): Observable<LoginRequired | DocumentRetrieved | DocumentNotFound | InsufficientPermissions> {
     return from((async () => {
-      const documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
+      const documents = await this.getDocuments();
       const document = documents.find((d: Document) => d.id === id);
       if (document) {
         return { kind: "DocumentRetrieved" as const, document: document };
@@ -229,38 +249,30 @@ export class APIService {
 
   public removeDocument(token: string, id: string): Observable<LoginRequired | Ok> {
     return from((async () => {
-      let documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
-      let notes = (await localforage.getItem<any>('monodi_notes')) || {};
-
+      let documents = await this.getDocuments();
       documents = documents.filter((d: Document) => d.id !== id);
-      delete notes[id];
-
-      await localforage.setItem('monodi_documents', documents);
-      await localforage.setItem('monodi_notes', notes);
+      await this.saveDocuments(documents);
+      await NotesStore.remove(id);
       return { kind: "Ok" as const };
     })());
   }
 
   public createDocument(token: string, creation: CreateDocument): Observable<LoginRequired | DocumentCreated> {
     return from((async () => {
-      let documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
-      let notes = (await localforage.getItem<any>('monodi_notes')) || {};
+      let documents = await this.getDocuments();
 
       const newId = uuidv4();
       creation.document.id = newId;
       documents.push(creation.document);
-      notes[newId] = creation.notes;
-
-      await localforage.setItem('monodi_documents', documents);
-      await localforage.setItem('monodi_notes', notes);
-
+      await this.saveDocuments(documents);
+      await NotesStore.set(newId, creation.notes);
       return { kind: "DocumentCreated" as const, id: newId };
     })());
   }
 
   public queryDocuments(token: string, query: DocumentQuery): Observable<LoginRequired | DocumentsRetrieved> {
     return from((async () => {
-      let documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
+      let documents = await this.getDocuments();
       if (query) {
         documents = documents.filter((d: Document) => {
           for (const [key, value] of Object.entries(query)) {
@@ -278,7 +290,7 @@ export class APIService {
 
   public fullTextSearchDocuments(token: string, text: string): Observable<LoginRequired | DocumentsRetrieved> {
     return from((async () => {
-      const documents = (await localforage.getItem<Document[]>('monodi_documents')) || [];
+      const documents = await this.getDocuments();
       if (!text.trim()) return { kind: "DocumentsRetrieved" as const, documents };
       const q = text.toLowerCase();
       const filtered = documents.filter((d: Document) => {
@@ -291,14 +303,16 @@ export class APIService {
 
   public getAllDocumentNotes(token: string): Observable<{ [id: string]: VM.RootContainer }> {
     return from((async () => {
-      return (await localforage.getItem<any>('monodi_notes')) || {};
+      // NotesStore.getAll() materialises every document's notes into one
+      // dict for the caller (search / export use this). Migration from the
+      // legacy single-blob storage is transparent.
+      return await NotesStore.getAll();
     })());
   }
 
   public getDocumentNotes(token: string, id: string): Observable<LoginRequired | NotesRetrieved | DocumentNotFound | InsufficientPermissions> {
     return from((async () => {
-      const notes = await localforage.getItem<any>('monodi_notes') || {};
-      const data = notes[id];
+      const data = await NotesStore.get(id);
       if (data) {
         return { kind: "NotesRetrieved" as const, data: data };
       }

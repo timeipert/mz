@@ -284,3 +284,79 @@
 .hover-danger:hover {
   color: #dc3545 !important;
 }
+
+/* ── Workspace tab ───────────────────────────────────────────────────────── */
+.ws-action-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1f2937;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s, background 0.12s;
+  height: 100%;
+}
+.ws-action-card:hover {
+  background: #f8faff;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  color: #111827;
+}
+.ws-action-card > i:first-child {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+.ws-action-card .ws-action-arrow {
+  margin-left: auto;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  transition: transform 0.15s;
+}
+.ws-action-card:hover .ws-action-arrow {
+  transform: translateX(2px);
+  color: #2563eb;
+}
+.ws-action-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1f2937;
+}
+.ws-action-sub {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.ws-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+.ws-action-row.danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.ws-action-row-text {
+  flex: 1;
+  min-width: 0;
+}
+.ws-action-row-text code {
+  background: #ffffff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.82em;
+  color: #475569;
+  border: 1px solid #e5e7eb;
+}
+.ws-action-row .btn {
+  flex-shrink: 0;
+  min-width: 200px;
+  text-align: center;
+}

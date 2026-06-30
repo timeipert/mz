@@ -1,5 +1,6 @@
 import { ViewChild, ElementRef, Component, OnInit } from '@angular/core';
 import { FocusService } from '../focus.service';
+import { ToolsService } from '../tools.service';
 import * as S from './Section';
 import * as Model from '../types/model';
 import { Focusable, FocusChange, Focus, handleTextInputMove } from '../types/Focus';
@@ -23,6 +24,7 @@ export class ParatextSectionComponent extends S.Section<Model.ParatextContainer>
 
   constructor(
     private focusService: FocusService,
+    private toolsService: ToolsService,
     private modalService: NgbModal,
     private undoService: UndoService) {
     super('Paratext', {}, undoService);

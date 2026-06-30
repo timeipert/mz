@@ -1,5 +1,5 @@
 import { waitForAsync, ComponentFixture, TestBed } from '@angular/core/testing';
-
+import { FormsModule } from '@angular/forms';
 import { SselectComponent } from './sselect.component';
 
 describe('SselectComponent', () => {
@@ -8,7 +8,8 @@ describe('SselectComponent', () => {
 
   beforeEach(waitForAsync(() => {
     TestBed.configureTestingModule({
-      declarations: [ SselectComponent ]
+      declarations: [ SselectComponent ],
+      imports: [ FormsModule ]
     })
     .compileComponents();
   }));
@@ -16,6 +17,14 @@ describe('SselectComponent', () => {
   beforeEach(() => {
     fixture = TestBed.createComponent(SselectComponent);
     component = fixture.componentInstance;
+    component.dropdown = {
+      getPossibleValues: () => [],
+      getValue: () => undefined,
+      updateModel: () => {},
+      getId: () => '',
+      addCallback: () => {}
+    };
+    component.input = '';
     fixture.detectChanges();
   });
 

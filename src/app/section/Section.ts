@@ -51,7 +51,23 @@ export abstract class Section<T extends Model.Container> implements OnInit {
     'x Delete': () => this.onEvent.emit({ 'kind': 'DeletionRequested', focusLast: true })
   };
 
-  ngOnInit() {
+  ngOnInit(): void {
+  }
+
+  onContextMenu(me: MouseEvent): void {
+    // Stub to be overridden by subclasses (e.g. ZeileSectionComponent)
+  }
+
+  selectContainer(event: MouseEvent): void {
+    // Stub to be overridden by subclasses that support click-to-select
+    // (FormteilSectionComponent, ZeileSectionComponent). Declared on the base
+    // so the shared section template type-checks for every subclass.
+  }
+
+  isFocused(): boolean {
+    // Stub overridden by subclasses that support container focus
+    // highlighting (FormteilSectionComponent, ZeileSectionComponent).
+    return false;
   }
 
   isDragTarget = false;
@@ -128,6 +144,9 @@ export abstract class Section<T extends Model.Container> implements OnInit {
     }
     if (a.includes('+ l')) {
       return 'bi bi-plus-square text-info';
+    }
+    if (a.includes('dash') || a.includes('silbe')) {
+      return 'bi bi-type-strikethrough text-warning';
     }
     return 'bi bi-gear';
   }

@@ -4,6 +4,12 @@
     <span class="text-muted">Configure metadata, sync, and print formatting</span>
   </div>
 
+  <!-- Global settings loading spinner -->
+  <div *ngIf="!settings" class="d-flex flex-column align-items-center justify-content-center py-5 my-5">
+    <div class="spinner-border text-primary mb-3" role="status" style="width: 2.5rem; height: 2.5rem; border-width: 3px;"></div>
+    <div class="text-muted fw-semibold small">Loading settings...</div>
+  </div>
+
   <div *ngIf="settings" class="row g-4">
     <!-- Left Column: Tab Pills & Content -->
     <div [class]="activeTab === 'pdf' ? 'col-lg-7 col-xl-8' : 'col-12'">
@@ -56,6 +62,13 @@
                   [class.active]="activeTab === 'htmlExport'"
                   (click)="activeTab = 'htmlExport'" type="button">
             <i class="bi bi-browser-chrome me-2"></i>HTML Export
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
+                  [class.active]="activeTab === 'workspace'"
+                  (click)="openWorkspaceTab()" type="button">
+            <i class="bi bi-database-gear me-2"></i>Workspace
           </button>
         </li>
       </ul>
@@ -901,6 +914,345 @@
           </div>
         </div>
       </div>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           Workspace tab — import / export workflows + maintenance actions.
+           Was split across the Sources page toolbar before; consolidated
+           here so destructive options live in one obvious place.
+           ════════════════════════════════════════════════════════════════ -->
+      <div class="tab-pane fade show active" *ngIf="activeTab === 'workspace'">
+        <div class="settings-panel fade-in p-4 p-md-5">
+          <div class="mb-4 pb-3 border-bottom">
+            <h3 class="h4 fw-bold mb-2"><i class="bi bi-database-gear me-2 text-primary"></i>Workspace</h3>
+            <p class="text-muted mb-0">Import, export, inspect storage usage, and reset workspace state.</p>
+          </div>
+
+          <!-- ─────────────────── Storage stats card ─────────────────── -->
+          <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+              <div class="d-flex align-items-start justify-content-between mb-3">
+                <div>
+                  <h5 class="fw-bold mb-1"><i class="bi bi-pie-chart me-2 text-secondary"></i>Storage usage</h5>
+                  <p class="text-muted small mb-0">
+                    All workspace data is kept in your browser's IndexedDB.
+                    <span *ngIf="statsComputed && lastComputedTime" class="ms-2 badge bg-light text-secondary border">Last computed: {{ lastComputedTime }}</span>
+                  </p>
+                </div>
+                <button type="button" *ngIf="statsComputed || loadingStats" class="btn btn-sm btn-outline-secondary" (click)="refreshWorkspaceStats()" title="Recalculate stats" [disabled]="loadingStats">
+                  <span *ngIf="loadingStats" class="spinner-border spinner-border-sm" role="status"></span>
+                  <i *ngIf="!loadingStats" class="bi bi-arrow-clockwise"></i>
+                </button>
+              </div>
+
+              <!-- State A: Not computed yet -->
+              <div *ngIf="!statsComputed && !loadingStats" class="text-center py-4 my-2">
+                <p class="text-muted small mb-3">
+                  Database storage size, record counts, and orphan notes/documents have not been calculated yet.
+                </p>
+                <button type="button" class="btn btn-primary btn-sm px-4" (click)="refreshWorkspaceStats()">
+                  <i class="bi bi-play-fill me-1"></i>Compute Workspace Stats
+                </button>
+              </div>
+
+              <!-- State B: Calculated or Loading -->
+              <div *ngIf="statsComputed || loadingStats">
+                <div class="row g-3">
+                  <div class="col-6 col-md-3">
+                    <div class="border rounded p-3 h-100">
+                      <div class="text-muted small text-uppercase fw-semibold mb-1" style="letter-spacing: 0.04em;">Sources</div>
+                      <div class="fw-bold" style="font-size: 1.4rem;">
+                        <span *ngIf="workspaceStats.sources === -1" class="spinner-border spinner-border-sm text-secondary" role="status"></span>
+                        <span *ngIf="workspaceStats.sources !== -1">{{ workspaceStats.sources }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="border rounded p-3 h-100">
+                      <div class="text-muted small text-uppercase fw-semibold mb-1" style="letter-spacing: 0.04em;">Documents</div>
+                      <div class="fw-bold" style="font-size: 1.4rem;">
+                        <span *ngIf="workspaceStats.documents === -1" class="spinner-border spinner-border-sm text-secondary" role="status"></span>
+                        <span *ngIf="workspaceStats.documents !== -1">{{ workspaceStats.documents }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="border rounded p-3 h-100">
+                      <div class="text-muted small text-uppercase fw-semibold mb-1" style="letter-spacing: 0.04em;">Notes rows</div>
+                      <div class="fw-bold" style="font-size: 1.4rem;">
+                        <span *ngIf="workspaceStats.notes === -1" class="spinner-border spinner-border-sm text-secondary" role="status"></span>
+                        <span *ngIf="workspaceStats.notes !== -1">{{ workspaceStats.notes }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-6 col-md-3">
+                    <div class="border rounded p-3 h-100">
+                      <div class="text-muted small text-uppercase fw-semibold mb-1" style="letter-spacing: 0.04em;">Settings</div>
+                      <div class="fw-bold" style="font-size: 1.4rem;">
+                        <span *ngIf="workspaceStats.sources === -1" class="spinner-border spinner-border-sm text-secondary" role="status"></span>
+                        <i *ngIf="workspaceStats.sources !== -1" class="bi" [ngClass]="workspaceStats.settingsPresent ? 'bi-check-circle-fill text-success' : 'bi-x-circle text-muted'"></i>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Browser quota -->
+                <div class="mt-4" *ngIf="workspaceStats.storageQuotaBytes">
+                  <div class="d-flex justify-content-between small text-muted mb-1">
+                    <span><strong>{{ formatBytes(workspaceStats.storageUsedBytes) }}</strong> used by this origin</span>
+                    <span>quota: {{ formatBytes(workspaceStats.storageQuotaBytes) }} ({{ storagePct }}%)</span>
+                  </div>
+                  <div class="progress" style="height: 8px; border-radius: 9999px;">
+                    <div class="progress-bar"
+                         [style.width.%]="storagePct"
+                         [style.background]="storagePct < 60 ? '#16a34a' : (storagePct < 85 ? '#f59e0b' : '#dc2626')">
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Orphan warnings -->
+                <div class="mt-3 d-flex flex-wrap gap-2">
+                  <span class="badge bg-warning-subtle text-warning border" *ngIf="workspaceStats.orphanDocs && workspaceStats.orphanDocs !== -1">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    {{ workspaceStats.orphanDocs }} orphan document{{ workspaceStats.orphanDocs === 1 ? '' : 's' }} (no parent source)
+                  </span>
+                  <span class="badge bg-warning-subtle text-warning border" *ngIf="workspaceStats.orphanNotes && workspaceStats.orphanNotes !== -1">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    {{ workspaceStats.orphanNotes }} orphan notes row{{ workspaceStats.orphanNotes === 1 ? '' : 's' }} (document gone)
+                  </span>
+                  <span class="badge bg-success-subtle text-success border" *ngIf="workspaceStats.orphanDocs === 0 && workspaceStats.orphanNotes === 0">
+                    <i class="bi bi-check-circle me-1"></i>No orphan rows
+                  </span>
+                  <span class="badge bg-secondary-subtle text-secondary border" *ngIf="workspaceStats.orphanDocs === -1 || workspaceStats.orphanNotes === -1">
+                    <span class="spinner-border spinner-border-sm me-1" role="status" style="width: 0.75rem; height: 0.75rem;"></span>
+                    Checking for orphans...
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────────────── Import & Export card ─────────────────── -->
+          <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+              <h5 class="fw-bold mb-3"><i class="bi bi-box-arrow-in-down me-2 text-primary"></i>Import & Export</h5>
+              <p class="text-muted small mb-3">Move workspace data in or out of the browser. Heavy imports show a progress bar.</p>
+
+              <div class="row g-3">
+                <div class="col-md-6 col-lg-4">
+                  <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-zip' }"
+                     class="ws-action-card text-decoration-none"
+                     title="Import a ZIP of an export_monodi or OMMR4all folder">
+                    <i class="bi bi-file-zip text-primary"></i>
+                    <div>
+                      <div class="ws-action-title">Import ZIP</div>
+                      <div class="ws-action-sub">monodi or OMMR4all export folder</div>
+                    </div>
+                    <i class="bi bi-arrow-right ws-action-arrow"></i>
+                  </a>
+                </div>
+
+                <div class="col-md-6 col-lg-4">
+                  <a [routerLink]="['/sources']" [queryParams]="{ ws: 'import-workspace' }"
+                     class="ws-action-card text-decoration-none"
+                     title="Import a previously-exported workspace JSON">
+                    <i class="bi bi-upload text-secondary"></i>
+                    <div>
+                      <div class="ws-action-title">Import Workspace JSON</div>
+                      <div class="ws-action-sub">Restore a <code>.monodijson</code> backup</div>
+                    </div>
+                    <i class="bi bi-arrow-right ws-action-arrow"></i>
+                  </a>
+                </div>
+
+                <div class="col-md-6 col-lg-4">
+                  <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-workspace' }"
+                     class="ws-action-card text-decoration-none"
+                     title="Download the whole workspace as JSON">
+                    <i class="bi bi-download text-success"></i>
+                    <div>
+                      <div class="ws-action-title">Export Workspace JSON</div>
+                      <div class="ws-action-sub">Single <code>.monodijson</code> file</div>
+                    </div>
+                    <i class="bi bi-arrow-right ws-action-arrow"></i>
+                  </a>
+                </div>
+
+                <div class="col-md-6 col-lg-4">
+                  <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-zip' }"
+                     class="ws-action-card text-decoration-none"
+                     title="Download the workspace as a ZIP file compatible with monodi+">
+                    <i class="bi bi-file-earmark-zip text-info"></i>
+                    <div>
+                      <div class="ws-action-title">Export ZIP</div>
+                      <div class="ws-action-sub">ZIP for monodi+ / OMMR</div>
+                    </div>
+                    <i class="bi bi-arrow-right ws-action-arrow"></i>
+                  </a>
+                </div>
+
+
+                <div class="col-md-6 col-lg-4">
+                  <a [routerLink]="['/sources']" [queryParams]="{ ws: 'export-html' }"
+                     class="ws-action-card text-decoration-none"
+                     title="Generate a static HTML edition">
+                    <i class="bi bi-globe text-warning"></i>
+                    <div>
+                      <div class="ws-action-title">Export HTML Edition</div>
+                      <div class="ws-action-sub">Browse offline as a static site</div>
+                    </div>
+                    <i class="bi bi-arrow-right ws-action-arrow"></i>
+                  </a>
+                </div>
+              </div>
+              <p class="text-muted small mt-3 mb-0">
+                <i class="bi bi-info-circle me-1"></i>
+                Each card opens the Sources page and triggers the action immediately — the progress modal and HTML export dialog stay visible while you keep working.
+              </p>
+            </div>
+          </div>
+
+          <!-- ─────────────────── Cleanup / soft resets ─────────────────── -->
+          <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+              <h5 class="fw-bold mb-3"><i class="bi bi-tools me-2 text-secondary"></i>Cleanup & soft resets</h5>
+              <p class="text-muted small mb-3">Tidy up rows that fell out of sync, or roll specific preference groups back to defaults. None of these touch the chant data itself.</p>
+
+              <div class="d-flex flex-column gap-2">
+                <!-- Reset settings -->
+                <div class="ws-action-row">
+                  <div class="ws-action-row-text">
+                    <div class="fw-semibold">Reset app settings</div>
+                    <div class="text-muted small">Wipes the <code>monodi_settings</code> row only. Custom fields, PDF layout, MEI mapping all go back to defaults.</div>
+                  </div>
+                  <button type="button" class="btn btn-sm"
+                          [class.btn-outline-warning]="armedAction !== 'reset-settings'"
+                          [class.btn-warning]="armedAction === 'reset-settings'"
+                          [disabled]="busyAction"
+                          (click)="armAction('reset-settings')">
+                    <span *ngIf="busyAction === 'reset-settings'" class="spinner-border spinner-border-sm me-1"></span>
+                    <i class="bi bi-arrow-counterclockwise me-1" *ngIf="busyAction !== 'reset-settings'"></i>
+                    {{ armedAction === 'reset-settings' ? 'Click again to confirm' : 'Reset settings' }}
+                  </button>
+                </div>
+
+                <!-- Reset UI preferences -->
+                <div class="ws-action-row">
+                  <div class="ws-action-row-text">
+                    <div class="fw-semibold">Reset UI preferences</div>
+                    <div class="text-muted small">Column visibility, dismissed help cards (kept in localStorage, not in IndexedDB).</div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="busyAction"
+                          (click)="resetUiPreferences()">
+                    <span *ngIf="busyAction === 'reset-cols'" class="spinner-border spinner-border-sm me-1"></span>
+                    <i class="bi bi-eraser me-1" *ngIf="busyAction !== 'reset-cols'"></i>
+                    Reset UI prefs
+                  </button>
+                </div>
+
+                 <!-- Orphan notes -->
+                <div class="ws-action-row">
+                  <div class="ws-action-row-text">
+                    <div class="fw-semibold">Remove orphan notes</div>
+                    <div class="text-muted small">Per-document notes rows whose document was deleted. Recovers disk without touching active data.</div>
+                  </div>
+                  <button type="button" class="btn btn-sm"
+                          [class.btn-outline-warning]="armedAction !== 'orphan-notes'"
+                          [class.btn-warning]="armedAction === 'orphan-notes'"
+                          [disabled]="busyAction || loadingStats || !statsComputed || workspaceStats.orphanNotes <= 0"
+                          (click)="armAction('orphan-notes')">
+                    <span *ngIf="busyAction === 'orphan-notes'" class="spinner-border spinner-border-sm me-1"></span>
+                    <i class="bi bi-trash me-1" *ngIf="busyAction !== 'orphan-notes'"></i>
+                    {{ armedAction === 'orphan-notes' ? 'Click again to confirm' :
+                       (loadingStats || workspaceStats.orphanNotes === -1 ? 'Calculating...' :
+                       (!statsComputed ? 'Run stats check' :
+                       (workspaceStats.orphanNotes > 0 ? 'Remove ' + workspaceStats.orphanNotes + ' orphan note row' + (workspaceStats.orphanNotes === 1 ? '' : 's') : 'Nothing to remove'))) }}
+                  </button>
+                </div>
+
+                <!-- Orphan documents -->
+                <div class="ws-action-row">
+                  <div class="ws-action-row-text">
+                    <div class="fw-semibold">Remove orphan documents</div>
+                    <div class="text-muted small">Documents whose source no longer exists. Their notes are removed too.</div>
+                  </div>
+                  <button type="button" class="btn btn-sm"
+                          [class.btn-outline-warning]="armedAction !== 'orphan-docs'"
+                          [class.btn-warning]="armedAction === 'orphan-docs'"
+                          [disabled]="busyAction || loadingStats || !statsComputed || workspaceStats.orphanDocs <= 0"
+                          (click)="armAction('orphan-docs')">
+                    <span *ngIf="busyAction === 'orphan-docs'" class="spinner-border spinner-border-sm me-1"></span>
+                    <i class="bi bi-trash me-1" *ngIf="busyAction !== 'orphan-docs'"></i>
+                    {{ armedAction === 'orphan-docs' ? 'Click again to confirm' :
+                       (loadingStats || workspaceStats.orphanDocs === -1 ? 'Calculating...' :
+                       (!statsComputed ? 'Run stats check' :
+                       (workspaceStats.orphanDocs > 0 ? 'Remove ' + workspaceStats.orphanDocs + ' orphan doc' + (workspaceStats.orphanDocs === 1 ? '' : 's') : 'Nothing to remove'))) }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─────────────────── Danger zone ─────────────────── -->
+          <div class="card border-danger shadow-sm">
+            <div class="card-body">
+              <div class="d-flex align-items-start justify-content-between mb-3">
+                <div>
+                  <h5 class="fw-bold mb-1 text-danger"><i class="bi bi-exclamation-octagon me-2"></i>Danger zone</h5>
+                  <p class="text-muted small mb-0">These actions cannot be undone. Export the workspace first if you might want it back.</p>
+                </div>
+              </div>
+
+              <div class="d-flex flex-column gap-2">
+                <!-- Wipe documents -->
+                <div class="ws-action-row danger">
+                  <div class="ws-action-row-text">
+                    <div class="fw-semibold text-danger">Delete all documents + notes</div>
+                    <div class="text-muted small">Keeps sources and their metadata. Use this when re-importing chant data into curated sources.</div>
+                  </div>
+                  <button type="button" class="btn btn-sm"
+                          [class.btn-outline-danger]="armedAction !== 'wipe-docs'"
+                          [class.btn-danger]="armedAction === 'wipe-docs'"
+                          [disabled]="busyAction || loadingStats"
+                          (click)="armAction('wipe-docs')">
+                    <span *ngIf="busyAction === 'wipe-docs'" class="spinner-border spinner-border-sm me-1"></span>
+                    <i class="bi bi-trash3 me-1" *ngIf="busyAction !== 'wipe-docs'"></i>
+                    {{ armedAction === 'wipe-docs' ? 'Click again to confirm' : 'Delete documents & notes' }}
+                  </button>
+                </div>
+
+                <!-- Wipe everything -->
+                <div class="ws-action-row danger">
+                  <div class="ws-action-row-text">
+                    <div class="fw-semibold text-danger">Delete EVERYTHING</div>
+                    <div class="text-muted small">Sources, documents, notes, settings, UI preferences. The whole workspace.</div>
+                  </div>
+                  <button type="button" class="btn btn-sm"
+                          [class.btn-outline-danger]="armedAction !== 'wipe-all'"
+                          [class.btn-danger]="armedAction === 'wipe-all'"
+                          [disabled]="busyAction || loadingStats"
+                          (click)="armAction('wipe-all')">
+                    <span *ngIf="busyAction === 'wipe-all'" class="spinner-border spinner-border-sm me-1"></span>
+                    <i class="bi bi-trash3-fill me-1" *ngIf="busyAction !== 'wipe-all'"></i>
+                    {{ armedAction === 'wipe-all' ? 'Click again to wipe everything' : 'Delete everything' }}
+                  </button>
+                </div>
+
+                <!-- Reload page -->
+                <div class="ws-action-row">
+                  <div class="ws-action-row-text">
+                    <div class="fw-semibold">Reload page</div>
+                    <div class="text-muted small">Recommended after any destructive action so cached in-memory state is rebuilt.</div>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-primary" (click)="reloadPage()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Reload
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       </div>
     </div>
 

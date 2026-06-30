@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Subject } from 'rxjs';
+import * as Model from '../types/model';
 
 export interface MapDropRequest { from: number[]; to: number[]; }
 
@@ -45,12 +46,46 @@ export class DragStateService {
     }
   }
 
-  /** True only when candidate is a sibling of the dragged item (same parent, same depth), excluding itself. */
+  /** True if candidate is a valid drop target for the dragged item. */
   isValidTarget(candidate: number[]): boolean {
     const dz = this.draggingZipper;
     if (!dz) return false;
-    if (candidate.length !== dz.length) return false;
     if (this.zippersEqual(candidate, dz)) return false;
+
+    const root = this.rootData;
+    if (!root) return false;
+
+    const moved = Model.resolve(root, dz);
+    const target = Model.resolve(root, candidate);
+    if (!moved || !target) return false;
+
+    if (moved.kind === Model.ContainerKind.ZeileContainer) {
+      if (target.kind === Model.ContainerKind.ZeileContainer) {
+        return true;
+      }
+      if (target.kind === Model.ContainerKind.FormteilContainer) {
+        const docStruct = Model.getStructure(root.documentType);
+        const limit = docStruct[candidate.length - 1];
+        return !!(limit && limit.canHaveLines);
+      }
+    }
+
+    if (moved.kind === Model.ContainerKind.FormteilContainer) {
+      if (target.kind === Model.ContainerKind.FormteilContainer) {
+        return candidate.length === dz.length;
+      }
+    }
+
+    if (moved.kind === Model.ContainerKind.ParatextContainer) {
+      if (target.kind === Model.ContainerKind.ParatextContainer || target.kind === Model.ContainerKind.ZeileContainer) {
+        return candidate.length === dz.length;
+      }
+      if (target.kind === Model.ContainerKind.FormteilContainer) {
+        return true;
+      }
+    }
+
+    if (candidate.length !== dz.length) return false;
     for (let i = 0; i < dz.length - 1; i++) {
       if (candidate[i] !== dz[i]) return false;
     }
@@ -61,3 +96,4 @@ export class DragStateService {
     return a.length === b.length && a.every((v, i) => v === b[i]);
   }
 }
+

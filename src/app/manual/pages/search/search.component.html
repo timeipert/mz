@@ -1,0 +1,148 @@
+<div class="manual-page-split">
+  <div class="manual-page-text">
+    <h1 id="search-functionality">Search Functionality</h1>
+    <p class="lead">Monodi-Zero features a highly robust search engine tailored for musicologists. It allows you to search both textual lyrics and melodic sequences across all documents in your project.</p>
+
+    <h2 id="search-modes">Search Modes & Capabilities</h2>
+    <p>The search engine operates in three primary modes depending on your toggles:</p>
+    <ul>
+      <li>
+        <strong>Text Search</strong>: Searches the lyrical text (syllables) of all transcriptions. It matches words or partial words instantly as you type.
+      </li>
+      <li>
+        <strong>Absolute Pitch Search</strong>: Activated by toggling the music icon. You type pitch names (e.g., <code>a b c</code> or <code>f g a</code>) to find exact melodic segments. Pitches are case-insensitive.
+      </li>
+      <li>
+        <strong>Interval (Contour) Search</strong>: Activated by toggling the steps icon. This searches for relative melodic intervals rather than absolute pitches. For example, searching for a step-up followed by a step-down (expressed as <code>+2 -2</code>) matches any melody with that contour, regardless of what pitch it starts on. This is extremely powerful for identifying transposed versions of the same chant.
+      </li>
+    </ul>
+
+    <h2 id="fuzzy-matching">Fuzzy Matching (Levenshtein Distance)</h2>
+    <p>Chant manuscripts frequently contain scribal variants, spelling differences, or slight musical variations. To accommodate this, Monodi-Zero includes an adjustable <strong>Levenshtein Distance</strong> slider that allows insertions, deletions, and substitutions up to your threshold:</p>
+    <ul>
+      <li><strong>Distance = 0</strong>: Exact matches only.</li>
+      <li><strong>Distance = 1</strong>: Allows for exactly one deviation. For example, a search for <code>A B C</code> will match <code>A D C</code> (substitution) or <code>A B</code> (deletion of C).</li>
+      <li><button class="btn btn-sm btn-outline-secondary py-1" (click)="triggerExample('fuzzy', 'A B C', 1)">Try Example: "A B C" (Distance 1)</button></li>
+    </ul>
+
+    <h2>Navigating Results</h2>
+    <p>Clicking on any result in the search panel will automatically open the corresponding source document and scroll directly to the matching line, highlighting the matched syllables or notes in yellow for immediate identification.</p>
+    
+    <p><a routerLink="/search" class="btn btn-primary mt-3">Open Search Panel</a></p>
+  </div>
+
+  <div class="manual-page-preview" cdkDrag>
+    <div class="sticky-preview-panel flex-column align-items-stretch">
+      <div class="preview-drag-handle" cdkDragHandle>
+        <span class="drag-title"><i class="bi bi-grip-vertical me-2"></i>Search Simulator</span>
+        <span class="badge bg-success-soft text-success">Interactive</span>
+      </div>
+
+      <div class="demo-wrapper w-100 mt-1">
+        <!-- Mock Tab Selectors -->
+        <div class="d-flex bg-light p-1 rounded mb-3 border" style="font-size: 0.8rem;">
+          <button class="btn btn-sm py-1 flex-grow-1 border-0" 
+                  [class.bg-white]="mockTab === 'text'" [class.shadow-sm]="mockTab === 'text'" 
+                  (click)="triggerExample('text', 'fidelis')">Text</button>
+          <button class="btn btn-sm py-1 flex-grow-1 border-0" 
+                  [class.bg-white]="mockTab === 'pitch'" [class.shadow-sm]="mockTab === 'pitch'" 
+                  (click)="triggerExample('pitch', 'F G A')">Pitch</button>
+          <button class="btn btn-sm py-1 flex-grow-1 border-0" 
+                  [class.bg-white]="mockTab === 'interval'" [class.shadow-sm]="mockTab === 'interval'" 
+                  (click)="triggerExample('interval', '+2 -2')">Interval</button>
+          <button class="btn btn-sm py-1 flex-grow-1 border-0" 
+                  [class.bg-white]="mockTab === 'fuzzy'" [class.shadow-sm]="mockTab === 'fuzzy'" 
+                  (click)="triggerExample('fuzzy', 'A B C', 1)">Fuzzy</button>
+        </div>
+
+        <!-- Simulator Query Input -->
+        <div class="input-group input-group-sm mb-3">
+          <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+          <input class="form-control border-start-0" [(ngModel)]="searchQuery" (ngModelChange)="runMockSearch()" placeholder="Type query...">
+          <button class="btn btn-primary" (click)="runMockSearch()">Search</button>
+        </div>
+
+        <!-- Levenshtein Slider for Fuzzy tab -->
+        <div class="mb-3 border-bottom pb-2" *ngIf="mockTab === 'fuzzy'">
+          <label class="form-label d-flex justify-content-between text-muted small mb-1">
+            <span>Fuzzy Tolerance (Distance)</span>
+            <span class="badge bg-secondary">{{fuzzyDistance}}</span>
+          </label>
+          <input type="range" class="form-range" min="0" max="1" step="1" [(ngModel)]="fuzzyDistance" (ngModelChange)="runMockSearch()">
+        </div>
+
+        <!-- Simulator Results List -->
+        <div class="results-container" style="max-height: 250px; overflow-y: auto;">
+          <span class="text-uppercase text-muted fw-bold d-block mb-2" style="font-size: 0.7rem;">Mock Search Results</span>
+          
+          <!-- Text Results -->
+          <div *ngIf="mockTab === 'text'">
+            <div *ngFor="let r of textResults" class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
+              <div class="fw-semibold text-primary" style="font-size: 0.75rem;">{{r.source}}</div>
+              <div class="text-dark">{{r.title}}</div>
+              <div class="text-muted small mt-1">
+                {{r.before}}<span class="bg-warning px-1 rounded">{{r.match}}</span>{{r.after}}
+              </div>
+            </div>
+          </div>
+
+          <!-- Pitch Results with visual staff -->
+          <div *ngIf="mockTab === 'pitch'">
+            <div *ngFor="let r of pitchResults" class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
+              <div class="fw-semibold text-primary" style="font-size: 0.75rem;">{{r.source}}</div>
+              <div class="text-dark mb-1">{{r.title}}</div>
+              
+              <!-- Mini 4-line staff visualizer -->
+              <div class="mini-staff-wrapper bg-light rounded border p-2 position-relative" style="height: 60px; overflow: hidden; margin-top: 5px;">
+                <!-- 4 lines -->
+                <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 12px;"></div>
+                <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 22px;"></div>
+                <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 32px;"></div>
+                <div style="border-top: 1px solid #cbd5e1; position: absolute; left: 0; right: 0; top: 42px;"></div>
+                
+                <!-- Mock neume squares -->
+                <div class="d-flex justify-content-around align-items-center h-100 position-relative z-index-2">
+                  <div *ngFor="let pitch of r.pitches; let idx = index" 
+                       [class.bg-warning]="r.highlight.includes(idx)" 
+                       [class.border-warning]="r.highlight.includes(idx)"
+                       [class.bg-dark]="!r.highlight.includes(idx)" 
+                       style="width: 10px; height: 10px; transform: rotate(45deg); display: flex; align-items: center; justify-content: center;"
+                       [style.margin-top.px]="pitch === 'A' ? -20 : pitch === 'G' ? -10 : pitch === 'F' ? 0 : pitch === 'D' ? 15 : 5"
+                       [title]="pitch">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Interval Results -->
+          <div *ngIf="mockTab === 'interval'">
+            <div *ngFor="let r of intervalResults" class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
+              <div class="fw-semibold text-primary" style="font-size: 0.75rem;">{{r.source}}</div>
+              <div class="text-dark">{{r.title}}</div>
+              <div class="text-muted small mt-1 font-monospace">{{r.steps}}</div>
+              <div class="d-flex gap-1 mt-1">
+                <span *ngFor="let p of r.pitches" class="badge bg-secondary" style="font-size: 0.65rem;">{{p}}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fuzzy Results -->
+          <div *ngIf="mockTab === 'fuzzy'">
+            <div *ngFor="let r of fuzzyResults" class="p-2 border rounded mb-2 bg-white" style="font-size: 0.85rem;">
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="font-monospace text-dark fw-semibold">{{r.match}}</span>
+                <span class="badge" [class.bg-success]="r.distance === 0" [class.bg-warning]="r.distance > 0" style="font-size: 0.7rem;">
+                  Dist: {{r.distance}}
+                </span>
+              </div>
+              <div class="text-muted small mt-1">{{r.description}}</div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,130 @@
+<div class="manual-page-split">
+  <div class="manual-page-text">
+    <h1 id="iiif-integration">IIIF Integration</h1>
+    <p class="lead">Monodi-Zero integrates directly with the International Image Interoperability Framework (IIIF) to provide side-by-side comparison of manuscript images and your digital transcriptions.</p>
+
+    <h2 id="view-modes">View Modes</h2>
+    <p>You can toggle your view mode from the main toolbar. Hover over the options below to preview their behavior on the mock layout on the right:</p>
+    <ul>
+      <li class="mb-2">
+        <span class="manual-highlight-trigger" appManualHighlightTrigger="split-screen">Split Screen Mode</span>: Displays the transcription editor on the left and the IIIF manuscript viewer on the right, perfect for mapping and reference.
+      </li>
+      <li class="mb-2">
+        <strong>Transcription Mode</strong>: Maximizes the keyboard editor, hiding the IIIF panel for distraction-free data entry.
+      </li>
+      <li class="mb-2">
+        <strong>IIIF Mode</strong>: Maximizes the high-resolution image viewer, hiding the editor to inspect details.
+      </li>
+    </ul>
+
+    <h2 id="linking-regions">Linking Regions (Line to Zone Mapping)</h2>
+    <p>When in Split Screen mode, you can map specific transcription lines directly to the corresponding stave region on the manuscript image. Hover over the trigger below to visualize this connection:</p>
+    <ol>
+      <li class="mb-2">
+        <strong>Draw a Zone</strong>: In the IIIF viewer, draw an annotation box over a line of music on the manuscript image.
+      </li>
+      <li class="mb-2">
+        <strong>Establish a Link</strong>: Hover over <span class="manual-highlight-trigger" appManualHighlightTrigger="linking-regions">Link Stave to Image</span> to see how the transcription block connects to the manuscript. Click the <code>Link</code> button on the drawn zone and select the corresponding Line Change in the editor.
+      </li>
+    </ol>
+    <p>Once linked, clicking a manuscript zone will scroll the editor to that line. Clicking a staff line will center and zoom the IIIF viewer to its mapped zone. Click below to test it:</p>
+    <button class="btn btn-sm btn-outline-secondary mb-3" (click)="simulateLinkClick()">Test Synced Click Navigation</button>
+
+    <h2 id="automatic-folio-navigation">Automatic Folio Navigation</h2>
+    <p>When transcribing, inserting or navigating past a <span class="manual-highlight-trigger" appManualHighlightTrigger="auto-folio">Folio Change ([F])</span> block will instruct the IIIF viewer to fetch and render the new manuscript page automatically, maintaining synchronization as you work.</p>
+
+    <p><a routerLink="/sources" class="btn btn-primary mt-3">Try out IIIF Integration</a></p>
+  </div>
+
+  <div class="manual-page-preview" cdkDrag>
+    <div class="sticky-preview-panel flex-column align-items-stretch">
+      <div class="preview-drag-handle" cdkDragHandle>
+        <span class="drag-title"><i class="bi bi-grip-vertical me-2"></i>Split Screen Viewer</span>
+        <span class="badge bg-success-soft text-success">Interactive</span>
+      </div>
+
+      <!-- Split Screen Simulator Frame -->
+      <div class="demo-wrapper w-100 mt-2 position-relative" style="height: 220px; overflow: hidden; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+        
+        <!-- Flash indicator -->
+        <div *ngIf="showFlash" class="position-absolute w-100 h-100 bg-success-soft d-flex align-items-center justify-content-center border border-success" style="z-index: 10; opacity: 0.85; transition: all 0.3s; pointer-events: none;">
+          <span class="fw-bold text-success" style="font-size: 0.9rem;"><i class="bi bi-check-circle-fill me-1"></i>Synchronized: Scrolled & Focused!</span>
+        </div>
+
+        <div class="row g-0 h-100">
+          <!-- Left side: Mock Editor -->
+          <div class="col-6 h-100 border-end d-flex flex-column p-2 bg-light transition" [class.bg-warning-subtle]="activeHighlightId === 'split-screen'">
+            <span class="text-uppercase text-muted fw-bold d-block mb-2 border-bottom pb-1" style="font-size: 0.65rem;"><i class="bi bi-pencil-square me-1"></i>Editor</span>
+            
+            <!-- Folio Change Block -->
+            <div class="p-1 mb-2 border rounded text-center transition bg-white" [class.border-primary]="activeHighlightId === 'auto-folio'" [class.bg-primary-subtle]="activeHighlightId === 'auto-folio'" style="font-size: 0.75rem;">
+              <i class="bi bi-journal-album me-1"></i>Folio [F 1r]
+            </div>
+
+            <!-- Stave Line Block -->
+            <div class="p-1 border rounded bg-white" id="mock-stave-target" style="font-size: 0.7rem; min-height: 50px;">
+              <span class="text-muted d-block" style="font-size: 0.6rem;">Line 1</span>
+              <div style="border-top: 1px solid #94a3b8; margin: 3px 0;"></div>
+              <div style="border-top: 1px solid #94a3b8; margin: 3px 0;"></div>
+              <div style="border-top: 1px solid #94a3b8; margin: 3px 0;"></div>
+              <div class="text-center font-monospace" style="font-size: 0.6rem; color: var(--accent-color);">F G A G F</div>
+            </div>
+          </div>
+
+          <!-- Right side: Mock IIIF Manuscript Viewer -->
+          <div class="col-6 h-100 d-flex flex-column p-2 transition" [class.bg-warning-subtle]="activeHighlightId === 'split-screen'" style="background-color: #fafaf9;">
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
+              <span class="text-uppercase text-muted fw-bold" style="font-size: 0.65rem;"><i class="bi bi-image me-1"></i>IIIF Viewer</span>
+              <span class="badge bg-secondary" style="font-size: 0.6rem;" [class.bg-primary]="activeHighlightId === 'auto-folio'">Folio {{activeFolio}}</span>
+            </div>
+
+            <!-- Manuscript Visualizer -->
+            <div class="flex-grow-1 border rounded position-relative d-flex align-items-center justify-content-center" style="background: #e7e5e4;">
+              <!-- Manuscript scribble lines -->
+              <div class="w-75" style="opacity: 0.35;">
+                <div style="border-top: 2px solid #57534e; height: 10px;"></div>
+                <div style="border-top: 2px solid #57534e; height: 10px;"></div>
+                <div style="border-top: 2px solid #57534e; height: 10px;"></div>
+              </div>
+
+              <!-- Annotation box -->
+              <div class="position-absolute border border-danger rounded" id="mock-ms-source"
+                   [class.bg-danger-subtle]="activeHighlightId === 'linking-regions'"
+                   [style.border-width.px]="activeHighlightId === 'linking-regions' ? 2 : 1"
+                   style="top: 25px; left: 10px; width: 100px; height: 40px; opacity: 0.85;">
+                <span class="badge bg-danger position-absolute" style="font-size: 0.5rem; top: -8px; left: 2px; padding: 2px 4px;">Zone 1</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SVG Linking Connector Line -->
+        <svg *ngIf="activeHighlightId === 'linking-regions'" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible;">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent-color)"/>
+            </marker>
+          </defs>
+          <!-- Draw line between manuscript zone and stave line change -->
+          <line x1="85" y1="130" x2="160" y2="70" 
+                stroke="var(--accent-color)" 
+                stroke-width="2.5" 
+                stroke-dasharray="5,3" 
+                marker-end="url(#arrow)"
+                marker-start="url(#arrow)"
+                style="animation: dash 1s linear infinite;">
+          </line>
+          <style>
+            @keyframes dash {
+              to {
+                stroke-dashoffset: -8;
+              }
+            }
+          </style>
+        </svg>
+
+      </div>
+    </div>
+  </div>
+</div>
+

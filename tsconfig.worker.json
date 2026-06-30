@@ -11,5 +11,7 @@
     "types": []
   },
   "files": [],
-  "include": []
+  "include": [
+    "src/**/*.worker.ts"
+  ]
 }
