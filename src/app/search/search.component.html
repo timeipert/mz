@@ -1,5 +1,5 @@
 <div *ngIf="!showPatternAnalysis">
-<div class="search-page container-fluid px-4 py-4" style="max-width: 1200px;">
+<div class="search-page container-fluid px-4 py-4" style="max-width: 1200px;" *ngIf="!showSynopsis">
 
   <!-- Page header -->
   <div class="d-flex align-items-center justify-content-between mb-4">
@@ -512,6 +512,10 @@
           <span *ngIf="documentsTotalPages > 1">· page {{documentsPage}} / {{documentsTotalPages}}</span>
         </span>
         <div class="d-flex gap-2 align-items-center">
+          <button class="btn btn-sm btn-primary" *ngIf="selectedDocs.length >= 2" (click)="enterSynopsis()">
+            <span *ngIf="synopsisLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+            Open Synopsis ({{selectedDocs.length}})
+          </button>
           <button type="button" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
                   *ngIf="filteredDocumentResults.length > 0"
                   (click)="openPatternAnalysis()"
@@ -557,6 +561,7 @@
           <table class="table table-hover mb-0">
             <thead class="table-light">
               <tr>
+                <th style="width: 40px;"></th>
                 <th *ngFor="let col of visibleDocCols; let first = first" [class.ps-3]="first"
                     class="sortable-th" (click)="sortBy(col.key.toString(), 'doc')">
                   {{col.label}} <i [class]="sortIcon(col.key.toString(), 'doc')"></i>
@@ -566,6 +571,11 @@
             <tbody>
               <tr *ngFor="let d of pagedDocumentResults; trackBy: trackDoc"
                   (click)="goToDocument(d.quelle_id, d.id)" class="cursor-pointer">
+                <td class="text-center" (click)="$event.stopPropagation()">
+                  <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
+                         [checked]="isDocSelected(d.id)"
+                         (change)="toggleDocSelection(d, $event)" />
+                </td>
                 <td *ngFor="let col of visibleDocCols; let first = first"
                     [class.ps-3]="first" [class.fw-medium]="first" [class.text-accent]="first">
                   {{$any(d)[col.key]}}
@@ -732,10 +742,16 @@
             </span>
             <span class="text-primary small"><i class="bi bi-info-circle me-1"></i>Select multiple chants below to compare them side-by-side.</span>
           </div>
-          <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                  (click)="exportMelodyCSV()">
-            <i class="bi bi-download"></i> CSV
-          </button>
+          <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-primary" *ngIf="selectedDocs.length >= 2" (click)="enterSynopsis()">
+              <span *ngIf="synopsisLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              Open Synopsis ({{selectedDocs.length}})
+            </button>
+            <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                    (click)="exportMelodyCSV()">
+              <i class="bi bi-download"></i> CSV
+            </button>
+          </div>
         </div>
         <div class="mb-3" *ngIf="melodyResults.length > 0">
           <div class="input-group input-group-sm">
@@ -754,6 +770,11 @@
                (click)="goToDocument(r.document.quelle_id, r.document.id)">
             <div class="card-body py-2 px-3">
               <div class="d-flex align-items-start justify-content-between gap-3">
+                <div class="d-flex align-self-center pe-1" (click)="$event.stopPropagation()">
+                  <input type="checkbox" class="form-check-input" style="transform: scale(1.15);"
+                         [checked]="isDocSelected(r.document.id)"
+                         (change)="toggleDocSelection(r.document, $event)" />
+                </div>
                 <!-- Metadata -->
                 <div style="min-width: 180px;">
                   <div class="fw-semibold text-accent">{{r.sourceSigle}}</div>
@@ -825,6 +846,188 @@
   </div>
 
 </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SYNOPSIS COMPARISON VIEW
+  ════════════════════════════════════════════════════════════════════════════ -->
+  <div *ngIf="showSynopsis" class="synopsis-view container-fluid px-4 py-4" style="max-width: 1400px;">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
+      <div class="d-flex align-items-center gap-3">
+        <h3 class="mb-0">Synoptic Comparison</h3>
+        <div class="btn-group btn-group-sm">
+          <button class="btn" [class.btn-primary]="alignmentMode === 'melody'" (click)="onAlignmentModeChange('melody')">Melody Profile</button>
+          <button class="btn" [class.btn-primary]="alignmentMode === 'text'" (click)="onAlignmentModeChange('text')">Text Profile</button>
+          <button class="btn" [class.btn-primary]="alignmentMode === 'structure'" (click)="onAlignmentModeChange('structure')">By Structure</button>
+          <button class="btn" [class.btn-primary]="alignmentMode === 'sequential'" (click)="onAlignmentModeChange('sequential')">Sequential</button>
+        </div>
+      </div>
+      <button class="btn btn-outline-secondary btn-sm" (click)="exitSynopsis()">
+        <i class="bi bi-arrow-left me-1"></i> Back to Search
+      </button>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div *ngIf="synopsisLoading" class="text-center py-5 text-muted">
+      <div class="spinner-border" role="status"></div>
+      <p class="mt-3">Aligning chants side-by-side…</p>
+    </div>
+
+    <!-- Synopsis Content -->
+    <div *ngIf="!synopsisLoading">
+      <!-- 1. Tree / Structural Alignment Mode -->
+      <div *ngIf="alignmentMode === 'structure' || alignmentMode === 'sequential'">
+        <ng-container *ngFor="let node of alignedTree">
+          <!-- Level 1 Block -->
+          <div class="synopsis-container-block level-1 border rounded card mb-3">
+            <div class="card-header py-1.5 bg-light fw-bold text-primary small d-flex justify-content-between align-items-center">
+              <span>{{node.signature || node.name || 'Level 1 Container'}}</span>
+              <span class="badge bg-secondary-subtle text-secondary font-monospace">{{getMatchedCount(node)}} / {{selectedDocs.length}} matched</span>
+            </div>
+            
+            <div class="card-body p-2 synopsis-container-children">
+              <ng-container *ngIf="node.alignedLineElements">
+                <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: node }"></ng-container>
+              </ng-container>
+              
+              <ng-container *ngFor="let child2 of node.children">
+                <!-- Level 2 Block -->
+                <div class="synopsis-container-block level-2 border rounded card mb-2">
+                  <div class="card-header py-1.5 bg-light fw-semibold text-secondary small d-flex justify-content-between align-items-center">
+                    <span>{{child2.signature || child2.name || 'Level 2 Container'}}</span>
+                    <span class="badge bg-secondary-subtle text-secondary font-monospace">{{getMatchedCount(child2)}} / {{selectedDocs.length}} matched</span>
+                  </div>
+                  
+                  <div class="card-body p-2 synopsis-container-children">
+                    <ng-container *ngIf="child2.alignedLineElements">
+                      <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: child2 }"></ng-container>
+                    </ng-container>
+                    
+                    <ng-container *ngFor="let child3 of child2.children">
+                      <!-- Level 3 Block -->
+                      <div class="synopsis-container-block level-3 border rounded card mb-2">
+                        <div class="card-header py-1.5 bg-light text-muted small d-flex justify-content-between align-items-center">
+                          <span>{{child3.signature || child3.name || 'Level 3 Container'}}</span>
+                          <span class="badge bg-secondary-subtle text-secondary font-monospace">{{getMatchedCount(child3)}} / {{selectedDocs.length}} matched</span>
+                        </div>
+                        
+                        <div class="card-body p-2 synopsis-container-children">
+                          <ng-container *ngIf="child3.alignedLineElements">
+                            <ng-container *ngTemplateOutlet="leafContainer; context: { $implicit: child3 }"></ng-container>
+                          </ng-container>
+                        </div>
+                      </div>
+                    </ng-container>
+                  </div>
+                </div>
+              </ng-container>
+            </div>
+          </div>
+        </ng-container>
+      </div>
+
+      <!-- 2. Melody / Text Alignment Mode (wrapped in chunks) -->
+      <div *ngIf="alignmentMode === 'melody' || alignmentMode === 'text'">
+        <div *ngFor="let chunk of chunkedMelodyRows; let chunkIdx = index" class="synopsis-leaf-container border rounded p-3 mb-4 shadow-sm bg-white">
+          <div class="small fw-semibold text-muted mb-2 border-bottom pb-1">Segment {{chunkIdx + 1}}</div>
+          
+          <div *ngFor="let doc of selectedDocs; let docIdx = index" class="synopsis-stave-row d-flex align-items-center mb-2">
+            <div class="me-2" style="width: 120px; flex-shrink: 0;">
+              <span class="badge bg-secondary synopsis-siglum-badge text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">
+                {{docSigles[doc.id] || doc.dokumenten_id}}
+              </span>
+            </div>
+            
+            <div class="d-flex flex-row align-items-start flex-grow-1 overflow-auto">
+              <div *ngFor="let col of chunk" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
+                <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'clef' && col[docIdx].element">
+                  <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)"></app-clef>
+                </ng-container>
+                <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'syllable' && col[docIdx].element">
+                  <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]"></app-notes>
+                </ng-container>
+                <ng-container *ngIf="!col[docIdx] || col[docIdx].kind === 'placeholder' || !col[docIdx].element">
+                  <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
+                    <svg width="100%" height="90" style="display: block;">
+                      <line x1="0" y1="10" x2="100%" y2="10" stroke="#cbd5e1" stroke-width="1"/>
+                      <line x1="0" y1="20" x2="100%" y2="20" stroke="#cbd5e1" stroke-width="1"/>
+                      <line x1="0" y1="30" x2="100%" y2="30" stroke="#cbd5e1" stroke-width="1"/>
+                      <line x1="0" y1="40" x2="100%" y2="40" stroke="#cbd5e1" stroke-width="1"/>
+                      <line x1="0" y1="50" x2="100%" y2="50" stroke="#cbd5e1" stroke-width="1"/>
+                    </svg>
+                  </div>
+                </ng-container>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <ng-template #leafContainer let-node>
+    <!-- If the node has paratext -->
+    <ng-container *ngIf="hasParatext(node.items)">
+      <div class="synopsis-leaf-container border rounded p-3 mb-3">
+        <div *ngFor="let doc of selectedDocs; let docIdx = index" class="synopsis-stave-row d-flex align-items-center mb-1">
+          <div class="me-2" style="width: 120px; flex-shrink: 0;">
+            <span class="badge bg-secondary synopsis-siglum-badge text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">
+              {{docSigles[doc.id] || doc.dokumenten_id}}
+            </span>
+          </div>
+          <div class="flex-grow-1 p-2 bg-light rounded synopsis-paratext-inline small text-start">
+            <ng-container *ngIf="node.items[docIdx] && node.items[docIdx]?.kind === 'ParatextContainer'">
+              <span class="badge bg-info-subtle text-info border border-info-subtle me-2">Text ({{$any(node.items[docIdx]).paratextType}})</span>
+              <span>{{$any(node.items[docIdx]).text}}</span>
+            </ng-container>
+            <ng-container *ngIf="!node.items[docIdx] || node.items[docIdx]?.kind !== 'ParatextContainer'">
+              <span class="text-muted fst-italic">no text</span>
+            </ng-container>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+
+    <!-- If the node does not have paratext -->
+    <ng-container *ngIf="!hasParatext(node.items)">
+      <div class="synopsis-leaf-container border rounded p-3 mb-3">
+        <div *ngFor="let doc of selectedDocs; let docIdx = index" class="synopsis-stave-row d-flex align-items-center mb-1">
+          <div class="me-2" style="width: 120px; flex-shrink: 0;">
+            <span class="badge bg-secondary synopsis-siglum-badge text-truncate w-100" [title]="docSigles[doc.id] || doc.dokumenten_id">
+              {{docSigles[doc.id] || doc.dokumenten_id}}
+            </span>
+          </div>
+          
+          <div class="d-flex flex-row align-items-start flex-grow-1 overflow-auto">
+            <ng-container *ngIf="hasLineElements(node, docIdx); else emptyStave">
+              <div *ngFor="let col of node.alignedLineElements" class="synopsis-column" [style.width.px]="getColumnWidth(col)">
+                <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'clef' && col[docIdx].element">
+                  <app-clef [readOnly]="true" [model]="$any(col[docIdx].element)"></app-clef>
+                </ng-container>
+                <ng-container *ngIf="col[docIdx] && col[docIdx].kind === 'syllable' && col[docIdx].element">
+                  <app-notes [readOnly]="true" [model]="$any(col[docIdx].element)" [comments]="[]"></app-notes>
+                </ng-container>
+                <ng-container *ngIf="!col[docIdx] || col[docIdx].kind === 'placeholder' || !col[docIdx].element">
+                  <div class="synopsis-placeholder-stave" [style.width.px]="getColumnWidth(col)">
+                    <svg width="100%" height="90" style="display: block;">
+                      <line x1="0" y1="10" x2="100%" y2="10" stroke="#cbd5e1" stroke-width="1"/>
+                      <line x1="0" y1="20" x2="100%" y2="20" stroke="#cbd5e1" stroke-width="1"/>
+                      <line x1="0" y1="30" x2="100%" y2="30" stroke="#cbd5e1" stroke-width="1"/>
+                      <line x1="0" y1="40" x2="100%" y2="40" stroke="#cbd5e1" stroke-width="1"/>
+                      <line x1="0" y1="50" x2="100%" y2="50" stroke="#cbd5e1" stroke-width="1"/>
+                    </svg>
+                  </div>
+                </ng-container>
+              </div>
+            </ng-container>
+            <ng-template #emptyStave>
+              <span class="synopsis-empty-line small ps-2">empty stave</span>
+            </ng-template>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </ng-template>
 
 </div>
 

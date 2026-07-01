@@ -61,7 +61,9 @@
         <div class="meta-field">
           <label class="meta-label">Source Siglum</label>
           <div class="input-group input-group-sm">
-            <input class="form-control form-control-sm" list="list-quellensigle" [(ngModel)]="source.quellensigle" (blur)="save()" placeholder="e.g. D-Mbs Clm 1234"/>
+            <input id="quellensigle-input" class="form-control form-control-sm" 
+                   [ngStyle]="!source.id ? {'border': '2px solid #0d6efd', 'box-shadow': '0 0 0 0.25rem rgba(13, 110, 253, 0.25)'} : {}"
+                   list="list-quellensigle" [(ngModel)]="source.quellensigle" (blur)="save()" placeholder="e.g. D-Mbs Clm 1234"/>
             <button class="btn btn-outline-secondary btn-sm" type="button" (click)="addToSettings('quellensigle', source.quellensigle)" title="Add to list"><i class="bi bi-plus"></i></button>
           </div>
         </div>
@@ -208,8 +210,8 @@
               </button>
             </ng-container>
             <ng-container *ngIf="!source.id">
-              <button class="btn btn-secondary btn-sm" disabled title="Name the source first">
-                <i class="bi bi-lock me-1"></i> Name source first
+              <button class="btn btn-warning btn-sm" (click)="promptForName()" title="Name the source first">
+                <i class="bi bi-pencil me-1"></i> Name source first
               </button>
             </ng-container>
           </div>

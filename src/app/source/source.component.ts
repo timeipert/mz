@@ -120,6 +120,7 @@ export class SourceComponent implements OnInit {
         this.retrieveForId(id);
       } else {
         this.pageTitle.set('New Source');
+        this.showMetadataPanel = true;
         this.source = {
           id: undefined,
           quellensigle: "",
@@ -138,6 +139,17 @@ export class SourceComponent implements OnInit {
       }
 
     }));
+  }
+
+  promptForName() {
+    this.showMetadataPanel = true;
+    setTimeout(() => {
+      const el = document.getElementById('quellensigle-input') as HTMLInputElement;
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    }, 50);
   }
 
   updateQuellensigle(quellensigle: string) {

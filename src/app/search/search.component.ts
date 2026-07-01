@@ -1842,6 +1842,15 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return Math.max(60, maxWidth);
   }
 
+  hasParatext(items: any[]): boolean {
+    return items && items.some(item => item && item.kind === 'ParatextContainer');
+  }
+
+  hasLineElements(node: AlignedNode, docIdx: number): boolean {
+    if (!node.alignedLineElements) return false;
+    return node.alignedLineElements.some(col => col[docIdx] && col[docIdx].kind !== 'placeholder' && col[docIdx].element !== null);
+  }
+
   onAlignmentModeChange(mode: 'structure' | 'sequential' | 'melody' | 'text') {
     this.alignmentMode = mode;
     this.enterSynopsis();
