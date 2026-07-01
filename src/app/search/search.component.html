@@ -145,7 +145,11 @@
             </span>
             <span class="text-primary small ms-2"><i class="bi bi-info-circle me-1"></i>Check multiple documents below to compare them side-by-side (Synopse).</span>
           </div>
-          <div class="d-flex gap-2">
+          <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-primary" *ngIf="selectedDocs.length >= 2" (click)="enterSynopsis()">
+              <span *ngIf="synopsisLoading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              Open Synopsis ({{selectedDocs.length}})
+            </button>
             <span class="badge bg-primary-subtle text-primary">{{countQuickResults('source')}} source(s)</span>
             <span class="badge bg-success-subtle text-success">{{countQuickResults('document')}} document(s)</span>
           </div>

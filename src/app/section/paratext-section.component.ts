@@ -82,6 +82,47 @@ export class ParatextSectionComponent extends S.Section<Model.ParatextContainer>
     this.subscription.pipe(take(1)).subscribe((newComment: Model.ParatextComment) => this.data.comment = newComment);
   }
 
+  isFocused(): boolean {
+    return this.focusService.focusedContainerUUID === this.data.uuid;
+  }
+
+  selectContainer(event: MouseEvent): void {
+    event.stopPropagation();
+    this.focusService.focusedContainerUUID = this.data.uuid;
+    const tools: any[] = [];
+
+    // Delete Text Element
+    tools.push({
+      callback: () => {
+        if (confirm('Are you sure you want to delete this text element?')) {
+          this.onEvent.emit({ kind: 'DeletionRequested', focusLast: true });
+        }
+      },
+      icon: 'trash text-danger',
+      title: 'Delete Text Element'
+    });
+
+    // Clear selection
+    tools.push({
+      callback: () => {
+        this.focusService.focusedContainerUUID = undefined;
+        this.toolsService.remove(this);
+      },
+      icon: 'x-circle text-secondary',
+      title: 'Clear Selection'
+    });
+
+    this.toolsService.remove(this);
+    this.toolsService.addStack({
+      source: this,
+      tools: tools
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.toolsService.remove(this);
+  }
+
   getData(): any {
     return this.data;
   }
