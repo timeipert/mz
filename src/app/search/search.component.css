@@ -167,50 +167,143 @@ code {
   background: #94a3b8;
 }
 
-/* ── Synopsis Comparison View ────────────────────────────────────────────── */
-.synopsis-view-header {
+/* ── Synopsis Comparison View (classic edition look) ─────────────────────── */
+
+/* Screen-only toolbar */
+.synopsis-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1.25rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+/* Masthead: centred title over a double rule (serif only in the PDF) */
+.synopsis-masthead {
+  text-align: center;
+  margin: 0.25rem 0 1.4rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 2px solid #0f172a;
+  position: relative;
+}
+.synopsis-masthead::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  border-bottom: 1px solid #0f172a;
+}
+.synopsis-masthead-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #0f172a;
+}
+.synopsis-masthead-sub {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+.synopsis-masthead-dot { margin: 0 0.4rem; color: #94a3b8; }
+
+/* Witness table — hairline rules, no card chrome */
+.synopsis-meta { margin-bottom: 1.5rem; }
+.synopsis-meta-caption {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 0.3rem;
+}
+.synopsis-meta-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  color: #0f172a;
+}
+.synopsis-meta-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+  border-top: 1.5px solid #0f172a;
+  border-bottom: 1px solid #0f172a;
+  padding: 3px 14px 3px 0;
+  white-space: nowrap;
+}
+.synopsis-meta-table td {
   border-bottom: 1px solid #e2e8f0;
+  padding: 3.5px 14px 3.5px 0;
+  vertical-align: top;
 }
+.synopsis-meta-table tr:last-child td { border-bottom: 1.5px solid #0f172a; }
+.synopsis-meta-table .meta-siglum { font-weight: 700; white-space: nowrap; }
+.synopsis-meta-table .meta-incipit { font-style: italic; }
 
-.synopsis-container-block {
-  background: #f8fafc;
-  transition: all 0.2s ease;
-  padding: 0.4rem 0.6rem !important;
-  margin-bottom: 0.5rem !important;
+/* Section headings (structure / sequential modes):
+   name — hairline rule — match count. No nested cards. */
+.syn-sec { margin-bottom: 0.6rem; }
+.syn-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+  color: #1e293b;
+  break-after: avoid;
+  page-break-after: avoid;
 }
-.synopsis-container-block.level-1 {
-  border-color: #cbd5e1;
-  background-color: #f1f5f9;
+.syn-sec-name {
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
-.synopsis-container-block.level-2 {
-  border-color: #cbd5e1;
-  background-color: #f8fafc;
-  margin-left: 0.75rem !important;
+.syn-sec-rule { flex: 1; border-bottom: 1px solid #cbd5e1; }
+.syn-sec-match {
+  font-size: 10px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  color: #64748b;
+  white-space: nowrap;
 }
-.synopsis-container-block.level-3 {
-  border-color: #e2e8f0;
-  background-color: #ffffff;
-  margin-left: 1.5rem !important;
-}
+.syn-sec-1 > .syn-sec-head { font-size: 0.95rem; font-weight: 700; }
+.syn-sec-1 > .syn-sec-head .syn-sec-rule { border-bottom-color: #94a3b8; }
+.syn-sec-2 { margin-left: 0.6rem; }
+.syn-sec-2 > .syn-sec-head { font-size: 0.88rem; font-weight: 600; }
+.syn-sec-3 { margin-left: 1.2rem; }
+.syn-sec-3 > .syn-sec-head { font-size: 0.82rem; font-weight: 500; color: #475569; }
 
-.synopsis-container-children {
-  padding-left: 0.25rem;
+/* Melody segment label */
+.syn-chunk-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 0.25rem;
 }
 
 .synopsis-leaf-container {
-  border: 1px solid #e2e8f0;
-  background-color: #ffffff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  padding: 0.5rem !important;
-  margin-bottom: 0.5rem !important;
+  border: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin-bottom: 1rem !important;
 }
 
 .synopsis-stave-row {
   min-height: unset !important;
-  border-bottom: 1px dashed #f1f5f9;
-  padding-bottom: 0.15rem !important;
-  padding-top: 0.15rem !important;
-  margin-bottom: 0.25rem !important;
+  border-bottom: none !important;
+  padding-bottom: 0px !important;
+  padding-top: 0px !important;
+  margin-bottom: 0px !important;
 }
 .synopsis-stave-row:last-child {
   border-bottom: none;
@@ -218,8 +311,17 @@ code {
   margin-bottom: 0 !important;
 }
 
-.synopsis-siglum-badge {
-  font-family: 'SFMono-Regular', Consolas, monospace;
+/* Sigla — quiet text labels instead of gray badges */
+.siglum-chip {
+  display: inline-block;
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: #334155;
+  text-align: left;
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
 .synopsis-column {
@@ -355,3 +457,23 @@ code {
   font-size: 0.75rem;
   border-radius: 4px;
 }
+
+/* ── Synopsis Layout Enhancements ── */
+.sticky-siglum {
+  box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+}
+.synopsis-scroll-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+.synopsis-scroll-wrapper::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+.synopsis-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.synopsis-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+

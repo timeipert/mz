@@ -526,6 +526,59 @@
               </div>
             </div>
           </div>
+
+          <!-- Group 7: Synopsis PDF Export Settings -->
+          <div class="card shadow-sm border-light mb-4">
+            <div class="card-header bg-light py-2">
+              <h6 class="mb-0 fw-semibold text-primary"><i class="bi bi-file-earmark-music me-2"></i>Synopsis PDF Export Settings</h6>
+            </div>
+            <div class="card-body bg-white py-3">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label d-flex justify-content-between small fw-medium text-muted mb-1">
+                    <span>Synopsis Staff Scale</span>
+                    <span class="badge bg-secondary">{{settings.pdfSynopsisScale}}</span>
+                  </label>
+                  <input type="range" class="form-range" min="0.4" max="1.5" step="0.05" [(ngModel)]="settings.pdfSynopsisScale" (ngModelChange)="onSettingsChange()">
+                </div>
+                
+                <div class="col-md-6 d-flex align-items-end">
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="pdfSynopsisShowHeader" [(ngModel)]="settings.pdfSynopsisShowHeader" (ngModelChange)="onSettingsChange()">
+                    <label class="form-check-label small fw-medium text-muted" for="pdfSynopsisShowHeader">Show Print Header</label>
+                  </div>
+                </div>
+
+                <div class="col-md-6 d-flex align-items-end">
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="pdfSynopsisShowHeaderMetadata" [(ngModel)]="settings.pdfSynopsisShowHeaderMetadata" (ngModelChange)="onSettingsChange()" [disabled]="!settings.pdfSynopsisShowHeader">
+                    <label class="form-check-label small fw-medium text-muted" for="pdfSynopsisShowHeaderMetadata">Show Document Metadata in Header</label>
+                  </div>
+                </div>
+
+                <div class="col-md-6 d-flex align-items-end">
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="pdfSynopsisShowDate" [(ngModel)]="settings.pdfSynopsisShowDate" (ngModelChange)="onSettingsChange()" [disabled]="!settings.pdfSynopsisShowHeader">
+                    <label class="form-check-label small fw-medium text-muted" for="pdfSynopsisShowDate">Show Date in Header</label>
+                  </div>
+                </div>
+
+                <div class="col-md-6 d-flex align-items-end">
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="pdfSynopsisShowFooter" [(ngModel)]="settings.pdfSynopsisShowFooter" (ngModelChange)="onSettingsChange()">
+                    <label class="form-check-label small fw-medium text-muted" for="pdfSynopsisShowFooter">Show Print Footer</label>
+                  </div>
+                </div>
+
+                <div class="col-md-6 d-flex align-items-end">
+                  <div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="pdfSynopsisShowFooterIds" [(ngModel)]="settings.pdfSynopsisShowFooterIds" (ngModelChange)="onSettingsChange()" [disabled]="!settings.pdfSynopsisShowFooter">
+                    <label class="form-check-label small fw-medium text-muted" for="pdfSynopsisShowFooterIds">Show Document IDs List in Footer</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <!-- 4. Container Names Tab -->
         <div class="tab-pane fade show active" *ngIf="activeTab === 'containers'">

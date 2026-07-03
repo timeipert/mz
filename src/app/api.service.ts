@@ -454,6 +454,12 @@ export interface ProjectSettings {
   customDocumentFields?: { key: string, label: string }[];
   customLists?: { [key: string]: string[] };
   pdfScale?: number;
+  pdfSynopsisScale?: number;
+  pdfSynopsisShowHeader?: boolean;
+  pdfSynopsisShowHeaderMetadata?: boolean;
+  pdfSynopsisShowFooter?: boolean;
+  pdfSynopsisShowFooterIds?: boolean;
+  pdfSynopsisShowDate?: boolean;
   pdfSyllableSpacing?: number;
   pdfVerticalSpace?: number;
   htmlExportSourceMetadata?: string[];

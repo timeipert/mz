@@ -199,6 +199,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
             if (!this.settings.htmlExportFooterHtml) {
               this.settings.htmlExportFooterHtml = `<footer class="edition-footer mt-5 pt-4 pb-3 border-top text-center text-muted small">\n  <p class="mb-1">&copy; 2026 Scholarly Monodi Edition Project. All rights reserved.</p>\n  <p class="opacity-75">Generated with Monodi+ zero. Free to share and adapt for non-commercial scholarly purposes.</p>\n</footer>`;
             }
+            if (this.settings.pdfSynopsisScale === undefined) this.settings.pdfSynopsisScale = 1.0;
+            if (this.settings.pdfSynopsisShowHeader === undefined) this.settings.pdfSynopsisShowHeader = true;
+            if (this.settings.pdfSynopsisShowHeaderMetadata === undefined) this.settings.pdfSynopsisShowHeaderMetadata = true;
+            if (this.settings.pdfSynopsisShowFooter === undefined) this.settings.pdfSynopsisShowFooter = true;
+            if (this.settings.pdfSynopsisShowFooterIds === undefined) this.settings.pdfSynopsisShowFooterIds = true;
+            if (this.settings.pdfSynopsisShowDate === undefined) this.settings.pdfSynopsisShowDate = true;
           }
         });
       }

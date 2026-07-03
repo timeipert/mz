@@ -2,8 +2,8 @@
 	<ng-container *ngFor="let voice of getVoices(); let i = index; trackBy: trackByIndex">
 	<div #notesDiv class="notes voice-{{i}}" (keydown)="keyDown($event, i)" (click)="clickOn($event, i)" tabindex="-1"
 		(focusin)="setDivFocus(true, i)" (focusout)="setDivFocus(false, i)">
-		<svg [attr.width]="getWidth() + 'px'">
-			<g [attr.transform]="readOnly ? 'translate(0, -30)' : 'translate(0, 0)'">
+		<svg [attr.width]="getWidth() + 'px'" [style.height.px]="50 * staffScale">
+			<g [attr.transform]="readOnly ? 'scale(' + staffScale + ') translate(0, -35)' : 'scale(' + staffScale + ') translate(0, 0)'">
 				<line x1=0 x2=9999 y1=40 y2=40 stroke=black />
 				<line x1=0 x2=9999 y1=50 y2=50 stroke=black />
 				<line x1=0 x2=9999 y1=60 y2=60 stroke=black />
@@ -36,103 +36,11 @@
 							r="12" fill="#fde047" fill-opacity="0.8"
 							stroke="#eab308" stroke-width="1.5"
 							style="pointer-events: none;" />
-						<image *ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Flat'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12" xlink:href="assets/glyphs/flat.svg" />
-						<image *ngIf="isNote(drawable) && hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Flat'"
+						<image *ngIf="isNote(drawable)"
 							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
 							[attr.height]="drawable.ref.liquescent ? 40 : 60"
 							[attr.width]="drawable.ref.liquescent ? 8 : 12"
-							xlink:href="assets/glyphs/flat-focused.svg" />
-						<image
-							*ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Natural'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12" xlink:href="assets/glyphs/natural.svg" />
-						<image
-							*ngIf="isNote(drawable) && hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Natural'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12"
-							xlink:href="assets/glyphs/natural-focused.svg" />
-						<image
-							*ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Sharp'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12" xlink:href="assets/glyphs/sharp.svg" />
-						<image
-							*ngIf="isNote(drawable) && hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Sharp'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12"
-							xlink:href="assets/glyphs/sharp-focused.svg" />
-						<image
-							*ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Normal'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12" xlink:href="assets/glyphs/note.svg" />
-						<image
-							*ngIf="isNote(drawable) && hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Normal'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12"
-							xlink:href="assets/glyphs/note-focused.svg" />
-						<image
-							*ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Ascending'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12" xlink:href="assets/glyphs/ascending.svg" />
-						<image
-							*ngIf="isNote(drawable) && hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Ascending'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12"
-							xlink:href="assets/glyphs/ascending-focused.svg" />
-						<image
-							*ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Descending'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12" xlink:href="assets/glyphs/descending.svg" />
-						<image
-							*ngIf="isNote(drawable) && hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Descending'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12"
-							xlink:href="assets/glyphs/descending-focused.svg" />
-						<image
-							*ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Oriscus'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12" xlink:href="assets/glyphs/oriscus.svg" />
-						<image
-							*ngIf="isNote(drawable) && hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Oriscus'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12"
-							xlink:href="assets/glyphs/oriscus-focused.svg" />
-						<image
-							*ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Strophicus'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12" xlink:href="assets/glyphs/strophicus.svg" />
-						<image
-							*ngIf="isNote(drawable) && hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Strophicus'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12"
-							xlink:href="assets/glyphs/strophicus-focused.svg" />
-						<image
-							*ngIf="isNote(drawable) && !hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Quilisma'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12" xlink:href="assets/glyphs/quilisma.svg" />
-						<image
-							*ngIf="isNote(drawable) && hasCurrentFocus(drawable, i) && drawable.ref.noteType == 'Quilisma'"
-							class="note" [attr.x]="drawable.x" [attr.y]="drawable.y"
-							[attr.height]="drawable.ref.liquescent ? 40 : 60"
-							[attr.width]="drawable.ref.liquescent ? 8 : 12"
-							xlink:href="assets/glyphs/quilisma-focused.svg" />
+							[attr.href]="getGlyphDataUri(drawable.ref.noteType, hasCurrentFocus(drawable, i))" />
 						<path *ngIf="isTie(drawable)" [attr.d]="drawable.getPath()" stroke="black" stroke-width="2"
 							fill="transparent" />
 
@@ -167,10 +75,10 @@
 		spellcheck="false" (keyup)="changeNoteText($event, i)" (keydown)="onNoteTextDown($event, i)" [attr.contenteditable]="readOnly ? 'false' : 'true'">
 	</div>
 	</ng-container>
-	<div (click)="setTextAsPreferredFocus()" [class.dnone]="isSourceEllipsis() || isEditorEllipsis()" tabindex="-1"
+	<div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || isSourceEllipsis() || isEditorEllipsis()" tabindex="-1"
 		#syllableText class="syllableText" spellcheck="false" (keydown)="changeSyllableTextDown($event)"
 		(keyup)="changeSyllableText($event)" (focusin)="setSyllFocus(true)" (focusout)="setSyllFocus(false)"
 		[attr.contenteditable]="readOnly ? 'false' : 'true'" (contextmenu)="onSyllableContextMenu($event)"></div>
-	<div (click)="setTextAsPreferredFocus()" [class.dnone]="!isSourceEllipsis()" class="syllableText">...</div>
-	<div (click)="setTextAsPreferredFocus()" [class.dnone]="!isEditorEllipsis()" class="syllableText">&lt;...&gt;</div>
+	<div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || !isSourceEllipsis()" class="syllableText">...</div>
+	<div (click)="setTextAsPreferredFocus()" [class.dnone]="hideSyllableText || !isEditorEllipsis()" class="syllableText">&lt;...&gt;</div>
 </div>

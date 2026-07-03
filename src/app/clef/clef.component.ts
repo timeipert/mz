@@ -36,6 +36,9 @@ export class ClefComponent implements OnInit, OnDestroy, AfterViewChecked, Focus
   @Input()
   model!: VM.Clef;
 
+  @Input()
+  staffScale = 1.0;
+
   getActiveComments(): VM.Comment[] {
     if (this.model.focus) {
       return this.comments.filter(c => c.endUUID === this.model.uuid || c.startUUID === this.model.uuid);

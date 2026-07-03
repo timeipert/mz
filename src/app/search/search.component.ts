@@ -13,6 +13,7 @@ import { textWidth } from '../../utils';
 import * as localforage from 'localforage';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import 'svg2pdf.js';
 import {
   LoadedDoc,
   PatternOccurrence,
@@ -58,6 +59,21 @@ const DEFAULT_DOC_COLS: ColDef<Document>[] = [
   { key: 'druckausgabe',             label: 'Print Edition',      visible: false },
   { key: 'bibliographischerverweis', label: 'Bibliographic Ref.', visible: false },
   { key: 'editionsstatus',           label: 'Edition Status',     visible: false },
+];
+
+const SYNOPSIS_COLS_KEY = 'monodi_synopsis_cols';
+const DEFAULT_SYNOPSIS_COLS: ColDef<Document>[] = [
+  { key: 'dokumenten_id',            label: 'Document ID / Siglum', visible: true  },
+  { key: 'textinitium',              label: 'Text Incipit',         visible: true  },
+  { key: 'festtag',                  label: 'Feast Day',            visible: true  },
+  { key: 'feier',                    label: 'Celebration',          visible: true  },
+  { key: 'bibliographischerverweis', label: 'Bibliographic Ref.',   visible: true  },
+  { key: 'druckausgabe',             label: 'Print Edition',        visible: false },
+  { key: 'gattung1',                 label: 'Genre 1',              visible: false },
+  { key: 'gattung2',                 label: 'Genre 2',              visible: false },
+  { key: 'foliostart',               label: 'Folio Start',          visible: false },
+  { key: 'zeilenstart',              label: 'Line Start',           visible: false },
+  { key: 'kommentar',                label: 'Commentary',           visible: false },
 ];
 
 const SRC_RES_KEY  = 'monodi_search_src_cols';
@@ -424,6 +440,8 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   alignedTree: AlignedNode[] = [];
   docSigles: { [docId: string]: string } = {};
   alignmentMode: 'structure' | 'sequential' | 'melody' | 'text' = 'melody';
+  showConsensusText = false;
+  showSingleLineSynopsis = false;
   chunkedMelodyRows: AlignedLineElement[][][] = [];
   cachedRootContainers: VM.RootContainer[] = [];
   cachedDocIds: string[] = [];
@@ -461,6 +479,8 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   docSortAsc = true;
   showDocColPicker = false;
   docResultCols: ColDef<Document>[] = [];
+  synopsisMetadataCols: ColDef<Document>[] = [];
+  showSynopsisColPicker = false;
 
   // ── Melody search ─────────────────────────────────────────────────────────
   melodyPattern = '';
@@ -1623,6 +1643,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   loadCols() {
     this.srcResultCols = this.loadFromStorage<Source>(SRC_RES_KEY, DEFAULT_SRC_COLS);
     this.docResultCols = this.loadFromStorage<Document>(DOC_RES_KEY, DEFAULT_DOC_COLS);
+    this.synopsisMetadataCols = this.loadFromStorage<Document>(SYNOPSIS_COLS_KEY, DEFAULT_SYNOPSIS_COLS);
   }
 
   private loadFromStorage<T>(key: string, defaults: ColDef<T>[]): ColDef<T>[] {
@@ -1641,6 +1662,17 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   saveSrcCols() { localStorage.setItem(SRC_RES_KEY, JSON.stringify(this.srcResultCols)); }
   saveDocCols() { localStorage.setItem(DOC_RES_KEY, JSON.stringify(this.docResultCols)); }
+  saveSynopsisCols() { localStorage.setItem(SYNOPSIS_COLS_KEY, JSON.stringify(this.synopsisMetadataCols)); }
+
+  get visibleSynopsisCols() {
+    return this.synopsisMetadataCols.filter(c => c.visible);
+  }
+
+  getDocFieldValue(doc: Document, key: string): string {
+    const val = (doc as any)[key];
+    if (val === undefined || val === null || val === '') return '—';
+    return val;
+  }
 
   // ── Recent searches ───────────────────────────────────────────────────────
 
@@ -1812,18 +1844,21 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     }
     const syl = item.element as VM.Syllable;
     const text = (syl.text || '').trim();
-    const textW = textWidth(text, 'Times', '15px');
+    // If consensus text is active, we hide individual syllable text, so we ignore its width!
+    const textW = this.showConsensusText ? 0 : textWidth(text, 'Times', '15px');
     
     let noteCount = 0;
     const spaced = syl.notes?.spaced || [];
     spaced.forEach(ns => (ns.nonSpaced || []).forEach(g => (g.grouped || []).forEach(() => noteCount++)));
     const notesW = noteCount > 0 ? (noteCount * 14 + 10) : 0;
     
-    return Math.max(40, textW, notesW) + 12;
+    const minW = this.showConsensusText ? 12 : 30;
+    return Math.max(minW, textW, notesW) + 8;
   }
 
   getColumnWidth(col: AlignedLineElement[]): number {
     if (!col) return 0;
+    const scale = this.settings?.pdfSynopsisScale || 1.0;
     let maxWidth = 0;
     let hasClef = false;
     for (const item of col) {
@@ -1836,19 +1871,381 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
         maxWidth = w;
       }
     }
-    if (hasClef) {
-      return Math.max(35, maxWidth);
+
+    // Also consider the consensus text length for this column!
+    if (this.showConsensusText) {
+      const consensusTexts = this.getConsensusSyllableTexts(col);
+      let maxConsensusTextW = 0;
+      consensusTexts.forEach(txt => {
+        const w = textWidth(txt.trim(), 'Times', '15px');
+        if (w > maxConsensusTextW) maxConsensusTextW = w;
+      });
+      // The column width should be at least large enough to fit the consensus text
+      maxWidth = Math.max(maxWidth, maxConsensusTextW + 8);
     }
-    return Math.max(60, maxWidth);
+
+    if (hasClef) {
+      return Math.max(35, maxWidth) * scale;
+    }
+    const minColW = this.showConsensusText ? 12 : 40;
+    return Math.max(minColW, maxWidth) * scale;
   }
 
   hasParatext(items: any[]): boolean {
     return items && items.some(item => item && item.kind === 'ParatextContainer');
   }
 
+  getParatextColumnWidth(node: AlignedNode): number {
+    const scale = this.settings?.pdfSynopsisScale || 1.0;
+    if (!node || !node.items) return 100 * scale;
+    let maxWidth = 80;
+    for (const item of node.items) {
+      if (item && item.kind === 'ParatextContainer' && 'text' in item) {
+        const typeStr = item.paratextType || 'Text';
+        const textStr = item.text || '';
+        const text = `[${typeStr}: ${textStr}]`;
+        const w = textWidth(text.trim(), 'Times', '12px') + 20;
+        if (w > maxWidth) maxWidth = w;
+      }
+    }
+    return Math.min(400, maxWidth) * scale;
+  }
+
+  getPrintDate(): string {
+    return new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  getProjectTitle(): string {
+    if (this.settings) {
+      if (this.settings.bibliothek && this.settings.bibliothek.length > 0) {
+        return this.settings.bibliothek[0];
+      }
+      if (this.settings.bibliothekssignatur && this.settings.bibliothekssignatur.length > 0) {
+        return this.settings.bibliothekssignatur[0];
+      }
+    }
+    return 'Monodi Light Archive';
+  }
+
   hasLineElements(node: AlignedNode, docIdx: number): boolean {
     if (!node.alignedLineElements) return false;
     return node.alignedLineElements.some(col => col[docIdx] && col[docIdx].kind !== 'placeholder' && col[docIdx].element !== null);
+  }
+
+  getConsensusSyllableTexts(col: AlignedLineElement[]): string[] {
+    if (!col) return [];
+    const texts: string[] = [];
+    for (const item of col) {
+      if (item && item.kind === 'syllable' && item.element && 'text' in item.element) {
+        texts.push(item.element.text || '');
+      } else {
+        texts.push('');
+      }
+    }
+
+    const nonEmptyTexts = texts.filter(t => t.trim() !== '');
+    if (nonEmptyTexts.length === 0) return [''];
+
+    const allIdentical = nonEmptyTexts.every(t => t === nonEmptyTexts[0]);
+    if (allIdentical) {
+      return [nonEmptyTexts[0]];
+    }
+
+    return Array.from(new Set(nonEmptyTexts));
+  }
+
+  onSingleLineToggle() {
+    this.runAlignment(this.cachedRootContainers);
+  }
+
+  /**
+   * Fully vector PDF export.
+   *
+   * Instead of rasterising the DOM with html2canvas (blurry, huge files),
+   * the PDF is drawn natively:
+   *   - masthead / witness table / section headings: jsPDF text + autoTable
+   *     in Times (the classic serif lives only in the PDF; the screen keeps
+   *     the app font),
+   *   - the notation: every staff <svg> is converted to true vector paths
+   *     via svg2pdf, and every text node (sigla, syllable text, consensus,
+   *     paratexts) is placed using the browser's own layout rectangles — so
+   *     all on-screen alignments carry over exactly,
+   *   - real pagination with a running head (pages 2+) and a footer with
+   *     "Page X of Y" on every page.
+   */
+  async exportSynopsisPDF() {
+    this.toastr.info('Generating PDF\u2026', 'Export');
+    const root = document.querySelector('.synopsis-view') as HTMLElement;
+    if (!root) {
+      this.toastr.error('Synopsis element not found');
+      return;
+    }
+
+    try {
+      const s = this.settings;
+      const showHeader    = !s || s.pdfSynopsisShowHeader !== false;
+      const showFooter    = !s || s.pdfSynopsisShowFooter !== false;
+      const showFooterIds = !s || s.pdfSynopsisShowFooterIds !== false;
+      const showDate      = !s || s.pdfSynopsisShowDate !== false;
+      const showMeta      = !s || s.pdfSynopsisShowHeaderMetadata !== false;
+
+      const PXMM = 25.4 / 96; // CSS px -> mm at natural size
+
+      // Reset horizontal scroll so sticky sigla report their resting position.
+      root.querySelectorAll<HTMLElement>('.synopsis-scroll-wrapper').forEach(w => w.scrollLeft = 0);
+
+      // Widest music row (px) decides the scale / custom page width.
+      let maxRowPx = 0;
+      root.querySelectorAll<HTMLElement>('.synopsis-stave-row, .synopsis-consensus-text-row')
+        .forEach(row => { maxRowPx = Math.max(maxRowPx, row.scrollWidth); });
+
+      const singleLine = this.showSingleLineSynopsis;
+      const margin = 12;
+
+      let pageW: number, pageH: number;
+      if (singleLine) {
+        pageW = Math.max(297, maxRowPx * PXMM + margin * 2 + 4);
+        // Estimate needed height: masthead + table + all rows + slack.
+        let rowsMm = 0;
+        root.querySelectorAll<HTMLElement>('.synopsis-stave-row, .synopsis-consensus-text-row')
+          .forEach(row => { rowsMm += row.offsetHeight * PXMM; });
+        const tableMm = showMeta ? (this.selectedDocs.length + 1) * 5 + 14 : 0;
+        pageH = Math.max(120, (showHeader ? 22 : 4) + tableMm + rowsMm + margin * 2 + 20);
+      } else {
+        pageW = 210; pageH = 297;
+      }
+
+      const doc = new jsPDF({
+        unit: 'mm',
+        format: singleLine ? [pageW, pageH] : 'a4',
+        orientation: singleLine ? 'landscape' : 'portrait'
+      });
+      // jsPDF normalises format/orientation itself; read back actual size.
+      pageW = doc.internal.pageSize.getWidth();
+      pageH = doc.internal.pageSize.getHeight();
+
+      const contentX = margin;
+      const contentW = pageW - margin * 2;
+      const topY = margin + 5;              // room for the running head
+      const bottomLimit = pageH - margin - 5; // room for the footer
+
+      // px -> mm for music rows: natural size, shrunk to fit the page.
+      const scale = singleLine ? PXMM : Math.min(PXMM, contentW / Math.max(1, maxRowPx));
+      const ptOf = (px: number) => Math.max(4, px * scale * (72 / 25.4));
+
+      let y = topY;
+      const ensureSpace = (needed: number) => {
+        if (y + needed > bottomLimit && y > topY) { doc.addPage(); y = topY; }
+      };
+
+      // ------ 1. Masthead (page 1 title block) ------
+      if (showHeader) {
+        doc.setFont('times', 'bold');
+        doc.setFontSize(16);
+        doc.setTextColor(15, 23, 42);
+        doc.text('Synoptic Comparison', pageW / 2, y + 2, { align: 'center' });
+        doc.setFont('times', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(80, 80, 80);
+        const modeLabel = this.alignmentMode.charAt(0).toUpperCase() + this.alignmentMode.slice(1);
+        const subParts = [
+          `${modeLabel} alignment`,
+          `${this.selectedDocs.length} witness${this.selectedDocs.length === 1 ? '' : 'es'}`
+        ];
+        if (showDate) subParts.push(this.getPrintDate());
+        doc.text(subParts.join('   \u00b7   '), pageW / 2, y + 7, { align: 'center' });
+        doc.setDrawColor(15, 23, 42);
+        doc.setLineWidth(0.5);
+        doc.line(contentX, y + 10, contentX + contentW, y + 10);
+        doc.setLineWidth(0.2);
+        doc.line(contentX, y + 11.2, contentX + contentW, y + 11.2);
+        y += 17;
+      }
+
+      // ------ 2. Witness table (vector text via autoTable) ------
+      if (showMeta && this.visibleSynopsisCols.length && this.selectedDocs.length) {
+        doc.setFont('times', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(80, 80, 80);
+        doc.text('WITNESSES', contentX, y);
+        y += 1.5;
+        autoTable(doc, {
+          head: [this.visibleSynopsisCols.map(c => c.label)],
+          body: this.selectedDocs.map(d => this.visibleSynopsisCols.map(c =>
+            c.key === 'dokumenten_id'
+              ? (this.docSigles[d.id] || d.dokumenten_id || '')
+              : (this.getDocFieldValue(d, c.key as string) || '')
+          )),
+          startY: y,
+          margin: { left: contentX, right: margin },
+          theme: 'plain',
+          tableWidth: Math.min(contentW, 190),
+          styles: {
+            font: 'times', fontSize: 9, textColor: [15, 23, 42],
+            cellPadding: { top: 1, bottom: 1, left: 0, right: 3 },
+            lineColor: [226, 232, 240], lineWidth: 0
+          },
+          headStyles: {
+            fontStyle: 'bold', fontSize: 7, textColor: [51, 65, 85],
+            lineColor: [15, 23, 42], lineWidth: { top: 0.4, bottom: 0.25 }
+          },
+          bodyStyles: { lineWidth: { bottom: 0.1 } },
+          didParseCell: data => {
+            if (data.section === 'body') {
+              const key = this.visibleSynopsisCols[data.column.index]?.key;
+              if (key === 'dokumenten_id') data.cell.styles.fontStyle = 'bold';
+              if (key === 'textinitium') data.cell.styles.fontStyle = 'italic';
+            }
+          }
+        });
+        y = (doc as any).lastAutoTable.finalY + 7;
+      }
+
+      // ------ 3. Body: headings + aligned systems, in DOM order ------
+      const indentOf = (el: HTMLElement): number =>
+        el.closest('.syn-sec-3') ? 6 : el.closest('.syn-sec-2') ? 3 : 0;
+
+      /** Transcribe one on-screen row (staves + all visible text) into the
+       *  PDF at the current cursor, preserving the browser layout. */
+      const renderRow = async (row: HTMLElement, x0: number) => {
+        const rowRect = row.getBoundingClientRect();
+
+        // Staff / clef / placeholder SVGs -> vector paths
+        for (const svg of Array.from(row.querySelectorAll('svg'))) {
+          const r = svg.getBoundingClientRect();
+          if (r.width < 1 || r.height < 1) continue;
+          const hadViewBox = svg.getAttribute('viewBox');
+          if (!hadViewBox) svg.setAttribute('viewBox', `0 0 ${r.width} ${r.height}`);
+          await doc.svg(svg as unknown as SVGElement, {
+            x: x0 + (r.left - rowRect.left) * scale,
+            y: y + (r.top - rowRect.top) * scale,
+            width: r.width * scale,
+            height: r.height * scale
+          });
+          if (!hadViewBox) svg.removeAttribute('viewBox');
+        }
+
+        // Every visible text node (sigla, syllable text, consensus,
+        // paratexts, "empty stave") at its exact on-screen position.
+        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT, {
+          acceptNode: n => {
+            if (!(n.textContent || '').trim()) return NodeFilter.FILTER_REJECT;
+            const p = n.parentElement;
+            if (!p || p.closest('svg') || p.closest('.d-print-none')) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        });
+        let node: Node | null;
+        while ((node = walker.nextNode())) {
+          const parent = node.parentElement as HTMLElement;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const r = range.getBoundingClientRect();
+          if (r.width < 0.5 || r.height < 0.5) continue;
+
+          const cs = getComputedStyle(parent);
+          const fontPx = parseFloat(cs.fontSize) || 15;
+          const italic = cs.fontStyle === 'italic';
+          const bold = (parseInt(cs.fontWeight, 10) || 400) >= 600;
+          doc.setFont('times', bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'normal');
+          doc.setFontSize(ptOf(fontPx));
+          const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(cs.color);
+          if (m) doc.setTextColor(+m[1], +m[2], +m[3]); else doc.setTextColor(0, 0, 0);
+
+          let text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+          // Respect CSS truncation (sigla columns)
+          const maxWmm = r.width * scale + 1.5;
+          while (text.length > 1 && doc.getTextWidth(text) > maxWmm) {
+            text = text.slice(0, -1);
+          }
+          doc.text(text,
+            x0 + (r.left - rowRect.left) * scale,
+            y + (r.top - rowRect.top + r.height * 0.78) * scale);
+        }
+        y += row.offsetHeight * scale;
+      };
+
+      const blocks = Array.from(root.querySelectorAll<HTMLElement>('.syn-sec-head, .synopsis-leaf-container'));
+      for (const block of blocks) {
+        if (block.classList.contains('syn-sec-head')) {
+          const indent = indentOf(block);
+          const level = indent === 6 ? 3 : indent === 3 ? 2 : 1;
+          const name = (block.querySelector('.syn-sec-name')?.textContent || '').trim();
+          const match = (block.querySelector('.syn-sec-match')?.textContent || '').trim();
+          ensureSpace(22); // heading + a bit of its content
+          y += level === 1 ? 4 : 2.5;
+          doc.setFont('times', level === 3 ? 'italic' : 'bold');
+          doc.setFontSize(level === 1 ? 11 : level === 2 ? 10 : 9.5);
+          doc.setTextColor(30, 41, 59);
+          const nameX = contentX + indent;
+          const shownName = level === 1 ? name.toUpperCase() : name;
+          doc.text(shownName, nameX, y);
+          const nameW = doc.getTextWidth(shownName);
+          doc.setFont('times', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(100, 116, 139);
+          const matchW = doc.getTextWidth(match);
+          doc.text(match, contentX + contentW - matchW, y);
+          doc.setDrawColor(148, 163, 184);
+          doc.setLineWidth(0.15);
+          doc.line(nameX + nameW + 2, y - 1, contentX + contentW - matchW - 2, y - 1);
+          y += 4;
+        } else {
+          const rows = Array.from(block.querySelectorAll<HTMLElement>('.synopsis-stave-row, .synopsis-consensus-text-row'));
+          if (!rows.length) continue;
+          const x0 = contentX + indentOf(block);
+          const totalH = rows.reduce((a, r) => a + r.offsetHeight * scale, 0);
+          // Keep an aligned system together when it fits on one page.
+          if (totalH <= bottomLimit - topY) ensureSpace(totalH + 1);
+          for (const row of rows) {
+            ensureSpace(row.offsetHeight * scale + 0.5);
+            await renderRow(row, x0);
+          }
+          y += 3.5;
+        }
+      }
+
+      // ------ 4. Running head (pages 2+) and footer (all pages) ------
+      const total = doc.getNumberOfPages();
+      const dateStr = this.getPrintDate();
+      const modeLbl = this.alignmentMode.charAt(0).toUpperCase() + this.alignmentMode.slice(1);
+      const sigla = this.selectedDocs.map(d => this.docSigles[d.id] || d.dokumenten_id).join(' \u00b7 ');
+
+      for (let i = 1; i <= total; i++) {
+        doc.setPage(i);
+        if (showHeader && i > 1) {
+          doc.setFont('times', 'italic');
+          doc.setFontSize(9);
+          doc.setTextColor(80, 80, 80);
+          doc.text(`Synoptic Comparison \u2014 ${modeLbl} alignment`, contentX, margin - 3);
+          if (showDate) doc.text(dateStr, pageW - margin, margin - 3, { align: 'right' });
+          doc.setDrawColor(90, 90, 90);
+          doc.setLineWidth(0.2);
+          doc.line(contentX, margin - 1, pageW - margin, margin - 1);
+        }
+        if (showFooter) {
+          doc.setDrawColor(90, 90, 90);
+          doc.setLineWidth(0.2);
+          doc.line(contentX, pageH - margin + 1, pageW - margin, pageH - margin + 1);
+          doc.setFont('times', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(80, 80, 80);
+          if (showFooterIds && sigla) {
+            const maxW = contentW - 30;
+            const firstLine = (doc.splitTextToSize(sigla, maxW) as string[])[0] || '';
+            doc.text(firstLine, contentX, pageH - margin + 4.5);
+          }
+          doc.text(`Page ${i} of ${total}`, pageW - margin, pageH - margin + 4.5, { align: 'right' });
+        }
+      }
+
+      const suffix = singleLine ? 'single-line-' : '';
+      doc.save(`synopsis-${suffix}${new Date().toISOString().slice(0, 10)}.pdf`);
+      this.toastr.success('Synopsis PDF exported successfully!');
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      this.toastr.error('Failed to export PDF');
+    }
   }
 
   onAlignmentModeChange(mode: 'structure' | 'sequential' | 'melody' | 'text') {
@@ -2178,9 +2575,13 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     } else if (this.alignmentMode === 'melody' || this.alignmentMode === 'text') {
       const melodyCols = this.alignMelody(rootContainers, this.alignmentMode);
       this.chunkedMelodyRows = [];
-      const chunkSize = 8;
-      for (let i = 0; i < melodyCols.length; i += chunkSize) {
-        this.chunkedMelodyRows.push(melodyCols.slice(i, i + chunkSize));
+      if (this.showSingleLineSynopsis) {
+        this.chunkedMelodyRows.push(melodyCols);
+      } else {
+        const chunkSize = 8;
+        for (let i = 0; i < melodyCols.length; i += chunkSize) {
+          this.chunkedMelodyRows.push(melodyCols.slice(i, i + chunkSize));
+        }
       }
     }
   }
