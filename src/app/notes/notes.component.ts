@@ -1165,9 +1165,10 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     }
     this.svgWidth = maxSvgWidth;
 
-    const minW = this.hideSyllableText ? 12 : 30;
-    const padding = this.hideSyllableText ? 6 : 12;
-    const activeSyllTextWidth = this.hideSyllableText ? 0 : this.syllTextWidth;
+    const isEdit = !this.readOnly;
+    const minW = isEdit ? 40 : (this.hideSyllableText ? 12 : 30);
+    const padding = isEdit ? 20 : (this.hideSyllableText ? 6 : 12);
+    const activeSyllTextWidth = (this.hideSyllableText && !isEdit) ? 0 : this.syllTextWidth;
     return Math.max(minW, this.noteTextWidth, activeSyllTextWidth, this.svgWidth) + padding;
   }
 
@@ -1289,9 +1290,10 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   isEditorEllipsis(): boolean { return this.model.syllableType === VM.SyllableType.EditorialEllipsis; }
 
   getWidth(): number {
-    const minW = this.hideSyllableText ? 12 : 30;
-    const padding = this.hideSyllableText ? 6 : 12;
-    const activeSyllTextWidth = this.hideSyllableText ? 0 : this.syllTextWidth;
+    const isEdit = !this.readOnly;
+    const minW = isEdit ? 40 : (this.hideSyllableText ? 12 : 30);
+    const padding = isEdit ? 20 : (this.hideSyllableText ? 6 : 12);
+    const activeSyllTextWidth = (this.hideSyllableText && !isEdit) ? 0 : this.syllTextWidth;
     let baseW = padding;
     if (this.isNormal()) {
       baseW += Math.max(minW, this.noteTextWidth, activeSyllTextWidth, this.svgWidth);
