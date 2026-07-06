@@ -1,10 +1,12 @@
-# Monodi-Zero
+<img width="1440" height="530" alt="grafik" src="https://github.com/user-attachments/assets/4e8d914a-9c46-48de-8f3d-a93c44f88f03" />
 
 **A local-first digital workbench for the transcription, edition, and analysis of medieval monophonic chant.**
 
 Monodi-Zero is a web application for musicologists working with plainchant and other monophonic repertoires in neume and square notation. It combines a keyboard-driven notation editor, IIIF manuscript integration, a critical apparatus, corpus-wide search, and quantitative melodic analysis in a single tool — with all data remaining on your own machine.
 
 It is designed for individual scholars and small research groups who need scholarly rigour (variant readings, witness sigla, publication-ready output) without the overhead of institutional server infrastructure.
+
+**Because the browser owns the storage, please make regular backups — clearing your browser's site data deletes the workspace.**
 
 ---
 
@@ -49,7 +51,7 @@ Monodi-Zero is **local-first**: there is no server, no account, and no transmiss
 - **Collaboration**: a shared GitHub repository lets a research group or seminar work on a common corpus; each chant is stored as its own file, so contributors rarely conflict.
 - **Portability**: workspaces move between machines via the export/import functions; existing corpora can be brought in from monodi+ or OMMR4all ZIP exports, including very large collections (hundreds of sources).
 
-Because the browser owns the storage, please make regular backups — clearing your browser's site data deletes the workspace.
+**Because the browser owns the storage, please make regular backups — clearing your browser's site data deletes the workspace.**
 
 ---
 
@@ -81,18 +83,8 @@ Issues and contributions are welcome via the [GitHub repository](https://github.
 
 ---
 
-## Citing Monodi-Zero
-
-If you use Monodi-Zero in your research, please cite it. A suggested form:
-
-> Eipert, Tim. *Monodi-Zero: A local-first workbench for the transcription and analysis of medieval chant.* Software, version 0.9. https://github.com/timeipert/mz
-
-(A `CITATION.cff` file with a citable release DOI is planned.)
 
 ## Related projects
 
 Monodi-Zero is conceptually related to the **mono:di** editor developed for the *Corpus Monodicum* project and interoperates with data exported from **monodi+** and from the optical music recognition framework **OMMR4all**. It builds on open standards: [IIIF](https://iiif.io/) for manuscript images and [MEI](https://music-encoding.org/) for encoded notation.
 
-## License
-
-License to be determined — until a license file is added, all rights reserved. Please contact the author for reuse questions.
