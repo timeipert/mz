@@ -1,0 +1,78 @@
+<div class="manual-page-single">
+  <h1 id="analysis-and-statistics">Analysis &amp; Statistics</h1>
+  <p class="lead">Beyond transcription and search, Monodi-Zero includes three analytical tools that work across your whole corpus: the <strong>Synoptic Comparison</strong> for viewing parallel witnesses side by side, the <strong>Melodic Formula Analysis</strong> for discovering recurring melodic patterns, and the <strong>Notation Statistics</strong> page for quantitative pattern distribution across sources.</p>
+
+  <h2 id="synoptic-comparison">Synoptic Comparison</h2>
+  <p>The synopsis aligns two or more transcriptions of the same (or related) chants so you can compare their melodies measure-for-measure — the digital equivalent of a synoptic edition page.</p>
+
+  <h3 id="synopsis-starting">Starting a comparison</h3>
+  <ol>
+    <li>Run any search on the <strong>Search</strong> page (Quick, Sources, Documents, or Melody tab).</li>
+    <li>Tick the <strong>checkboxes</strong> of the documents you want to compare. A floating action bar appears at the bottom of the screen showing your selection.</li>
+    <li>With two or more documents selected, click <strong>Compare</strong>. The synopsis view opens.</li>
+  </ol>
+
+  <h3 id="synopsis-alignment-modes">Alignment modes</h3>
+  <p>The toolbar at the top offers four strategies for deciding which syllables line up in the same column:</p>
+  <ul>
+    <li><strong>Melody</strong> — witnesses are aligned by their melodic profile. Best when the melodies are closely related but the texts differ.</li>
+    <li><strong>Text</strong> — witnesses are aligned by their lyric text. Best for textually stable chants with melodic variance.</li>
+    <li><strong>Structure</strong> — alignment follows the structural containers (sections, verses, lines) you created in the editor's Structure tab. Sections that a witness lacks are shown as empty staves, with a <code>matched n/m</code> count per section.</li>
+    <li><strong>Sequential</strong> — lines are simply paired in document order, with no content matching.</li>
+  </ul>
+
+  <h3 id="synopsis-display-options">Display options</h3>
+  <ul>
+    <li><strong>Consensus text</strong> — hides the per-witness lyric text and shows a single consensus row below the staves instead. Where witnesses disagree, all variant readings are listed. This makes the view considerably denser.</li>
+    <li><strong>One line</strong> (Melody/Text modes) — renders each witness as one continuous horizontal strip with a scrollbar, instead of wrapping into segments.</li>
+    <li><strong>Witness table</strong> — a compact metadata table above the staves listing each witness's siglum, incipit, feast, and other fields. Use the <strong>Columns</strong> button to choose which metadata columns appear.</li>
+  </ul>
+
+  <h3 id="synopsis-pdf">PDF export</h3>
+  <p>The <strong>Export PDF</strong> button produces a fully <em>vector</em> PDF: staves and neumes are true vector paths and all text is selectable. The PDF has a classic layout — a serif masthead on page one, the witness table, a running head on subsequent pages, and a footer with the witness sigla and real <code>Page X of Y</code> numbers. Header, footer, date, and sigla can be toggled in <strong>Settings → PDF</strong>. In One-line mode the export produces a single custom-sized page containing the whole strip.</p>
+  <p>The current comparison (selected documents, alignment mode) is encoded in the URL, so you can bookmark a synopsis or share the link with colleagues who use the same workspace.</p>
+
+  <hr class="my-4">
+
+  <h2 id="melodic-formula-analysis">Melodic Formula Analysis</h2>
+  <p>The formula analysis scans a set of documents for <strong>recurring melodic patterns</strong> — formulas, standard phrases, or borrowed material — and groups every occurrence across the corpus. It is opened from the Search page and always analyses <em>the documents in your current result set</em>, so you can scope the analysis by searching first (e.g. only one genre, one feast, or one source).</p>
+
+  <h3 id="pattern-parameters">Parameters</h3>
+  <ul>
+    <li><strong>Type</strong> — how melodies are compared:
+      <ul>
+        <li><em>Pitch names</em>: absolute pitches must match (transpositions are distinct patterns).</li>
+        <li><em>Intervals</em>: sequences of intervals; transposed statements of the same formula are grouped together.</li>
+        <li><em>Contour</em>: only the up/down/same shape matters — the loosest grouping.</li>
+      </ul>
+    </li>
+    <li><strong>Minimum length</strong> — the number of notes a pattern must have to be reported.</li>
+    <li><strong>Strictness</strong> — <em>exact</em> matches only, or <em>fuzzy</em> to also group slightly varied statements.</li>
+    <li><strong>Merge overlapping</strong> — combines patterns whose occurrences overlap into compound groups (with a configurable minimum overlap).</li>
+    <li><strong>Duplicate detection</strong> — before analysing, near-identical documents (the same chant transcribed twice, e.g. after an import) are detected and all but one excluded so they do not inflate the counts. Detected duplicates are listed so you can review them.</li>
+  </ul>
+  <p>The heavy computation runs in a <strong>background worker</strong>: the interface stays responsive, a progress bar reports each phase, and long runs can be cancelled. Results are cached — if you navigate away and back, or reload the page, the analysis is restored (recomputed automatically in the background after a reload) instead of you having to set it up again.</p>
+
+  <h3 id="pattern-views">Reading the results</h3>
+  <ul>
+    <li><strong>Overview</strong> — every document is drawn as a horizontal timeline bar; coloured segments mark where each pattern occurs. This gives an instant picture of which formulas saturate which chants. Clicking a coloured segment jumps directly to that pattern in the list view.</li>
+    <li><strong>List</strong> — one card per pattern group, ordered by frequency, with the pattern rendered on a staff and every occurrence listed (witness, document, position, context). The list is paginated; cards can be expanded to show all occurrences, and each occurrence links straight into the editor.</li>
+  </ul>
+  <p>Every pattern card has a <strong>permalink</strong> (<code>#pattern-group-N</code> in the URL). Bookmarking or sharing that URL reopens the analysis on the right page with the card highlighted. Analyses can also be saved as named <strong>sessions</strong> and reloaded later.</p>
+
+  <hr class="my-4">
+
+  <h2 id="notation-statistics">Notation Statistics</h2>
+  <p>The <strong>Stats</strong> page (main navigation) provides a quantitative view of notation patterns across your entire workspace, independent of any search.</p>
+  <ul>
+    <li><strong>Pattern × Source matrix</strong> — rows are neume patterns (grouped by their base shape, with ornament signs such as quilisma, oriscus, strophicus and liquescents stripped), columns are your sources. Each cell shows how often the pattern occurs in that source, so notational habits of individual scriptoria become visible at a glance.</li>
+    <li><strong>Variant breakdown</strong> — clicking a pattern name opens a modal listing its concrete variants (with ornament signs), how often each variant occurs, and in which sources.</li>
+    <li><strong>Occurrence drill-down</strong> — clicking a matrix cell lists every single occurrence (document, folio, line, syllable). Clicking an occurrence opens the transcription editor at exactly that position.</li>
+    <li><strong>Filters</strong> — a minimum-frequency slider, a pattern search box, and a source search box narrow the matrix; all lists are paginated.</li>
+  </ul>
+  <p>Because computing the statistics reads every document, it only runs when you click <strong>Compute Workspace Stats</strong>. The result is cached in the browser: navigating away, reloading, or even restarting the browser shows the cached numbers instantly, with the computation date displayed. Click <strong>Recalculate</strong> whenever your transcriptions have changed.</p>
+  <p>You can also jump into the statistics from the transcription editor: the context menu of a note offers <em>show this pattern in Stats</em>, which opens the page pre-filtered to that pattern.</p>
+
+  <p><a routerLink="/search" class="btn btn-primary mt-3 me-2">Open Search &amp; Analysis</a>
+     <a routerLink="/stats" class="btn btn-outline-primary mt-3">Open Statistics</a></p>
+</div>

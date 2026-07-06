@@ -66,6 +66,8 @@ import { MetadataComponent } from './manual/pages/metadata/metadata.component';
 import { UseCasesComponent } from './manual/pages/use-cases/use-cases.component';
 import { CommentsComponent } from './manual/pages/comments/comments.component';
 import { ManualSettingsComponent } from './manual/pages/settings/settings.component';
+import { ManualAnalysisComponent } from './manual/pages/analysis/analysis.component';
+import { ManualWorkspaceComponent } from './manual/pages/workspace/workspace.component';
 import { SubcorporaSelectorComponent } from './sources-overview/subcorpora-selector/subcorpora-selector.component';
 import { StatsComponent } from './stats/stats.component';
 
@@ -119,6 +121,8 @@ import { StatsComponent } from './stats/stats.component';
         UseCasesComponent,
         CommentsComponent,
         ManualSettingsComponent,
+        ManualAnalysisComponent,
+        ManualWorkspaceComponent,
         StatsComponent
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,
@@ -177,10 +181,12 @@ import { StatsComponent } from './stats/stats.component';
                     { path: 'overview', component: OverviewComponent },
                     { path: 'transcription', component: TranscriptionComponent },
                     { path: 'search', component: ManualSearchComponent },
+                    { path: 'analysis', component: ManualAnalysisComponent },
                     { path: 'iiif', component: IiifComponent },
                     { path: 'metadata', component: MetadataComponent },
                     { path: 'comments', component: CommentsComponent },
                     { path: 'settings', component: ManualSettingsComponent },
+                    { path: 'workspace', component: ManualWorkspaceComponent },
                     { path: 'use-cases', component: UseCasesComponent },
                 ]
             }, {

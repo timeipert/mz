@@ -1,0 +1,59 @@
+<div class="manual-page-single">
+  <h1 id="data-and-workspace">Data &amp; Workspace</h1>
+  <p class="lead">Monodi-Zero is a <strong>local-first</strong> application: your entire workspace — sources, documents, transcriptions, and settings — lives in your browser's IndexedDB storage. There is no server and no account. This page explains what that means, how to move data in and out, and how to maintain a healthy workspace.</p>
+
+  <h2 id="local-first-storage">How your data is stored</h2>
+  <ul>
+    <li>All data is kept <strong>in the browser</strong> on the machine you are using. Opening Monodi-Zero in a different browser or on a different computer shows a different (initially empty) workspace.</li>
+    <li>Transcriptions are stored as <strong>one database row per document</strong>, so even very large corpora (hundreds of sources, thousands of chants) stay fast and safe to save.</li>
+    <li>Because the browser owns the data, <strong>clearing site data in your browser settings deletes the workspace</strong>. Make regular backups using the export options below or GitHub synchronization.</li>
+    <li>Storage usage and browser quota can be inspected under <strong>Settings → Workspace</strong>.</li>
+  </ul>
+
+  <h2 id="importing-data">Getting data in</h2>
+  <p>All import/export actions live in <strong>Settings → Workspace</strong>.</p>
+  <ul>
+    <li class="mb-2">
+      <strong>Import ZIP</strong> — imports a zipped corpus folder. Two folder layouts are detected automatically:
+      <ul>
+        <li>the <em>monodi export</em> structure (as produced by Monodi's <code>export_monodi</code> tooling and by this app's own ZIP export), and</li>
+        <li><em>OMMR4all</em> exports.</li>
+      </ul>
+      Large imports (hundreds of sources) run in the background with a progress dialog showing each phase — reading, parsing, importing sources, importing documents, saving — and the interface stays responsive throughout.
+    </li>
+    <li class="mb-2">
+      <strong>Import workspace (JSON)</strong> — restores a complete workspace backup previously created with <em>Export workspace</em>. This replaces the current workspace contents.
+    </li>
+    <li class="mb-2">
+      <strong>Pull from GitHub</strong> — if GitHub sync is configured (see <a routerLink="/manual/settings">Settings</a>), the cloud icons in the navigation bar pull the shared state from your repository.
+    </li>
+  </ul>
+
+  <h2 id="exporting-data">Getting data out</h2>
+  <ul>
+    <li class="mb-2"><strong>Export workspace (JSON)</strong> — one file containing every source, document, transcription, and your settings. The recommended full-backup format.</li>
+    <li class="mb-2"><strong>Export ZIP</strong> — a monodi-compatible ZIP of the corpus, suitable for re-importing here or into other monodi tooling.</li>
+    <li class="mb-2"><strong>Export HTML edition</strong> — generates a <em>self-contained, offline edition viewer</em>: a static HTML site with your transcriptions rendered as notation, browsable metadata, and built-in search. Ideal for publishing an edition or handing a read-only copy to colleagues without Monodi-Zero. The frontpage, running header, footer, custom CSS, and which metadata fields appear are all configurable under <strong>Settings → HTML Export</strong>.</li>
+    <li class="mb-2"><strong>Push to GitHub</strong> — publishes the workspace state to your configured repository for backup and team sharing.</li>
+    <li class="mb-2"><strong>Per-document PDF and MEI</strong> — from the transcription editor toolbar; see <a routerLink="/manual/metadata">Metadata &amp; Export</a>.</li>
+    <li class="mb-2"><strong>Synopsis PDF</strong> — from the synoptic comparison; see <a routerLink="/manual/analysis">Analysis &amp; Statistics</a>.</li>
+  </ul>
+
+  <h2 id="workspace-maintenance">Workspace maintenance</h2>
+  <p><strong>Settings → Workspace</strong> also contains housekeeping tools:</p>
+  <ul>
+    <li class="mb-2"><strong>Storage usage</strong> — click <em>Compute Workspace Stats</em> to count sources, documents, and transcription rows, check the browser storage quota, and detect <em>orphans</em>. Results are cached with a timestamp; recompute on demand.</li>
+    <li class="mb-2"><strong>Orphan cleanup</strong> — over time (usually after partial imports or deletions) the database can accumulate <em>orphan documents</em> (whose parent source was deleted) and <em>orphan transcription rows</em> (whose document was deleted). One click removes them and reclaims storage without touching live data.</li>
+    <li class="mb-2"><strong>Reset app settings</strong> — restores default settings (custom fields, PDF layout, MEI mappings) while keeping all sources and documents.</li>
+    <li class="mb-2"><strong>Reset UI preferences</strong> — clears remembered column layouts and dismissed hint cards.</li>
+  </ul>
+
+  <h3 id="danger-zone">Danger zone</h3>
+  <ul>
+    <li class="mb-2"><strong>Delete all documents &amp; notes</strong> — empties the corpus but keeps your curated sources and settings. Useful before re-importing chant data.</li>
+    <li class="mb-2"><strong>Delete everything</strong> — a full factory reset: sources, documents, transcriptions, settings, and preferences.</li>
+  </ul>
+  <p>Every destructive action uses a <strong>two-click confirmation</strong>: the first click arms the button (it changes colour and asks you to confirm), the second click within a few seconds executes it. Export your workspace first if in doubt, and reload the page after a wipe so all cached state is rebuilt.</p>
+
+  <p><a routerLink="/settings" [queryParams]="{ tab: 'workspace' }" class="btn btn-primary mt-3">Open Workspace Settings</a></p>
+</div>

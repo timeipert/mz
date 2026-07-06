@@ -1,24 +1,34 @@
 <div class="manual-page-split">
   <div class="manual-page-text">
     <h1 id="search-functionality">Search Functionality</h1>
-    <p class="lead">Monodi-Zero features a highly robust search engine tailored for musicologists. It allows you to search both textual lyrics and melodic sequences across all documents in your project.</p>
+    <p class="lead">The Search page is the central hub for querying your corpus. It offers four search tabs, post-search filtering, and is the entry point for the Synoptic Comparison and the Melodic Formula Analysis (see <a routerLink="/manual/analysis">Analysis &amp; Statistics</a>).</p>
 
-    <h2 id="search-modes">Search Modes & Capabilities</h2>
-    <p>The search engine operates in three primary modes depending on your toggles:</p>
+    <h2 id="search-tabs">The Four Search Tabs</h2>
     <ul>
-      <li>
-        <strong>Text Search</strong>: Searches the lyrical text (syllables) of all transcriptions. It matches words or partial words instantly as you type.
+      <li class="mb-2">
+        <strong>Quick</strong>: Full-text search across all lyric texts and metadata. Four matching modes are available: <em>Phrase</em> (exact word sequence), <em>All words</em>, <em>Any word</em>, and <em>Fuzzy</em> (with an adjustable Levenshtein distance). The <em>medieval spelling tolerance</em> toggle normalizes common orthographic variance (e.g. <code>u/v</code>, <code>i/j</code>, <code>ae/e</code>) so <em>iustus</em> also finds <em>justus</em>. Matches are shown with a highlighted text snippet.
       </li>
-      <li>
-        <strong>Absolute Pitch Search</strong>: Activated by toggling the music icon. You type pitch names (e.g., <code>a b c</code> or <code>f g a</code>) to find exact melodic segments. Pitches are case-insensitive.
+      <li class="mb-2">
+        <strong>Sources</strong>: Structured metadata query over source fields — siglum, dating, region/place/institution of origin, order tradition, source type, library, and shelfmark.
       </li>
-      <li>
-        <strong>Interval (Contour) Search</strong>: Activated by toggling the steps icon. This searches for relative melodic intervals rather than absolute pitches. For example, searching for a step-up followed by a step-down (expressed as <code>+2 -2</code>) matches any melody with that contour, regardless of what pitch it starts on. This is extremely powerful for identifying transposed versions of the same chant.
+      <li class="mb-2">
+        <strong>Documents</strong>: Structured metadata query over document fields — document ID, incipit, genres, feast, commentary, and more.
       </li>
+      <li class="mb-2">
+        <strong>Melody</strong>: Searches melodic content. Enter <em>pitch names</em> (e.g. <code>f g a</code>), <em>intervals</em>, or a <em>contour</em>. Options include octave sensitivity, restricting matches to stay within one syllable, and a maximum Levenshtein distance for fuzzy melodic matching. Results show the matching passage rendered on a staff with the matched syllables highlighted.
+      </li>
+    </ul>
+    <p>Searches run only when you click <strong>Search</strong> — nothing runs automatically. Long scans over large corpora show live progress and can be cancelled; results stream in as they are found. Your search-mode preferences (matching mode, tolerances) are remembered between sessions, but each visit starts with a clean form.</p>
+
+    <h2 id="post-search-filtering">Filtering &amp; Result Tables</h2>
+    <ul>
+      <li><strong>Filter bar</strong>: Every result list has a filter box to narrow the current results without re-searching. Multiple words are combined with AND.</li>
+      <li><strong>Configurable columns</strong>: Source and document result tables have a column picker; your column choices are remembered.</li>
+      <li><strong>Sortable headers</strong> and pagination keep even thousands of results manageable.</li>
     </ul>
 
     <h2 id="fuzzy-matching">Fuzzy Matching (Levenshtein Distance)</h2>
-    <p>Chant manuscripts frequently contain scribal variants, spelling differences, or slight musical variations. To accommodate this, Monodi-Zero includes an adjustable <strong>Levenshtein Distance</strong> slider that allows insertions, deletions, and substitutions up to your threshold:</p>
+    <p>Chant manuscripts frequently contain scribal variants, spelling differences, or slight musical variations. Both the Quick tab (fuzzy mode) and the Melody tab include an adjustable <strong>Levenshtein Distance</strong> that allows insertions, deletions, and substitutions up to your threshold:</p>
     <ul>
       <li><strong>Distance = 0</strong>: Exact matches only.</li>
       <li><strong>Distance = 1</strong>: Allows for exactly one deviation. For example, a search for <code>A B C</code> will match <code>A D C</code> (substitution) or <code>A B</code> (deletion of C).</li>
@@ -26,8 +36,14 @@
     </ul>
 
     <h2>Navigating Results</h2>
-    <p>Clicking on any result in the search panel will automatically open the corresponding source document and scroll directly to the matching line, highlighting the matched syllables or notes in yellow for immediate identification.</p>
-    
+    <p>Clicking a result opens the corresponding source or document; melody results scroll directly to the matching line with the matched syllables highlighted for immediate identification.</p>
+
+    <h2 id="from-search-to-analysis">From Search to Analysis</h2>
+    <ul>
+      <li><strong>Compare</strong>: Tick the checkboxes of two or more documents in any result list — a floating bar appears; click <em>Compare</em> to open the <a routerLink="/manual/analysis">Synoptic Comparison</a>.</li>
+      <li><strong>Pattern Analysis</strong>: The <em>Melodic Formula Analysis</em> always operates on your current result set, so search first to scope it (e.g. one genre or one source), then open the analysis.</li>
+    </ul>
+
     <p><a routerLink="/search" class="btn btn-primary mt-3">Open Search Panel</a></p>
   </div>
 

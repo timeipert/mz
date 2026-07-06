@@ -134,3 +134,29 @@
 
 <h3 id="class-step-4">Step 4: Central Review and Merging</h3>
 <p>Because each chant document is stored in its own separate file in the repository, students can work in parallel without merge conflicts. The instructor can open the central repository to review student transcriptions, download the completed MEI corpus for analysis, or compile a single PDF chant book containing the work of the entire class.</p>
+
+<hr>
+
+<h2 id="use-case-6-importing-a-corpus-and-analyzing-formulas">Use Case 6: Importing an Existing Corpus and Analyzing Melodic Formulas</h2>
+<p>Suppose you have received a large chant corpus as a ZIP export (from another Monodi instance or an OMMR4all project) and want to study recurring melodic formulas within one genre.</p>
+
+<h3 id="import-step-1">Step 1: Import the ZIP</h3>
+<ol>
+  <li>Open <strong>Settings → Workspace</strong> and click <strong>Import ZIP</strong>.</li>
+  <li>Select the archive. The folder layout (monodi export or OMMR4all) is detected automatically, and a progress dialog reports each phase. Even imports of several hundred sources leave the app responsive.</li>
+  <li>When the import finishes, check the counts under <em>Storage usage</em> (click <em>Compute Workspace Stats</em>) to confirm everything arrived.</li>
+</ol>
+
+<h3 id="import-step-2">Step 2: Scope the Analysis with a Search</h3>
+<p>Go to <strong>Search → Documents</strong> and query the subset you want to analyze — for example Genre 1 = <code>Tractus</code>. The Melodic Formula Analysis always operates on your current result set, so this search defines the corpus under analysis.</p>
+
+<h3 id="import-step-3">Step 3: Run the Melodic Formula Analysis</h3>
+<ol>
+  <li>Open the <strong>Pattern Analysis</strong> from the search page.</li>
+  <li>Choose the comparison <em>Type</em> (<code>Intervals</code> groups transposed statements together), a <em>minimum length</em> (e.g. 8 notes), and leave <em>duplicate detection</em> on so double transcriptions don't skew the counts.</li>
+  <li>Start the analysis. It runs in a background worker with a progress bar; you can keep browsing while it computes.</li>
+  <li>Read the results in the <strong>Overview</strong> timeline (where do formulas cluster?) and the <strong>List</strong> view (which formulas, how often, in which witnesses?). Click any occurrence to jump into the editor, or copy a pattern card's permalink to share the finding.</li>
+</ol>
+
+<h3 id="import-step-4">Step 4: Compare Witnesses in the Synopsis</h3>
+<p>If a formula appears in several parallel transcriptions of the same chant, tick those documents in the search results and click <strong>Compare</strong>. Choose the <em>Melody</em> alignment, enable <em>Consensus text</em> for a dense view, and use <strong>Export PDF</strong> to produce a vector synopsis with witness table, running heads, and page numbers — ready for a paper or presentation.</p>
