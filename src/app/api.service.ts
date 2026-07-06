@@ -13,6 +13,7 @@ import { ensureSchemaVersion } from './schema';
 export class APIService {
   private sourcesCache: Source[] | null = null;
   private documentsCache: Document[] | null = null;
+  public storagePersisted: boolean | null = null;
 
   constructor() { 
     localforage.config({
@@ -57,6 +58,18 @@ export class APIService {
     await this.getSources();
     await this.getDocuments();
     await NotesStore.ensureMigrated();
+
+    try {
+      if (navigator.storage && navigator.storage.persist) {
+        let persisted = await navigator.storage.persisted();
+        if (!persisted) {
+          persisted = await navigator.storage.persist();
+        }
+        this.storagePersisted = persisted;
+      }
+    } catch (e) {
+      console.warn('Storage persistence check/request failed:', e);
+    }
   }
 
   public logout(): Observable<null> {

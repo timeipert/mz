@@ -127,7 +127,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   isGithubConnecting = false;
 
   constructor(
-    private api: APIService,
+    public api: APIService,
     private userService: UserService,
     public github: GithubService,
     private pageTitle: PageTitleService,

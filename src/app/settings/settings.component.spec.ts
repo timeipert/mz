@@ -15,7 +15,8 @@ describe('SettingsComponent', () => {
 
   const mockAPIService = {
     getSettings: () => of({ kind: 'SettingsRetrieved', settings: {} }),
-    updateSettings: () => of({ kind: 'Ok' })
+    updateSettings: () => of({ kind: 'Ok' }),
+    storagePersisted: null
   };
 
   const mockUserService = {

@@ -990,6 +990,18 @@
                     All workspace data is kept in your browser's IndexedDB.
                     <span *ngIf="statsComputed && lastComputedTime" class="ms-2 badge bg-light text-secondary border">Last computed: {{ lastComputedTime }}</span>
                   </p>
+                  <div class="mt-2 small d-flex align-items-center flex-wrap gap-2">
+                    <span class="text-muted">Persistence:</span>
+                    <span class="badge bg-success-subtle text-success border" *ngIf="api.storagePersisted === true">
+                      Protected from eviction
+                    </span>
+                    <span class="badge bg-warning-subtle text-warning border" *ngIf="api.storagePersisted === false">
+                      Not persisted — browser may evict data under storage pressure; back up regularly
+                    </span>
+                    <span class="badge bg-secondary-subtle text-secondary border" *ngIf="api.storagePersisted === null">
+                      Unknown
+                    </span>
+                  </div>
                 </div>
                 <button type="button" *ngIf="statsComputed || loadingStats" class="btn btn-sm btn-outline-secondary" (click)="refreshWorkspaceStats()" title="Recalculate stats" [disabled]="loadingStats">
                   <span *ngIf="loadingStats" class="spinner-border spinner-border-sm" role="status"></span>
