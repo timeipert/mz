@@ -74,4 +74,9 @@ describe('ClefComponent', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('should accept staffScale input correctly', () => {
+    component.staffScale = 1.2;
+    expect(component.staffScale).toBe(1.2);
+  });
 });

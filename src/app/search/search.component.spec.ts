@@ -56,6 +56,46 @@ describe('SearchComponent', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  describe('Synopsis Metadata and Staff Scaling', () => {
+    it('should initialize synopsis columns definitions on loadCols', () => {
+      component.loadCols();
+      expect(component.synopsisMetadataCols).toBeDefined();
+      expect(component.synopsisMetadataCols.length).toBeGreaterThan(0);
+      
+      const visibleCols = component.visibleSynopsisCols;
+      expect(visibleCols.length).toBeGreaterThan(0);
+    });
+
+    it('should correctly retrieve document field values with fallbacks', () => {
+      const doc: any = {
+        dokumenten_id: 'doc-123',
+        textinitium: 'In principio',
+        festtag: 'Christmas'
+      };
+      
+      expect(component.getDocFieldValue(doc, 'dokumenten_id')).toBe('doc-123');
+      expect(component.getDocFieldValue(doc, 'textinitium')).toBe('In principio');
+      expect(component.getDocFieldValue(doc, 'feier')).toBe('—');
+    });
+
+    it('should save synopsis columns to local storage', () => {
+      spyOn(localStorage, 'setItem');
+      component.saveSynopsisCols();
+      expect(localStorage.setItem).toHaveBeenCalled();
+    });
+
+    it('should calculate scaled column widths properly', () => {
+      component.settings = {
+        pdfSynopsisScale: 1.2
+      } as any;
+
+      const col: any[] = [];
+      const width = component.getColumnWidth(col);
+      // Min column width is 40. Scaled by 1.2, it should be 48
+      expect(width).toBe(48);
+    });
+  });
 });
 
 describe('arrayLevenshtein', () => {

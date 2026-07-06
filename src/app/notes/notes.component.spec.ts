@@ -82,4 +82,14 @@ describe('NotesComponent', () => {
     expect(component.isHighlighted(mockDrawable1)).toBeTrue();
     expect(component.isHighlighted(mockDrawable2)).toBeFalse();
   });
+
+  it('should scale stave widths and default sizes by staffScale input', () => {
+    component.staffScale = 1.0;
+    const baseWidth = component.getWidth();
+
+    component.staffScale = 0.8;
+    const scaledWidth = component.getWidth();
+
+    expect(scaledWidth).toBeCloseTo(baseWidth * 0.8, 5);
+  });
 });
