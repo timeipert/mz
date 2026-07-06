@@ -1,5 +1,6 @@
 import { BrowserModule } from '@angular/platform-browser';
-import { NgModule, isDevMode } from '@angular/core';
+import { NgModule, isDevMode, ErrorHandler } from '@angular/core';
+import { GlobalErrorHandler } from './global-error-handler';
 import { ServiceWorkerModule } from '@angular/service-worker';
 import { FormsModule } from '@angular/forms';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
@@ -198,5 +199,5 @@ import { StatsComponent } from './stats/stats.component';
           enabled: !isDevMode(),
           registrationStrategy: 'registerWhenStable:30000'
         })
-    ], providers: [ConfirmDeactivateGuard, provideHttpClient(withInterceptorsFromDi())] })
+    ], providers: [ConfirmDeactivateGuard, provideHttpClient(withInterceptorsFromDi()), { provide: ErrorHandler, useClass: GlobalErrorHandler }] })
 export class AppModule { }
