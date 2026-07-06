@@ -10,6 +10,7 @@ import { PageTitleService } from '../page-title.service';
 import { NotesStore } from '../notes-store';
 import { PatternAnalysisService } from './pattern-analysis.service';
 import { SynopsisService, AlignedNode, AlignedLineElement } from './synopsis.service';
+import { SearchExecService, TextSnippet, QuickResult, MelodyResult } from './search-exec.service';
 import * as VM from '../types/model';
 import { textWidth } from '../../utils';
 import * as localforage from 'localforage';
@@ -84,42 +85,7 @@ const RECENT_KEY   = 'monodi_search_recent';
 
 // ─── Quick-search result ──────────────────────────────────────────────────────
 
-export interface TextSnippet {
-  before: string;
-  match: string;
-  after: string;
-}
 
-export interface QuickResult {
-  kind: 'source' | 'document';
-  id: string;
-  sourceId?: string;
-  title: string;
-  subtitle: string;
-  extra: string;
-  snippet?: TextSnippet;   // present when match was found in transcription text
-
-  /** Relevance score 0–100. 100 = exact-substring match in the title.
-   *  Lower scores reflect: match in a less-important field, or fuzzy match
-   *  with edit distance > 0. Used to sort results and to render a small
-   *  badge so the user can tell strong matches from weak ones at a glance. */
-  score: number;
-  /** Human-readable label for *where* the match was found, used as a
-   *  tooltip on the relevance badge. */
-  matchedIn: string;
-}
-
-// ─── Melody-search result ─────────────────────────────────────────────────────
-
-export interface MelodyResult {
-  document: Document;
-  sourceSigle: string;
-  noteCount: number;
-  matchingSyllables: VM.Syllable[];
-  matchSylSet: Set<string>; // Set of matching syllable UUIDs
-  matchNoteSet: Set<string>; // Set of matching note UUIDs
-  distance?: number;     // Levenshtein distance for display
-}
 
 // PatternOccurrence and PatternGroup interfaces are imported from pattern-algo.ts
 
@@ -449,35 +415,109 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   get cachedDocIds(): string[] { return this.synopsisSvc.cachedDocIds; }
   set cachedDocIds(v: string[]) { this.synopsisSvc.cachedDocIds = v; }
 
-  // ── Quick / Full-text search ──────────────────────────────────────────────
-  quickText = '';
-  quickResults: QuickResult[] = [];
-  quickSearched = false;
-  quickSearching = false;
-  quickSearchMode: 'phrase' | 'words-and' | 'words-or' | 'fuzzy' = 'phrase';
-  quickMedievalTolerance = true;
-  quickFuzzyDistance = 2;
+  // ── Quick / Full-text search delegation ────────────────────────────────────
+  get searchProgress() { return this.searchExecSvc.searchProgress; }
+  set searchProgress(v) { this.searchExecSvc.searchProgress = v; }
 
-  // ── Source search ─────────────────────────────────────────────────────────
-  sourceQuery: SourceQuery = {};
-  sourceResults: Source[] = [];
-  sourceSearched = false;
-  sourceSearching = false;
+  get searchCancelled() { return this.searchExecSvc.searchCancelled; }
+  set searchCancelled(v) { this.searchExecSvc.searchCancelled = v; }
+
+  get quickText() { return this.searchExecSvc.quickText; }
+  set quickText(v) { this.searchExecSvc.quickText = v; }
+
+  get quickResults() { return this.searchExecSvc.quickResults; }
+  set quickResults(v) { this.searchExecSvc.quickResults = v; }
+
+  get quickSearched() { return this.searchExecSvc.quickSearched; }
+  set quickSearched(v) { this.searchExecSvc.quickSearched = v; }
+
+  get quickSearching() { return this.searchExecSvc.quickSearching; }
+  set quickSearching(v) { this.searchExecSvc.quickSearching = v; }
+
+  get quickSearchMode() { return this.searchExecSvc.quickSearchMode; }
+  set quickSearchMode(v) { this.searchExecSvc.quickSearchMode = v; }
+
+  get quickMedievalTolerance() { return this.searchExecSvc.quickMedievalTolerance; }
+  set quickMedievalTolerance(v) { this.searchExecSvc.quickMedievalTolerance = v; }
+
+  get quickFuzzyDistance() { return this.searchExecSvc.quickFuzzyDistance; }
+  set quickFuzzyDistance(v) { this.searchExecSvc.quickFuzzyDistance = v; }
+
+  get quickPage() { return this.searchExecSvc.quickPage; }
+  set quickPage(v) { this.searchExecSvc.quickPage = v; }
+
+  // ── Source search delegation ───────────────────────────────────────────────
+  get sourceQuery() { return this.searchExecSvc.sourceQuery; }
+  set sourceQuery(v) { this.searchExecSvc.sourceQuery = v; }
+
+  get sourceResults() { return this.searchExecSvc.sourceResults; }
+  set sourceResults(v) { this.searchExecSvc.sourceResults = v; }
+
+  get sourceSearched() { return this.searchExecSvc.sourceSearched; }
+  set sourceSearched(v) { this.searchExecSvc.sourceSearched = v; }
+
+  get sourceSearching() { return this.searchExecSvc.sourceSearching; }
+  set sourceSearching(v) { this.searchExecSvc.sourceSearching = v; }
+
+  get sourcesPage() { return this.searchExecSvc.sourcesPage; }
+  set sourcesPage(v) { this.searchExecSvc.sourcesPage = v; }
+
+  // ── Document search delegation ─────────────────────────────────────────────
+  get documentQuery() { return this.searchExecSvc.documentQuery; }
+  set documentQuery(v) { this.searchExecSvc.documentQuery = v; }
+
+  get documentResults() { return this.searchExecSvc.documentResults; }
+  set documentResults(v) { this.searchExecSvc.documentResults = v; }
+
+  get documentSearched() { return this.searchExecSvc.documentSearched; }
+  set documentSearched(v) { this.searchExecSvc.documentSearched = v; }
+
+  get documentSearching() { return this.searchExecSvc.documentSearching; }
+  set documentSearching(v) { this.searchExecSvc.documentSearching = v; }
+
+  get documentsPage() { return this.searchExecSvc.documentsPage; }
+  set documentsPage(v) { this.searchExecSvc.documentsPage = v; }
+
+  // ── Melody search delegation ───────────────────────────────────────────────
+  get melodyPattern() { return this.searchExecSvc.melodyPattern; }
+  set melodyPattern(v) { this.searchExecSvc.melodyPattern = v; }
+
+  get melodySearchType() { return this.searchExecSvc.melodySearchType; }
+  set melodySearchType(v) { this.searchExecSvc.melodySearchType = v; }
+
+  get melodyWithOctave() { return this.searchExecSvc.melodyWithOctave; }
+  set melodyWithOctave(v) { this.searchExecSvc.melodyWithOctave = v; }
+
+  get melodyOnlyWithinSyllables() { return this.searchExecSvc.melodyOnlyWithinSyllables; }
+  set melodyOnlyWithinSyllables(v) { this.searchExecSvc.melodyOnlyWithinSyllables = v; }
+
+  get melodyResults() { return this.searchExecSvc.melodyResults; }
+  set melodyResults(v) { this.searchExecSvc.melodyResults = v; }
+
+  get melodySearched() { return this.searchExecSvc.melodySearched; }
+  set melodySearched(v) { this.searchExecSvc.melodySearched = v; }
+
+  get melodySearching() { return this.searchExecSvc.melodySearching; }
+  set melodySearching(v) { this.searchExecSvc.melodySearching = v; }
+
+  get melodyScanned() { return this.searchExecSvc.melodyScanned; }
+  set melodyScanned(v) { this.searchExecSvc.melodyScanned = v; }
+
+  get melodyWithNotes() { return this.searchExecSvc.melodyWithNotes; }
+  set melodyWithNotes(v) { this.searchExecSvc.melodyWithNotes = v; }
+
+  get melodyMaxDistance() { return this.searchExecSvc.melodyMaxDistance; }
+  set melodyMaxDistance(v) { this.searchExecSvc.melodyMaxDistance = v; }
+
+  get melodyPage() { return this.searchExecSvc.melodyPage; }
+  set melodyPage(v) { this.searchExecSvc.melodyPage = v; }
+
+  // View-local configs
   srcSortCol = '';
   srcSortAsc = true;
   showSrcColPicker = false;
   srcResultCols: ColDef<Source>[] = [];
 
-  // ── Document search ───────────────────────────────────────────────────────
-  documentQuery: DocumentQuery = {
-    dokumenten_id: undefined, gattung1: undefined, gattung2: undefined,
-    festtag: undefined, feier: undefined, textinitium: undefined,
-    bibliographischerverweis: undefined, druckausgabe: undefined,
-    zeilenstart: undefined, foliostart: undefined, kommentar: undefined,
-  };
-  documentResults: Document[] = [];
-  documentSearched = false;
-  documentSearching = false;
   docSortCol = '';
   docSortAsc = true;
   showDocColPicker = false;
@@ -485,26 +525,9 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   synopsisMetadataCols: ColDef<Document>[] = [];
   showSynopsisColPicker = false;
 
-  // ── Melody search ─────────────────────────────────────────────────────────
-  melodyPattern = '';
-  melodySearchType: 'pitch' | 'contour' | 'interval' = 'pitch';
-  melodyWithOctave = false;
-  melodyOnlyWithinSyllables = false;
-  melodyResults: MelodyResult[] = [];
-  melodySearched = false;
-  melodySearching = false;
-  melodyScanned = 0;
-  melodyWithNotes = 0;
-  melodyMaxDistance = 0;
-
-  // ── Search results pagination ─────────────────────────────────────────────
-  quickPage = 1;
   quickPageSize = 25;
-  sourcesPage = 1;
   sourcesPageSize = 25;
-  documentsPage = 1;
   documentsPageSize = 25;
-  melodyPage = 1;
   melodyPageSize = 10;
 
   // ── Recent searches ───────────────────────────────────────────────────────
@@ -597,20 +620,8 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   visibleDocumentLimit = SearchComponent.INITIAL_RESULT_LIMIT;
   visibleMelodyLimit   = SearchComponent.INITIAL_RESULT_LIMIT;
 
-  /** Live progress while a long search is running. */
-  searchProgress: { current: number; total: number; matched: number; } = { current: 0, total: 0, matched: 0 };
 
-  /** Set to true while a chunked loop is in flight; used so the user can
-   *  cancel a long search without waiting for it to finish on its own. */
-  searchCancelled = false;
 
-  // ── Cache for quick search ────────────────────────────────────────────────
-  static cachedQuickText = '';
-  static cachedQuickResults: QuickResult[] = [];
-  static cachedQuickSearched = false;
-  static cachedQuickMode: 'phrase' | 'words-and' | 'words-or' | 'fuzzy' = 'phrase';
-  static cachedQuickTolerance = true;
-  static cachedQuickDistance = 2;
 
 
 
@@ -671,6 +682,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     private toastr: ToastrService,
     private patternSvc: PatternAnalysisService,
     private synopsisSvc: SynopsisService,
+    private searchExecSvc: SearchExecService,
   ) {
     this.loadCols();
     this.loadRecentSearches();
@@ -682,7 +694,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.pageTitle.set('Search');
 
     this.subs.push(
-      this.patternSvc.stateChanged$.subscribe(() => {
+      this.searchExecSvc.stateChanged$.subscribe(() => {
         this.cdRef.markForCheck();
       })
     );
@@ -763,523 +775,61 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   matchText(text: string, query: string, mode: 'phrase' | 'words-and' | 'words-or' | 'fuzzy', spellingTolerance: boolean, maxDistance: number): { matched: boolean; snippet?: TextSnippet; score: number } {
-    if (!text) return { matched: false, score: 0 };
-    const norm = (s: string) => {
-      let res = s.toLowerCase();
-      if (spellingTolerance) {
-        res = res
-          .replace(/[jv]/g, char => char === 'j' ? 'i' : 'u')
-          .replace(/y/g, 'i')
-          .replace(/ae/g, 'e')
-          .replace(/(.)\1+/g, '$1'); // collapse double letters
-      }
-      return res;
-    };
-
-    const targetNorm = norm(text);
-    const queryNorm = norm(query);
-
-    if (mode === 'phrase') {
-      if (spellingTolerance) {
-        const idx = targetNorm.indexOf(queryNorm);
-        if (idx !== -1) {
-          // Approximate mapping back to original text range
-          const matchStart = idx;
-          const matchEnd = idx + queryNorm.length;
-          const snippet = findTextSnippet(text, text.substring(Math.max(0, matchStart), Math.min(text.length, matchEnd))) || { before: '', match: query, after: '' };
-          return { matched: true, snippet, score: 90 };
-        }
-        return { matched: false, score: 0 };
-      } else {
-        const idx = text.toLowerCase().indexOf(query.toLowerCase());
-        if (idx !== -1) {
-          return { matched: true, snippet: findTextSnippet(text, query), score: 100 };
-        }
-        return { matched: false, score: 0 };
-      }
-    }
-
-    if (mode === 'words-and' || mode === 'words-or') {
-      const words = query.trim().split(/\s+/).filter(Boolean);
-      if (words.length === 0) return { matched: false, score: 0 };
-
-      const wordMatches = words.map(w => {
-        const wNorm = norm(w);
-        return targetNorm.includes(wNorm) || text.toLowerCase().includes(w.toLowerCase());
-      });
-
-      const matched = mode === 'words-and' 
-        ? wordMatches.every(m => m) 
-        : wordMatches.some(m => m);
-
-      if (matched) {
-        // Find snippet around the first matching word
-        for (const w of words) {
-          const idx = text.toLowerCase().indexOf(w.toLowerCase());
-          if (idx !== -1) {
-            return { matched: true, snippet: findTextSnippet(text, w), score: mode === 'words-and' ? 80 : 70 };
-          }
-        }
-        return { matched: true, snippet: { before: '', match: text.substring(0, Math.min(text.length, 25)), after: '…' }, score: mode === 'words-and' ? 80 : 70 };
-      }
-      return { matched: false, score: 0 };
-    }
-
-    if (mode === 'fuzzy') {
-      const targetWords = text.toLowerCase().split(/\s+/).filter(Boolean);
-      const queryWords = query.toLowerCase().split(/\s+/).filter(Boolean);
-      if (queryWords.length === 0) return { matched: false, score: 0 };
-
-      const matchedWords = queryWords.map(qw => {
-        let bestDist = 999;
-        let matchedTargetWord = '';
-        for (const tw of targetWords) {
-          const res = isFuzzySubstring(norm(tw), norm(qw), maxDistance);
-          if (res.matched) {
-            // Re-calculate the actual distance of this best matching substring
-            const dist = levenshteinDistance(norm(res.matchedSub || ''), norm(qw));
-            if (dist < bestDist) {
-              bestDist = dist;
-              matchedTargetWord = tw;
-            }
-          }
-        }
-        return { matched: bestDist <= maxDistance, word: matchedTargetWord, dist: bestDist };
-      });
-
-      const matched = matchedWords.every(mw => mw.matched);
-      if (matched && matchedWords.length > 0) {
-        const avgDist = matchedWords.reduce((sum, mw) => sum + mw.dist, 0) / matchedWords.length;
-        const score = Math.max(10, 60 - avgDist * 10);
-        
-        const firstMatch = matchedWords[0].word;
-        if (firstMatch) {
-          const origIdx = text.toLowerCase().indexOf(firstMatch);
-          const origWord = origIdx !== -1 ? text.substring(origIdx, origIdx + firstMatch.length) : firstMatch;
-          const snippet = findTextSnippet(text, origWord);
-          return { matched: true, snippet, score };
-        }
-        return { matched: true, score };
-      }
-      return { matched: false, score: 0 };
-    }
-
-    return { matched: false, score: 0 };
+    return this.searchExecSvc.matchText(text, query, mode, spellingTolerance, maxDistance);
   }
 
-  /**
-   * Quick / full-text search across every source and document.
-   *
-   * Performance strategy on workspaces with thousands of documents:
-   *   1. Sources are tiny; process them in one synchronous pass.
-   *   2. Documents are processed in batches of `SEARCH_BATCH_SIZE`. Between
-   *      batches we `await yieldToUI()` so the browser can paint progress
-   *      updates and accept input events (including the Cancel button).
-   *   3. Notes are fetched on demand per-document via `NotesStore.get(id)`
-   *      rather than loading the whole `monodi_notes_*` set up front
-   *      (`getAllDocumentNotes` allocates O(workspace size) before any
-   *      matching can start — enough to lock up the tab on huge libraries).
-   *   4. The result list is published incrementally so the user sees
-   *      matches arrive instead of a frozen page.
-   */
   async searchQuick() {
-    if (!this.user || !this.quickText.trim()) return;
-    this.updateUrl();
-
-    if (
-      SearchComponent.cachedQuickSearched &&
-      SearchComponent.cachedQuickText === this.quickText &&
-      SearchComponent.cachedQuickMode === this.quickSearchMode &&
-      SearchComponent.cachedQuickTolerance === this.quickMedievalTolerance &&
-      SearchComponent.cachedQuickDistance === this.quickFuzzyDistance
-    ) {
-      this.quickResults = SearchComponent.cachedQuickResults.slice();
-      this.quickSearched = true;
-      this.searchProgress = { current: this.quickResults.length, total: this.quickResults.length, matched: this.quickResults.length };
-      this.cdRef.markForCheck();
-      return;
-    }
-
-    this.quickSearching = true;
-    this.quickSearched = false;
-    this.searchCancelled = false;
-    this.searchProgress = { current: 0, total: 0, matched: 0 };
     this.visibleQuickLimit = SearchComponent.INITIAL_RESULT_LIMIT;
-    this.quickPage = 1;
-    this.quickFilterText = '';
-    this.addRecentSearch(this.quickText);
-
-    try {
-      const [sources, docs] = await Promise.all([
-        this.api.listSources(this.user.token).toPromise(),
-        this.api.listDocuments(this.user.token).toPromise(),
-      ]);
-
-      const results: QuickResult[] = [];
-
-      // -------- sources --------
-      if (sources?.kind === 'SourcesRetrieved') {
-        for (const s of sources.sources) {
-          if (this.searchCancelled) { this.finishQuickSearch(results); return; }
-          let bestMatch: {score: number, matchedIn: string} | null = null;
-          
-          const metaMap: {[key: string]: string} = {
-            'Siglum': s.quellensigle || s.bibliothekssignatur || '',
-            'Institution': s.herkunftsinstitution || '',
-            'Location': s.herkunftsort || '',
-            'Type': s.quellentyp || '',
-            'Dating': s.datierung || ''
-          };
-
-          for (const [key, val] of Object.entries(metaMap)) {
-            if (typeof val === 'string' && val.trim() !== '') {
-               const res = this.matchText(val, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
-               if (res.matched && (!bestMatch || res.score > bestMatch.score)) {
-                 const finalScore = key === 'Siglum' ? Math.min(100, res.score + 5) : res.score;
-                 bestMatch = { score: finalScore, matchedIn: key };
-               }
-            }
-          }
-          
-          if (bestMatch) {
-            results.push({
-              kind: 'source', id: s.id!,
-              title:    s.quellensigle || s.bibliothekssignatur || '(no siglum)',
-              subtitle: [s.herkunftsinstitution, s.herkunftsort].filter(Boolean).join(', '),
-              extra:    [s.quellentyp, s.datierung].filter(Boolean).join(' · '),
-              score: bestMatch.score,
-              matchedIn: `Metadata: ${bestMatch.matchedIn}`,
-            });
-          }
-        }
-      }
-
-      // -------- documents (chunked + lazy notes) --------
-      const allDocs = docs?.kind === 'DocumentsRetrieved' ? docs.documents : [];
-      this.searchProgress = { current: 0, total: allDocs.length, matched: results.length };
-      this.cdRef.markForCheck();
-
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < allDocs.length; i += BATCH_SIZE) {
-        if (this.searchCancelled) { this.finishQuickSearch(results); return; }
-        
-        const batch = allDocs.slice(i, i + BATCH_SIZE);
-        const promises = batch.map(async (d) => {
-          // Metadata pass first
-          let bestMeta: {score: number, matchedIn: string, snippet?: TextSnippet} | null = null;
-          const dMap: {[key: string]: string} = {
-            'Incipit': d.textinitium || '',
-            'Doc ID': d.dokumenten_id || '',
-            'Genre': d.gattung1 || d.gattung2 || '',
-            'Feast': d.festtag || '',
-            'Celebration': d.feier || ''
-          };
-          for (const [key, val] of Object.entries(dMap)) {
-            if (typeof val === 'string' && val.trim() !== '') {
-               const m = this.matchText(val, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
-               if (m.matched && (!bestMeta || m.score > bestMeta.score)) {
-                  const finalScore = key === 'Incipit' ? Math.min(100, m.score + 5) : m.score;
-                  bestMeta = { score: finalScore, matchedIn: key, snippet: m.snippet };
-               }
-            }
-          }
-
-          // Syllable-text pass — load notes lazily for this single doc.
-          let bestSyl: {score: number, matchedIn: string, snippet?: TextSnippet} | null = null;
-          try {
-            const root = await NotesStore.get(d.id);
-            if (root) {
-              const sylsList = extractSyllables(root).map(s => s.text);
-              const sylRaw    = sylsList.join('');
-              const sylClean  = sylRaw.replace(/-/g, '');
-              const sylSpaced = sylsList.join(' ').replace(/-/g, ' ');
-              const ms1 = this.matchText(sylSpaced, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance);
-              const ms2 = !ms1.matched ? this.matchText(sylClean, this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance) : ms1;
-              const ms3 = !ms2.matched ? this.matchText(sylRaw,    this.quickText, this.quickSearchMode, this.quickMedievalTolerance, this.quickFuzzyDistance) : ms2;
-              
-              const bestM = ms1.matched ? ms1 : ms2.matched ? ms2 : ms3.matched ? ms3 : null;
-              if (bestM) {
-                 bestSyl = { score: bestM.score, matchedIn: 'Transcription', snippet: bestM.snippet };
-              }
-            }
-          } catch (e) {
-            console.warn(`Skipping notes for ${d.id}:`, e);
-          }
-
-          const bestOverall = (bestMeta && bestSyl) ? (bestMeta.score >= bestSyl.score ? bestMeta : bestSyl) : (bestMeta || bestSyl);
-
-          if (bestOverall) {
-            results.push({
-              kind: 'document', id: d.id, sourceId: d.quelle_id,
-              title:    d.textinitium || d.dokumenten_id || '(no incipit)',
-              subtitle: [d.gattung1, d.gattung2].filter(Boolean).join(' / '),
-              extra:    [d.festtag, d.feier].filter(Boolean).join(' · '),
-              snippet:  bestOverall.snippet,
-              score:    bestOverall.score,
-              matchedIn: bestOverall.matchedIn === 'Transcription' ? 'Transcription' : `Metadata: ${bestOverall.matchedIn}`
-            });
-          }
-        });
-
-        await Promise.all(promises);
-
-        const currentProgress = Math.min(i + BATCH_SIZE, allDocs.length);
-        this.searchProgress.current = currentProgress;
-        this.searchProgress.matched = results.length;
-        this.quickResults = results.slice();   // publish streaming results
-        this.cdRef.markForCheck();
-        await this.yieldToUI();
-      }
-
-      this.finishQuickSearch(results);
-    } catch (err) {
-      console.error('Quick search failed:', err);
-      this.quickSearching = false;
-      this.quickSearched = true;
-      this.cdRef.markForCheck();
-    }
+    this.updateUrl();
+    await this.searchExecSvc.searchQuick(
+      (q) => this.addRecentSearch(q),
+      () => this.clearFilter('quick')
+    );
   }
 
-  /** Final settle once the quick search finishes (or is cancelled). */
-  private finishQuickSearch(results: QuickResult[]): void {
-    results.sort((a, b) => b.score - a.score);
-    this.quickResults = results;
-    this.quickSearched = true;
-    this.quickSearching = false;
+  cancelSearch(): void {
+    this.searchExecSvc.cancelSearch();
+  }
 
-    // Cache the results
-    SearchComponent.cachedQuickText = this.quickText;
-    SearchComponent.cachedQuickMode = this.quickSearchMode;
-    SearchComponent.cachedQuickTolerance = this.quickMedievalTolerance;
-    SearchComponent.cachedQuickDistance = this.quickFuzzyDistance;
-    SearchComponent.cachedQuickResults = this.quickResults.slice();
-    SearchComponent.cachedQuickSearched = true;
+  searchSources() {
+    this.visibleSourceLimit = SearchComponent.INITIAL_RESULT_LIMIT;
+    this.updateUrl();
+    this.searchExecSvc.searchSources();
+  }
 
+  clearSourceQuery() {
+    this.searchExecSvc.sourceQuery = {};
+    this.searchExecSvc.sourceResults = [];
+    this.searchExecSvc.sourceSearched = false;
+    this.srcSortCol = '';
     this.saveSearchStateToIndexedDB();
     this.cdRef.markForCheck();
   }
 
-  /** Asks the browser to repaint before resuming the loop. `setTimeout(0)`
-   *  beats microtasks here because microtasks would drain before any paint
-   *  and progress wouldn't visibly update. */
-  private yieldToUI(): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, 0));
-  }
-
-  /** Cancel button on the in-flight progress card. */
-  cancelSearch(): void {
-    this.searchCancelled = true;
-  }
-
-  /** "Show more" handlers for each result list. */
-  showMoreQuick():     void { this.visibleQuickLimit    += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
-  showMoreSources():   void { this.visibleSourceLimit   += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
-  showMoreDocuments(): void { this.visibleDocumentLimit += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
-  showMoreMelody():    void { this.visibleMelodyLimit   += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
-
-  /** Stable trackBy fns so big lists don't re-create DOM nodes. */
-  trackQuick   = (_: number, r: QuickResult)  => r.id;
-  trackSource  = (_: number, s: Source)       => s.id ?? '';
-  trackDoc     = (_: number, d: Document)     => d.id;
-  trackMelody  = (_: number, r: MelodyResult) => r.document.id;
-
-  // ── Source search ─────────────────────────────────────────────────────────
-
-  searchSources() {
-    if (!this.user) return;
-    this.updateUrl();
-    this.sourceSearching = true;
-    this.sourceSearched = false;
-    this.sourceFilterText = '';
-    this.sourcesPage = 1;
-    this.visibleSourceLimit = SearchComponent.INITIAL_RESULT_LIMIT;
-    this.api.querySources(this.user.token, this.sourceQuery).subscribe(res => {
-      if (res.kind === 'SourcesRetrieved') this.sourceResults = res.sources;
-      this.sourceSearched = true;
-      this.sourceSearching = false;
-      this.saveSearchStateToIndexedDB();
-    });
-  }
-
-  clearSourceQuery() {
-    this.sourceQuery = {};
-    this.sourceResults = [];
-    this.sourceSearched = false;
-    this.srcSortCol = '';
-    this.saveSearchStateToIndexedDB();
-  }
-
-  // ── Document search ───────────────────────────────────────────────────────
-
   searchDocuments() {
-    if (!this.user) return;
-    this.updateUrl();
-    this.documentSearching = true;
-    this.documentSearched = false;
-    this.documentFilterText = '';
-    this.documentsPage = 1;
     this.visibleDocumentLimit = SearchComponent.INITIAL_RESULT_LIMIT;
-    this.api.queryDocuments(this.user.token, this.documentQuery).subscribe(res => {
-      if (res.kind === 'DocumentsRetrieved') this.documentResults = res.documents;
-      this.documentSearched = true;
-      this.documentSearching = false;
-      this.saveSearchStateToIndexedDB();
-    });
+    this.updateUrl();
+    this.searchExecSvc.searchDocuments();
   }
 
   clearDocumentQuery() {
-    this.documentQuery = {
+    this.searchExecSvc.documentQuery = {
       dokumenten_id: undefined, gattung1: undefined, gattung2: undefined,
       festtag: undefined, feier: undefined, textinitium: undefined,
       bibliographischerverweis: undefined, druckausgabe: undefined,
       zeilenstart: undefined, foliostart: undefined, kommentar: undefined,
     };
-    this.documentResults = [];
-    this.documentSearched = false;
+    this.searchExecSvc.documentResults = [];
+    this.searchExecSvc.documentSearched = false;
     this.docSortCol = '';
     this.saveSearchStateToIndexedDB();
-  }
-
-  // ── Melody search ─────────────────────────────────────────────────────────
-
-  /**
-   * Melodic-pattern search. Same chunked + lazy-notes strategy as
-   * `searchQuick`: each document's chant is fetched on demand from the
-   * per-document NotesStore, the loop yields to the browser every
-   * `SEARCH_BATCH_SIZE` docs, and progress (current / total / matched)
-   * is published live so the user sees something happening.
-   */
-  async searchMelody() {
-    if (!this.user || !this.melodyPattern.trim()) return;
-    this.updateUrl();
-    this.melodySearching  = true;
-    this.melodySearched   = false;
-    this.melodyScanned    = 0;
-    this.melodyWithNotes  = 0;
-    this.searchCancelled  = false;
-    this.searchProgress = { current: 0, total: 0, matched: 0 };
-    this.visibleMelodyLimit = SearchComponent.INITIAL_RESULT_LIMIT;
-    this.melodyPage = 1;
-    this.melodyFilterText = '';
-
-    const pattern = parseMelodyPattern(this.melodyPattern, this.melodySearchType, this.melodyWithOctave);
-
-    try {
-      const [docsRes, sourcesRes] = await Promise.all([
-        this.api.listDocuments(this.user.token).toPromise(),
-        this.api.listSources(this.user.token).toPromise(),
-      ]);
-      const allDocs    = docsRes?.kind    === 'DocumentsRetrieved' ? docsRes.documents  : [];
-      const allSources = sourcesRes?.kind === 'SourcesRetrieved'   ? sourcesRes.sources : [];
-      const sourceMap  = new Map<string, Source>(allSources.map(s => [s.id ?? '', s]));
-      const results: MelodyResult[] = [];
-
-      this.melodyScanned = allDocs.length;
-      this.searchProgress = { current: 0, total: allDocs.length, matched: 0 };
-      this.cdRef.markForCheck();
-
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < allDocs.length; i += BATCH_SIZE) {
-        if (this.searchCancelled) { this.finishMelodySearch(results); return; }
-        
-        const batch = allDocs.slice(i, i + BATCH_SIZE);
-        const promises = batch.map(async (doc) => {
-          // Lazy-load notes for THIS document only.
-          let root: VM.RootContainer | null = null;
-          try { root = await NotesStore.get(doc.id); }
-          catch (e) { console.warn(`Skipping ${doc.id}:`, e); }
-
-          if (root) {
-            const syllables = extractSyllables(root);
-            const { notes, sylIdx } = flattenNotes(syllables);
-            if (notes.length > 0) {
-              this.melodyWithNotes++;
-
-              const sequence = this.melodySearchType === 'pitch'
-                ? toPitchNames(notes, this.melodyWithOctave)
-                : this.melodySearchType === 'contour'
-                ? toContour(notes)
-                : toIntervals(notes);
-
-              let matches = findSubsequenceMatches(sequence, pattern, this.melodyMaxDistance);
-              if (this.melodyOnlyWithinSyllables) {
-                matches = matches.filter(m => {
-                  const startNote = m.start;
-                  const endNote = (this.melodySearchType === 'contour' || this.melodySearchType === 'interval') ? m.end + 1 : m.end;
-                  return sylIdx[startNote] === sylIdx[endNote];
-                });
-              }
-
-              if (matches.length > 0) {
-                const bestMatch = matches[0];
-                const matchStart = bestMatch.start;
-                const matchEndNote = (this.melodySearchType === 'contour' || this.melodySearchType === 'interval')
-                  ? bestMatch.end + 1
-                  : bestMatch.end;
-                const distance = bestMatch.distance;
-
-                const matchSylSet = new Set<string>();
-                for (let ni = matchStart; ni <= matchEndNote && ni < sylIdx.length; ni++) {
-                  const syl = syllables[sylIdx[ni]];
-                  if (syl?.uuid) matchSylSet.add(syl.uuid);
-                }
-
-                const matchNoteSet = new Set<string>();
-                for (let ni = matchStart; ni <= matchEndNote && ni < notes.length; ni++) {
-                  const note = notes[ni];
-                  if (note?.uuid) matchNoteSet.add(note.uuid);
-                }
-
-                const matchingSyllableIndices: number[] = [];
-                for (let ni = matchStart; ni <= matchEndNote && ni < sylIdx.length; ni++) {
-                  matchingSyllableIndices.push(sylIdx[ni]);
-                }
-                const matchSylMin = Math.min(...matchingSyllableIndices);
-                const matchSylMax = Math.max(...matchingSyllableIndices);
-                const ctxFirst = Math.max(0, matchSylMin - 3);
-                const ctxLast  = Math.min(syllables.length - 1, matchSylMax + 3);
-                const contextSyllables = syllables.slice(ctxFirst, ctxLast + 1);
-
-                results.push({
-                  document:   doc,
-                  sourceSigle: sourceMap.get(doc.quelle_id)?.quellensigle ?? '',
-                  noteCount:  notes.length,
-                  matchingSyllables: contextSyllables,
-                  matchSylSet,
-                  matchNoteSet,
-                  distance,
-                });
-              }
-            }
-          }
-        });
-
-        await Promise.all(promises);
-
-        const currentProgress = Math.min(i + BATCH_SIZE, allDocs.length);
-        this.searchProgress.current = currentProgress;
-        this.searchProgress.matched = results.length;
-        // Stream results so users see matches arrive (sorted by best-so-far).
-        this.melodyResults = results.slice().sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
-        this.cdRef.markForCheck();
-        await this.yieldToUI();
-      }
-
-      this.finishMelodySearch(results);
-    } catch (err) {
-      console.error('Melody search failed:', err);
-      this.melodySearching = false;
-      this.melodySearched = true;
-      this.cdRef.markForCheck();
-    }
-  }
-
-  private finishMelodySearch(results: MelodyResult[]): void {
-    this.melodyResults  = results.sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
-    this.melodySearched = true;
-    this.melodySearching = false;
-    this.saveSearchStateToIndexedDB();
     this.cdRef.markForCheck();
+  }
+
+  async searchMelody() {
+    this.visibleMelodyLimit = SearchComponent.INITIAL_RESULT_LIMIT;
+    this.updateUrl();
+    await this.searchExecSvc.searchMelody();
   }
 
   get melodyPatternHint(): string {
@@ -1430,6 +980,28 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     return out;
   }
 
+  async saveSearchStateToIndexedDB() {
+    await this.searchExecSvc.saveSearchStateToIndexedDB(this.activeTab);
+  }
+
+  async loadFromIndexedDB() {
+    await this.searchExecSvc.loadFromIndexedDB(
+      () => this.runPatternGrouping(),
+      (tab) => { this.activeTab = tab; }
+    );
+    this.cdRef.markForCheck();
+  }
+
+  showMoreQuick():     void { this.visibleQuickLimit    += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
+  showMoreSources():   void { this.visibleSourceLimit   += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
+  showMoreDocuments(): void { this.visibleDocumentLimit += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
+  showMoreMelody():    void { this.visibleMelodyLimit   += SearchComponent.INITIAL_RESULT_LIMIT; this.cdRef.markForCheck(); }
+
+  trackQuick   = (_: number, r: QuickResult)  => r.id;
+  trackSource  = (_: number, s: Source)       => s.id ?? '';
+  trackDoc     = (_: number, d: Document)     => d.id;
+  trackMelody  = (_: number, r: MelodyResult) => r.document.id;
+
   // Quick Search Pagination
   get quickTotalPages(): number {
     return Math.max(1, Math.ceil(this.filteredQuickResults.length / this.quickPageSize));
@@ -1448,6 +1020,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   get quickPagerWindow(): number[] {
     return this.getPagerWindow(this.quickPage, this.quickTotalPages);
   }
+
   goToQuickPage(p: number): void {
     if (this.filteredQuickResults.length === 0) return;
     this.quickPage = Math.max(1, Math.min(this.quickTotalPages, p));
@@ -2432,106 +2005,13 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
 
 
-  async saveSearchStateToIndexedDB() {
-    try {
-      const searchData = {
-        activeTab: this.activeTab,
-        quickText: this.quickText,
-        quickPage: this.quickPage,
-        sourcesPage: this.sourcesPage,
-        documentsPage: this.documentsPage,
-        melodyPage: this.melodyPage,
-        quickSearchMode: this.quickSearchMode,
-        quickMedievalTolerance: this.quickMedievalTolerance,
-        quickFuzzyDistance: this.quickFuzzyDistance,
-        sourceQuery: this.sourceQuery,
-        documentQuery: this.documentQuery,
-        melodyPattern: this.melodyPattern,
-        melodySearchType: this.melodySearchType,
-        melodyWithOctave: this.melodyWithOctave,
-        melodyOnlyWithinSyllables: this.melodyOnlyWithinSyllables,
-        melodyMaxDistance: this.melodyMaxDistance
-      };
-      await localforage.setItem('search_state', searchData);
-    } catch (e) {
-      console.warn('Failed to save search state to IndexedDB:', e);
-    }
-  }
+
 
   async savePatternStateToIndexedDB() {
     await this.patternSvc.savePatternStateToIndexedDB();
   }
 
-  async loadFromIndexedDB() {
-    try {
-      // 0. Load saved pattern sessions list
-      try {
-        const saved: any = await localforage.getItem('saved_pattern_sessions');
-        if (Array.isArray(saved)) {
-          this.patternSvc.savedPatternSessions = saved;
-        } else {
-          this.patternSvc.savedPatternSessions = [];
-        }
-      } catch (e) {
-        console.warn('Failed to load saved pattern sessions:', e);
-        this.patternSvc.savedPatternSessions = [];
-      }
 
-      // 1. Load pattern analysis state
-      const staticCachePopulated = this.patternSvc.patternGroups.length > 0
-                                || this.patternSvc.showPatternAnalysis;
-
-      if (!staticCachePopulated) {
-        let savedParams: any = null;
-        try {
-          const raw = localStorage.getItem('monodi_pattern_params');
-          if (raw) savedParams = JSON.parse(raw);
-        } catch { /* ignore */ }
-
-        if (savedParams?.showPatternAnalysis) {
-          this.patternSvc.patternLength           = savedParams.patternLength           ?? this.patternSvc.patternLength;
-          this.patternSvc.patternType             = savedParams.patternType             ?? this.patternSvc.patternType;
-          this.patternSvc.patternWithOctave       = !!savedParams.patternWithOctave;
-          this.patternSvc.patternStrictness       = savedParams.patternStrictness       ?? this.patternSvc.patternStrictness;
-          this.patternSvc.patternMergeEnabled     = !!savedParams.patternMergeEnabled;
-          this.patternSvc.patternMinMergeOverlap  = savedParams.patternMinMergeOverlap  ?? this.patternSvc.patternMinMergeOverlap;
-          this.patternSvc.patternDeduplicateEnabled = savedParams.patternDeduplicateEnabled !== false;
-          this.patternSvc.patternViewMode         = savedParams.patternViewMode         ?? this.patternSvc.patternViewMode;
-          this.patternSvc.patternPage             = savedParams.patternPage             ?? 1;
-          this.patternSvc.showPatternAnalysis     = true;
-
-          // Auto-retrigger the analysis.
-          setTimeout(() => {
-            if (this.patternSvc.showPatternAnalysis && this.patternSvc.patternGroups.length === 0) {
-              this.runPatternGrouping();
-            }
-          }, 0);
-        }
-      }
-
-      // 2. Restore only lightweight VIEW PREFERENCES from the last session.
-      const searchData: any = await localforage.getItem('search_state');
-      if (searchData) {
-        if (searchData.activeTab) this.activeTab = searchData.activeTab;
-
-        // Quick-search MODE toggles (not the query, not the results)
-        if (searchData.quickSearchMode) this.quickSearchMode = searchData.quickSearchMode;
-        this.quickMedievalTolerance = !!searchData.quickMedievalTolerance;
-        if (searchData.quickFuzzyDistance !== undefined) this.quickFuzzyDistance = searchData.quickFuzzyDistance;
-
-        // Melody-search OPTION toggles (not the pattern, not the results)
-        if (searchData.melodySearchType) this.melodySearchType = searchData.melodySearchType;
-        this.melodyWithOctave = !!searchData.melodyWithOctave;
-        this.melodyOnlyWithinSyllables = !!searchData.melodyOnlyWithinSyllables;
-        if (searchData.melodyWithNotes !== undefined) this.melodyWithNotes = searchData.melodyWithNotes;
-        if (searchData.melodyMaxDistance !== undefined) this.melodyMaxDistance = searchData.melodyMaxDistance;
-      }
-
-      this.cdRef.markForCheck();
-    } catch (e) {
-      console.warn('Error loading state from IndexedDB:', e);
-    }
-  }
 
   /**
    * Entry point from the overview timeline. Switches to the list view,
