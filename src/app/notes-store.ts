@@ -47,6 +47,7 @@ export class NotesStore {
             migrated.push(id);
           } catch (e) {
             console.warn(`NotesStore: failed to migrate ${id}`, e);
+            throw e;
           }
         }
         await localforage.setItem(this.INDEX_KEY, migrated);
@@ -98,7 +99,12 @@ export class NotesStore {
     await this.ensureMigrated();
     const toRemove = new Set(ids);
     for (const id of ids) {
-      try { await localforage.removeItem(this.ITEM_KEY(id)); } catch (e) { console.warn('remove failed', id, e); }
+      try {
+        await localforage.removeItem(this.ITEM_KEY(id));
+      } catch (e) {
+        console.warn('remove failed', id, e);
+        throw e;
+      }
     }
     const idx = (await localforage.getItem<string[]>(this.INDEX_KEY)) || [];
     await localforage.setItem(this.INDEX_KEY, idx.filter(i => !toRemove.has(i)));
@@ -153,7 +159,12 @@ export class NotesStore {
     }
     for (const id of oldIds) {
       if (!(id in dict)) {
-        try { await localforage.removeItem(this.ITEM_KEY(id)); } catch { /* ignore */ }
+        try {
+          await localforage.removeItem(this.ITEM_KEY(id));
+        } catch (e) {
+          console.warn(`NotesStore: replaceAll failed to remove ${id}`, e);
+          throw e;
+        }
       }
     }
     await localforage.setItem(this.INDEX_KEY, newIds);
