@@ -1,4 +1,4 @@
-# Monodi-Zero
+<img width="1440" height="530" alt="grafik" src="https://github.com/user-attachments/assets/4e8d914a-9c46-48de-8f3d-a93c44f88f03" />
 
 **A local-first digital workbench for the transcription, edition, and analysis of medieval monophonic chant.**
 
