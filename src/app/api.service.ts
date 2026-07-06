@@ -5,6 +5,7 @@ import * as VM from './types/model';
 import { v4 as uuidv4 } from 'uuid';
 import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
+import { ensureSchemaVersion } from './schema';
 
 @Injectable({
   providedIn: 'root'
@@ -51,6 +52,7 @@ export class APIService {
   }
 
   private async initStorage() {
+    await ensureSchemaVersion();
     // Warm up the caches at startup
     await this.getSources();
     await this.getDocuments();
