@@ -1867,104 +1867,16 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     this.enterSynopsis();
   }
 
-              kind: eli.kind === 'Clef' ? 'clef' as const : 'syllable' as const,
-              element: eli
-            };
-          }
-          nextAlignedCols.push(newCol);
-        }
-      }
-      alignedCols = nextAlignedCols;
-    }
-
-    return alignedCols;
-  }
-
   enterSynopsis() {
     if (!this.user || this.selectedDocs.length < 2) return;
     this.synopsisLoading = true;
     this.showSynopsis = false;
-
-    const token = this.user.token;
-    const currentDocIds = this.selectedDocs.map(d => d.id);
-    
-    // Check if cache matches current selection
-    const isCached = currentDocIds.length === this.cachedDocIds.length && 
-                     currentDocIds.every((id, idx) => id === this.cachedDocIds[idx]) &&
-                     this.cachedRootContainers.length === this.selectedDocs.length;
-
-    if (isCached) {
-      this.runAlignment(this.cachedRootContainers);
-      this.showSynopsis = true;
-      this.updateUrl();
-      this.synopsisLoading = false;
-      return;
-    }
-
-    // Fetch notes and sigles
-    const notesObservables = this.selectedDocs.map(d => this.api.getDocumentNotes(token, d.id));
-    const sigleObservables = this.selectedDocs.map(d => this.api.getSigle(token, d.quelle_id));
-
-    forkJoin({
-      notes: forkJoin(notesObservables),
-      sigles: forkJoin(sigleObservables)
-    }).subscribe({
-      next: (res: any) => {
-        const rootContainers: VM.RootContainer[] = [];
-        this.docSigles = {};
-        
-        for (let i = 0; i < this.selectedDocs.length; i++) {
-          const doc = this.selectedDocs[i];
-          const sigleRes = res.sigles[i];
-          this.docSigles[doc.id] = (sigleRes.kind === 'SigleRetrieved') ? sigleRes.sigle : doc.dokumenten_id;
-          
-          const notesRes = res.notes[i];
-          if (notesRes.kind === 'NotesRetrieved') {
-            rootContainers.push(notesRes.data);
-          } else {
-            rootContainers.push({
-              kind: VM.ContainerKind.RootContainer,
-              uuid: doc.id,
-              children: [],
-              comments: [],
-              documentType: VM.DocumentType.Level1
-            });
-          }
-        }
-
-        // Cache the loaded models
-        this.cachedRootContainers = rootContainers;
-        this.cachedDocIds = currentDocIds;
-
-        this.runAlignment(rootContainers);
-        this.showSynopsis = true;
-        this.updateUrl();
-        this.synopsisLoading = false;
-      },
-      error: (err) => {
-        console.error('Error entering synopsis:', err);
-        this.synopsisLoading = false;
-      }
-    });
-  }
-
-  runAlignment(rootContainers: VM.RootContainer[]) {
-    if (this.alignmentMode === 'structure') {
-      this.alignedTree = this.alignNodeChildren(rootContainers, 1);
-    } else if (this.alignmentMode === 'sequential') {
-      this.alignedTree = this.alignSequential(rootContainers);
-    } else if (this.alignmentMode === 'melody' || this.alignmentMode === 'text') {
-      const melodyCols = this.alignMelody(rootContainers, this.alignmentMode);
-      this.chunkedMelodyRows = [];
-      if (this.showSingleLineSynopsis) {
-        this.chunkedMelodyRows.push(melodyCols);
-      } else {
-        const chunkSize = 8;
-        for (let i = 0; i < melodyCols.length; i += chunkSize) {
-          this.chunkedMelodyRows.push(melodyCols.slice(i, i + chunkSize));
-        }
-      }
-    }
+    this.synopsisSvc.enterSynopsis(
+      this.selectedDocs,
+      (show) => { this.showSynopsis = show; this.cdRef.markForCheck(); },
+      (loading) => { this.synopsisLoading = loading; this.cdRef.markForCheck(); },
+      () => { this.updateUrl(); this.cdRef.markForCheck(); }
+    );
   }
 
   // ── Pattern Analysis Methods ──────────────────────────────────────────────
