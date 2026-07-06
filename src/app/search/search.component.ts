@@ -8,6 +8,7 @@ import { Subscription, forkJoin, Subject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { PageTitleService } from '../page-title.service';
 import { NotesStore } from '../notes-store';
+import { PatternAnalysisService } from './pattern-analysis.service';
 import * as VM from '../types/model';
 import { textWidth } from '../../utils';
 import * as localforage from 'localforage';
@@ -507,48 +508,73 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   // ── Recent searches ───────────────────────────────────────────────────────
   recentSearches: string[] = [];
 
-  // ── Pattern analysis state ────────────────────────────────────────────────
-  showPatternAnalysis = false;
-  patternLength = 8;
-  patternType: 'pitch' | 'interval' | 'contour' = 'interval';
-  patternWithOctave = false;
-  patternStrictness: 'exact' | 'fuzzy' = 'exact';
-  patternProgress = { phase: '', current: 0, total: 0, percent: 0 };
-  patternSearching = false;
-  patternCancelled = false;
-  patternGroups: PatternGroup[] = [];
-  /**
-   * Pattern-list pagination.
-   *
-   * Pre-redesign we used an ever-growing `visiblePatternGroupsLimit` and a
-   * "Show more" button — fine for sequential scanning, but it couldn't
-   * support *jumping* to a specific pattern (e.g. clicking a coloured
-   * rectangle in the timeline overview) without first having scrolled all
-   * pages of cards into the DOM. With real pagination we can compute
-   * which page a group lives on and navigate straight there.
-   */
-  patternPage = 1;
+  // ── Pattern analysis state delegation ──────────────────────────────────────
+  get showPatternAnalysis() { return this.patternSvc.showPatternAnalysis; }
+  set showPatternAnalysis(v) { this.patternSvc.showPatternAnalysis = v; }
+
+  get patternLength() { return this.patternSvc.patternLength; }
+  set patternLength(v) { this.patternSvc.patternLength = v; }
+
+  get patternType() { return this.patternSvc.patternType; }
+  set patternType(v) { this.patternSvc.patternType = v; }
+
+  get patternWithOctave() { return this.patternSvc.patternWithOctave; }
+  set patternWithOctave(v) { this.patternSvc.patternWithOctave = v; }
+
+  get patternStrictness() { return this.patternSvc.patternStrictness; }
+  set patternStrictness(v) { this.patternSvc.patternStrictness = v; }
+
+  get patternProgress() { return this.patternSvc.patternProgress; }
+  set patternProgress(v) { this.patternSvc.patternProgress = v; }
+
+  get patternSearching() { return this.patternSvc.patternSearching; }
+  set patternSearching(v) { this.patternSvc.patternSearching = v; }
+
+  get patternCancelled() { return this.patternSvc.patternCancelled; }
+  set patternCancelled(v) { this.patternSvc.patternCancelled = v; }
+
+  get patternGroups() { return this.patternSvc.patternGroups; }
+  set patternGroups(v) { this.patternSvc.patternGroups = v; }
+
+  get patternPage() { return this.patternSvc.patternPage; }
+  set patternPage(v) { this.patternSvc.patternPage = v; }
+
+  get patternViewMode() { return this.patternSvc.patternViewMode; }
+  set patternViewMode(v) { this.patternSvc.patternViewMode = v; }
+
+  get patternTimelineDocs() { return this.patternSvc.patternTimelineDocs; }
+  set patternTimelineDocs(v) { this.patternSvc.patternTimelineDocs = v; }
+
+  get patternDocTotalNotes() { return this.patternSvc.patternDocTotalNotes; }
+  set patternDocTotalNotes(v) { this.patternSvc.patternDocTotalNotes = v; }
+
+  get patternMergeEnabled() { return this.patternSvc.patternMergeEnabled; }
+  set patternMergeEnabled(v) { this.patternSvc.patternMergeEnabled = v; }
+
+  get patternMinMergeOverlap() { return this.patternSvc.patternMinMergeOverlap; }
+  set patternMinMergeOverlap(v) { this.patternSvc.patternMinMergeOverlap = v; }
+
+  get patternDeduplicateEnabled() { return this.patternSvc.patternDeduplicateEnabled; }
+  set patternDeduplicateEnabled(v) { this.patternSvc.patternDeduplicateEnabled = v; }
+
+  get detectedDuplicates() { return this.patternSvc.detectedDuplicates; }
+  set detectedDuplicates(v) { this.patternSvc.detectedDuplicates = v; }
+
+  get patternWorker() { return this.patternSvc.patternWorker; }
+  set patternWorker(v) { this.patternSvc.patternWorker = v; }
+
+  get savedPatternSessions() { return this.patternSvc.savedPatternSessions; }
+  set savedPatternSessions(v) { this.patternSvc.savedPatternSessions = v; }
+
   patternPageSize = 20;
-  /** Group ID we should auto-scroll to after the next render — set by the
-   *  timeline-click handler. Consumed by `ngAfterViewChecked` so the scroll
-   *  happens once the page's cards are actually in the DOM. */
   private pendingPatternScrollId: number | null = null;
-  patternViewMode: 'list' | 'overview' = 'overview';
-  patternTimelineDocs: TimelineDoc[] = [];
-  patternDocTotalNotes = new Map<string, number>();
-  patternMergeEnabled = false;
-  patternMinMergeOverlap = 1;
-  patternDeduplicateEnabled = true;
-  detectedDuplicates: { doc1: LoadedDoc; doc2: LoadedDoc; similarity: number }[] = [];
   hoveredGroupId: number | null = null;
-  patternWorker: Worker | null = null;
   hoveredOccurrence: any = null;
   tooltipX = 0;
   tooltipY = 0;
   showSavedSessionsPopover = false;
   showSaveSessionForm = false;
   newSessionName = '';
-  savedPatternSessions: { id: string; name: string; date: number; data: any }[] = [];
 
 
   // ── Performance knobs ─────────────────────────────────────────────────────
@@ -584,22 +610,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   static cachedQuickTolerance = true;
   static cachedQuickDistance = 2;
 
-  // ── Cache for pattern grouping ─────────────────────────────────────────────
-  static cachedPatternGroups: PatternGroup[] = [];
-  static cachedPatternLength = 8;
-  static cachedPatternType: 'pitch' | 'interval' | 'contour' = 'interval';
-  static cachedPatternWithOctave = false;
-  static cachedPatternStrictness: 'exact' | 'fuzzy' = 'exact';
-  static cachedShowPatternAnalysis = false;
-  static cachedPatternProgress = { phase: '', current: 0, total: 0, percent: 0 };
-  static cachedPatternViewMode: 'list' | 'overview' = 'overview';
-  static cachedPatternTimelineDocs: TimelineDoc[] = [];
-  static cachedPatternDocTotalNotes = new Map<string, number>();
-  static cachedPatternMergeEnabled = false;
-  static cachedPatternMinMergeOverlap = 1;
-  static cachedPatternDeduplicateEnabled = true;
-  static cachedDetectedDuplicates: { doc1: LoadedDoc; doc2: LoadedDoc; similarity: number }[] = [];
-  static cachedPatternPage = 1;
+
 
 
   // ── Cached sort results (avoid recomputing per CD pass) ──────────────────
@@ -656,6 +667,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
     private sanitizer: DomSanitizer,
     private cdRef: ChangeDetectorRef,
     private toastr: ToastrService,
+    private patternSvc: PatternAnalysisService,
   ) {
     this.loadCols();
     this.loadRecentSearches();
@@ -666,22 +678,11 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   ngOnInit() {
     this.pageTitle.set('Search');
 
-    // Restore cached pattern analysis state
-    this.showPatternAnalysis = SearchComponent.cachedShowPatternAnalysis;
-    this.patternLength = SearchComponent.cachedPatternLength;
-    this.patternType = SearchComponent.cachedPatternType;
-    this.patternWithOctave = SearchComponent.cachedPatternWithOctave;
-    this.patternStrictness = SearchComponent.cachedPatternStrictness;
-    this.patternGroups = SearchComponent.cachedPatternGroups;
-    this.patternProgress = SearchComponent.cachedPatternProgress;
-    this.patternViewMode = SearchComponent.cachedPatternViewMode;
-    this.patternTimelineDocs = SearchComponent.cachedPatternTimelineDocs;
-    this.patternDocTotalNotes = SearchComponent.cachedPatternDocTotalNotes;
-    this.patternMergeEnabled = SearchComponent.cachedPatternMergeEnabled;
-    this.patternMinMergeOverlap = SearchComponent.cachedPatternMinMergeOverlap;
-    this.patternDeduplicateEnabled = SearchComponent.cachedPatternDeduplicateEnabled;
-    this.detectedDuplicates = SearchComponent.cachedDetectedDuplicates || [];
-    this.patternPage = SearchComponent.cachedPatternPage || 1;
+    this.subs.push(
+      this.patternSvc.stateChanged$.subscribe(() => {
+        this.cdRef.markForCheck();
+      })
+    );
 
     this.subs.push(
       this.filterSubject.pipe(debounceTime(300)).subscribe(which => {
@@ -748,9 +749,9 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
   ngOnDestroy() {
     this.subs.forEach(s => s.unsubscribe());
-    if (this.patternWorker) {
-      this.patternWorker.terminate();
-      this.patternWorker = null;
+    if (this.patternSvc.patternWorker) {
+      this.patternSvc.patternWorker.terminate();
+      this.patternSvc.patternWorker = null;
     }
     const styleEl = document.getElementById('dynamic-hover-styles');
     if (styleEl) {
@@ -2765,22 +2766,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   static computePatternGroups = computePatternGroups;
 
   updatePatternCache() {
-    SearchComponent.cachedPatternGroups = this.patternGroups;
-    SearchComponent.cachedPatternLength = this.patternLength;
-    SearchComponent.cachedPatternType = this.patternType;
-    SearchComponent.cachedPatternWithOctave = this.patternWithOctave;
-    SearchComponent.cachedPatternStrictness = this.patternStrictness;
-    SearchComponent.cachedShowPatternAnalysis = this.showPatternAnalysis;
-    SearchComponent.cachedPatternProgress = this.patternProgress;
-    SearchComponent.cachedPatternViewMode = this.patternViewMode;
-    SearchComponent.cachedPatternTimelineDocs = this.patternTimelineDocs;
-    SearchComponent.cachedPatternDocTotalNotes = this.patternDocTotalNotes;
-    SearchComponent.cachedPatternMergeEnabled = this.patternMergeEnabled;
-    SearchComponent.cachedPatternMinMergeOverlap = this.patternMinMergeOverlap;
-    SearchComponent.cachedPatternDeduplicateEnabled = this.patternDeduplicateEnabled;
-    SearchComponent.cachedDetectedDuplicates = this.detectedDuplicates;
-    SearchComponent.cachedPatternPage = this.patternPage;
-    this.savePatternStateToIndexedDB();
+    this.patternSvc.updatePatternCache();
   }
 
   setPatternViewMode(mode: 'list' | 'overview') {
@@ -3051,111 +3037,42 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       this.toastr.error('Please enter a session name');
       return;
     }
-
-    try {
-      const sessionData = {
-        patternGroups: this.patternGroups,
-        patternLength: this.patternLength,
-        patternType: this.patternType,
-        patternStrictness: this.patternStrictness,
-        patternViewMode: this.patternViewMode,
-        patternTimelineDocs: this.patternTimelineDocs,
-        patternDocTotalNotes: Array.from(this.patternDocTotalNotes.entries()),
-        patternMergeEnabled: this.patternMergeEnabled,
-        patternMinMergeOverlap: this.patternMinMergeOverlap,
-        patternDeduplicateEnabled: this.patternDeduplicateEnabled,
-        detectedDuplicates: this.detectedDuplicates,
-        patternPage: this.patternPage
-      };
-
-      const newSession = {
-        id: Math.random().toString(36).substring(2, 11) + '-' + Date.now(),
-        name: this.newSessionName.trim(),
-        date: Date.now(),
-        data: sessionData
-      };
-
-      this.savedPatternSessions = [newSession, ...this.savedPatternSessions];
-      await localforage.setItem('saved_pattern_sessions', this.savedPatternSessions);
-
-      this.newSessionName = '';
-      this.showSaveSessionForm = false;
-      this.toastr.success('Session saved successfully');
-      this.cdRef.markForCheck();
-    } catch (e) {
-      console.error('Failed to save session:', e);
-      this.toastr.error('Failed to save session');
-    }
+    await this.patternSvc.saveCurrentPatternSession(this.newSessionName);
+    this.newSessionName = '';
+    this.showSaveSessionForm = false;
+    this.cdRef.markForCheck();
   }
 
   async loadPatternSession(id: string) {
-    const session = this.savedPatternSessions.find(s => s.id === id);
-    if (!session) {
-      this.toastr.error('Session not found');
-      return;
-    }
-
-    try {
-      const data = session.data;
-      this.patternGroups = data.patternGroups || [];
-      this.patternLength = data.patternLength ?? 8;
-      this.patternType = data.patternType ?? 'interval';
-      this.patternStrictness = data.patternStrictness ?? 'exact';
-      this.patternViewMode = data.patternViewMode ?? 'overview';
-      this.patternTimelineDocs = data.patternTimelineDocs || [];
-      this.patternMergeEnabled = !!data.patternMergeEnabled;
-      this.patternMinMergeOverlap = data.patternMinMergeOverlap ?? 1;
-      this.patternDeduplicateEnabled = data.patternDeduplicateEnabled !== false;
-      this.detectedDuplicates = data.detectedDuplicates || [];
-      this.patternPage = data.patternPage || 1;
-      
-      if (data.patternDocTotalNotes) {
-        this.patternDocTotalNotes = new Map<string, number>(data.patternDocTotalNotes);
-      } else {
-        this.patternDocTotalNotes = new Map<string, number>();
-      }
-
-      this.updatePatternCache();
-      this.showSavedSessionsPopover = false;
-      this.toastr.success(`Session "${session.name}" loaded`);
-      this.cdRef.markForCheck();
-    } catch (e) {
-      console.error('Failed to load session:', e);
-      this.toastr.error('Failed to load session');
-    }
+    await this.patternSvc.loadPatternSession(id);
+    this.showSavedSessionsPopover = false;
+    this.cdRef.markForCheck();
   }
 
   async deletePatternSession(id: string, event: MouseEvent) {
     event.stopPropagation();
-    try {
-      this.savedPatternSessions = this.savedPatternSessions.filter(s => s.id !== id);
-      await localforage.setItem('saved_pattern_sessions', this.savedPatternSessions);
-      this.toastr.success('Session deleted');
-      this.cdRef.markForCheck();
-    } catch (e) {
-      console.error('Failed to delete session:', e);
-      this.toastr.error('Failed to delete session');
-    }
+    await this.patternSvc.deletePatternSession(id);
+    this.cdRef.markForCheck();
   }
 
   exportPatternSessionJSON() {
     try {
       const sessionData = {
-        patternGroups: this.patternGroups,
-        patternLength: this.patternLength,
-        patternType: this.patternType,
-        patternStrictness: this.patternStrictness,
-        patternViewMode: this.patternViewMode,
-        patternTimelineDocs: this.patternTimelineDocs,
-        patternDocTotalNotes: Array.from(this.patternDocTotalNotes.entries()),
-        patternMergeEnabled: this.patternMergeEnabled,
-        patternMinMergeOverlap: this.patternMinMergeOverlap,
-        patternDeduplicateEnabled: this.patternDeduplicateEnabled,
-        detectedDuplicates: this.detectedDuplicates,
-        patternPage: this.patternPage
+        patternGroups: this.patternSvc.patternGroups,
+        patternLength: this.patternSvc.patternLength,
+        patternType: this.patternSvc.patternType,
+        patternStrictness: this.patternSvc.patternStrictness,
+        patternViewMode: this.patternSvc.patternViewMode,
+        patternTimelineDocs: this.patternSvc.patternTimelineDocs,
+        patternDocTotalNotes: Array.from(this.patternSvc.patternDocTotalNotes.entries()),
+        patternMergeEnabled: this.patternSvc.patternMergeEnabled,
+        patternMinMergeOverlap: this.patternSvc.patternMinMergeOverlap,
+        patternDeduplicateEnabled: this.patternSvc.patternDeduplicateEnabled,
+        detectedDuplicates: this.patternSvc.detectedDuplicates,
+        patternPage: this.patternSvc.patternPage
       };
 
-      const filename = `pattern-analysis-${this.patternType}-${this.patternLength}.json`;
+      const filename = `pattern-analysis-${this.patternSvc.patternType}-${this.patternSvc.patternLength}.json`;
       const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -3190,25 +3107,25 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
           return;
         }
 
-        this.patternGroups = data.patternGroups;
-        this.patternLength = data.patternLength ?? 8;
-        this.patternType = data.patternType ?? 'interval';
-        this.patternStrictness = data.patternStrictness ?? 'exact';
-        this.patternViewMode = data.patternViewMode ?? 'overview';
-        this.patternTimelineDocs = data.patternTimelineDocs || [];
-        this.patternMergeEnabled = !!data.patternMergeEnabled;
-        this.patternMinMergeOverlap = data.patternMinMergeOverlap ?? 1;
-        this.patternDeduplicateEnabled = data.patternDeduplicateEnabled !== false;
-        this.detectedDuplicates = data.detectedDuplicates || [];
-        this.patternPage = data.patternPage || 1;
+        this.patternSvc.patternGroups = data.patternGroups;
+        this.patternSvc.patternLength = data.patternLength ?? 8;
+        this.patternSvc.patternType = data.patternType ?? 'interval';
+        this.patternSvc.patternStrictness = data.patternStrictness ?? 'exact';
+        this.patternSvc.patternViewMode = data.patternViewMode ?? 'overview';
+        this.patternSvc.patternTimelineDocs = data.patternTimelineDocs || [];
+        this.patternSvc.patternMergeEnabled = !!data.patternMergeEnabled;
+        this.patternSvc.patternMinMergeOverlap = data.patternMinMergeOverlap ?? 1;
+        this.patternSvc.patternDeduplicateEnabled = data.patternDeduplicateEnabled !== false;
+        this.patternSvc.detectedDuplicates = data.detectedDuplicates || [];
+        this.patternSvc.patternPage = data.patternPage || 1;
         
         if (data.patternDocTotalNotes) {
-          this.patternDocTotalNotes = new Map<string, number>(data.patternDocTotalNotes);
+          this.patternSvc.patternDocTotalNotes = new Map<string, number>(data.patternDocTotalNotes);
         } else {
-          this.patternDocTotalNotes = new Map<string, number>();
+          this.patternSvc.patternDocTotalNotes = new Map<string, number>();
         }
 
-        this.updatePatternCache();
+        this.patternSvc.updatePatternCache();
         this.showSavedSessionsPopover = false;
         this.toastr.success('Session imported successfully');
         this.cdRef.markForCheck();
@@ -3250,70 +3167,7 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   async savePatternStateToIndexedDB() {
-    // ─── What we persist ────────────────────────────────────────────────────
-    //
-    // patternGroups and patternTimelineDocs each embed full VM.Syllable[] /
-    // VM.Note[] / Set<string> objects — potentially tens of MB — and silently
-    // fail the structured-clone write when the workspace is large.  We
-    // therefore do NOT try to persist the computed results; instead we save
-    // only the small, plain-JSON settings needed to re-run the analysis.
-    //
-    // Two-track persistence:
-    //   • localStorage  ("monodi_pattern_params") — synchronous, survives
-    //     reload, holds just the params + a flag that analysis was active.
-    //     Used on the next page load to auto-retrigger the worker.
-    //   • IndexedDB ("pattern_state") — holds equally-small state that the
-    //     in-session cache already covers but which is nice to restore on
-    //     reload (view mode, current page, etc.).
-    //
-    // In-session navigation (navigate away → back) is handled entirely by the
-    // static cache and does NOT go through this path.
-
-    // 1. Small params → localStorage (synchronous, never fails on size)
-    try {
-      const params = {
-        showPatternAnalysis: this.showPatternAnalysis,
-        patternType: this.patternType,
-        patternLength: this.patternLength,
-        patternWithOctave: this.patternWithOctave,
-        patternStrictness: this.patternStrictness,
-        patternMergeEnabled: this.patternMergeEnabled,
-        patternMinMergeOverlap: this.patternMinMergeOverlap,
-        patternDeduplicateEnabled: this.patternDeduplicateEnabled,
-        patternViewMode: this.patternViewMode,
-        patternPage: this.patternPage,
-        savedAt: new Date().toISOString(),
-      };
-      if (this.showPatternAnalysis && this.patternGroups.length > 0) {
-        localStorage.setItem('monodi_pattern_params', JSON.stringify(params));
-      } else if (!this.showPatternAnalysis) {
-        // User explicitly closed the panel — don't auto-restore on next load.
-        localStorage.removeItem('monodi_pattern_params');
-      }
-    } catch (e) {
-      console.warn('Failed to save pattern params to localStorage:', e);
-    }
-
-    // 2. Small auxiliary state → IndexedDB (view mode, page, etc.)
-    try {
-      const patternData = {
-        showPatternAnalysis: this.showPatternAnalysis,
-        patternLength: this.patternLength,
-        patternType: this.patternType,
-        patternWithOctave: this.patternWithOctave,
-        patternStrictness: this.patternStrictness,
-        patternViewMode: this.patternViewMode,
-        patternMergeEnabled: this.patternMergeEnabled,
-        patternMinMergeOverlap: this.patternMinMergeOverlap,
-        patternDeduplicateEnabled: this.patternDeduplicateEnabled,
-        patternPage: this.patternPage,
-        // NOTE: patternGroups / patternTimelineDocs / detectedDuplicates are
-        // intentionally omitted — too large for a reliable structured-clone.
-      };
-      await localforage.setItem('pattern_state', patternData);
-    } catch (e) {
-      console.warn('Failed to save pattern state to IndexedDB:', e);
-    }
+    await this.patternSvc.savePatternStateToIndexedDB();
   }
 
   async loadFromIndexedDB() {
@@ -3322,31 +3176,20 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       try {
         const saved: any = await localforage.getItem('saved_pattern_sessions');
         if (Array.isArray(saved)) {
-          this.savedPatternSessions = saved;
+          this.patternSvc.savedPatternSessions = saved;
         } else {
-          this.savedPatternSessions = [];
+          this.patternSvc.savedPatternSessions = [];
         }
       } catch (e) {
         console.warn('Failed to load saved pattern sessions:', e);
-        this.savedPatternSessions = [];
+        this.patternSvc.savedPatternSessions = [];
       }
 
       // 1. Load pattern analysis state
-      //
-      // Two-track restore:
-      //   a) In-session navigation  → static cache already populated; skip.
-      //   b) Fresh page load        → static cache is empty; restore params
-      //      from storage and auto-retrigger the analysis in the background.
-      //
-      // We detect "fresh load" by checking whether the static cache still
-      // holds results from a prior navigation in this session.
-      const staticCachePopulated = SearchComponent.cachedPatternGroups.length > 0
-                                || SearchComponent.cachedShowPatternAnalysis;
+      const staticCachePopulated = this.patternSvc.patternGroups.length > 0
+                                || this.patternSvc.showPatternAnalysis;
 
       if (!staticCachePopulated) {
-        // Fresh page load — read the small params snapshot we wrote to
-        // localStorage.  (patternGroups / patternTimelineDocs are NOT stored
-        // because they embed full note trees and silently fail the write.)
         let savedParams: any = null;
         try {
           const raw = localStorage.getItem('monodi_pattern_params');
@@ -3354,36 +3197,20 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
         } catch { /* ignore */ }
 
         if (savedParams?.showPatternAnalysis) {
-          // Restore UI settings so the panel looks right while the worker runs.
-          this.patternLength           = savedParams.patternLength           ?? this.patternLength;
-          this.patternType             = savedParams.patternType             ?? this.patternType;
-          this.patternWithOctave       = !!savedParams.patternWithOctave;
-          this.patternStrictness       = savedParams.patternStrictness       ?? this.patternStrictness;
-          this.patternMergeEnabled     = !!savedParams.patternMergeEnabled;
-          this.patternMinMergeOverlap  = savedParams.patternMinMergeOverlap  ?? this.patternMinMergeOverlap;
-          this.patternDeduplicateEnabled = savedParams.patternDeduplicateEnabled !== false;
-          this.patternViewMode         = savedParams.patternViewMode         ?? this.patternViewMode;
-          this.patternPage             = savedParams.patternPage             ?? 1;
-          this.showPatternAnalysis     = true;
+          this.patternSvc.patternLength           = savedParams.patternLength           ?? this.patternSvc.patternLength;
+          this.patternSvc.patternType             = savedParams.patternType             ?? this.patternSvc.patternType;
+          this.patternSvc.patternWithOctave       = !!savedParams.patternWithOctave;
+          this.patternSvc.patternStrictness       = savedParams.patternStrictness       ?? this.patternSvc.patternStrictness;
+          this.patternSvc.patternMergeEnabled     = !!savedParams.patternMergeEnabled;
+          this.patternSvc.patternMinMergeOverlap  = savedParams.patternMinMergeOverlap  ?? this.patternSvc.patternMinMergeOverlap;
+          this.patternSvc.patternDeduplicateEnabled = savedParams.patternDeduplicateEnabled !== false;
+          this.patternSvc.patternViewMode         = savedParams.patternViewMode         ?? this.patternSvc.patternViewMode;
+          this.patternSvc.patternPage             = savedParams.patternPage             ?? 1;
+          this.patternSvc.showPatternAnalysis     = true;
 
-          // Sync to static cache immediately so a quick in-session navigation
-          // before the worker finishes still sees the right settings.
-          SearchComponent.cachedPatternLength           = this.patternLength;
-          SearchComponent.cachedPatternType             = this.patternType;
-          SearchComponent.cachedPatternWithOctave       = this.patternWithOctave;
-          SearchComponent.cachedPatternStrictness       = this.patternStrictness;
-          SearchComponent.cachedPatternMergeEnabled     = this.patternMergeEnabled;
-          SearchComponent.cachedPatternMinMergeOverlap  = this.patternMinMergeOverlap;
-          SearchComponent.cachedPatternDeduplicateEnabled = this.patternDeduplicateEnabled;
-          SearchComponent.cachedPatternViewMode         = this.patternViewMode;
-          SearchComponent.cachedPatternPage             = this.patternPage;
-          SearchComponent.cachedShowPatternAnalysis     = true;
-
-          // Auto-retrigger the analysis.  We schedule it after the current
-          // microtask queue drains so the component has finished initialising
-          // (the user subscription and restoreStateFromUrl() come after us).
+          // Auto-retrigger the analysis.
           setTimeout(() => {
-            if (this.showPatternAnalysis && this.patternGroups.length === 0) {
+            if (this.patternSvc.showPatternAnalysis && this.patternSvc.patternGroups.length === 0) {
               this.runPatternGrouping();
             }
           }, 0);
@@ -3391,14 +3218,6 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
       }
 
       // 2. Restore only lightweight VIEW PREFERENCES from the last session.
-      //
-      //    We deliberately DO NOT restore the query text, the filled-in
-      //    metadata filters, the result lists, or the "searched" flags — a
-      //    fresh page load must show an empty form and run nothing until the
-      //    user explicitly clicks "Search".  What we DO keep are the
-      //    non-destructive toggles (which tab was open, the search mode, the
-      //    medieval-tolerance / fuzzy-distance, melody type/octave options),
-      //    because those are user preferences rather than a "last search".
       const searchData: any = await localforage.getItem('search_state');
       if (searchData) {
         if (searchData.activeTab) this.activeTab = searchData.activeTab;
@@ -3462,251 +3281,23 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   async runPatternGrouping() {
-    if (!this.user) return;
-    this.patternSearching = true;
-    this.patternCancelled = false;
-    this.patternGroups = [];
-    this.patternPage = 1;
-    this.expandedGroupIds.clear();
-    this.patternProgress = { phase: 'Initializing...', current: 0, total: 0, percent: 0 };
-    this.cdRef.markForCheck();
-
-    try {
-      this.patternProgress.phase = 'Loading library metadata...';
-      this.cdRef.markForCheck();
-      
-      const [docsRes, sourcesRes] = await Promise.all([
-        this.api.listDocuments(this.user.token).toPromise(),
-        this.api.listSources(this.user.token).toPromise()
-      ]);
-
-      if (this.patternCancelled) return;
-
-      const allDocs = docsRes?.kind === 'DocumentsRetrieved' ? docsRes.documents : [];
-      const allSources = sourcesRes?.kind === 'SourcesRetrieved' ? sourcesRes.sources : [];
-      
-      const docMap = new Map<string, Document>(allDocs.map(d => [d.id!, d]));
-      const sourceMap = new Map<string, Source>(allSources.map(s => [s.id!, s]));
-
-      let targetDocs: { doc: Document; sourceSigle: string }[] = [];
-
-      if (this.activeTab === 'quick') {
-        const docResults = this.filteredQuickResults.filter(r => r.kind === 'document');
-        for (const qr of docResults) {
-          const doc = docMap.get(qr.id);
-          if (doc) {
-            const sigle = sourceMap.get(doc.quelle_id)?.quellensigle ?? '';
-            targetDocs.push({ doc, sourceSigle: sigle });
-          }
-        }
-      } else if (this.activeTab === 'sources') {
-        const sourceIds = new Set(this.filteredSourceResults.map(s => s.id));
-        for (const doc of allDocs) {
-          if (sourceIds.has(doc.quelle_id)) {
-            const sigle = sourceMap.get(doc.quelle_id)?.quellensigle ?? '';
-            targetDocs.push({ doc, sourceSigle: sigle });
-          }
-        }
-      } else if (this.activeTab === 'documents') {
-        for (const d of this.filteredDocumentResults) {
-          const sigle = sourceMap.get(d.quelle_id)?.quellensigle ?? '';
-          targetDocs.push({ doc: d, sourceSigle: sigle });
-        }
-      } else if (this.activeTab === 'melody') {
-        for (const mr of this.filteredMelodyResults) {
-          const sigle = mr.sourceSigle || (sourceMap.get(mr.document.quelle_id)?.quellensigle ?? '');
-          targetDocs.push({ doc: mr.document, sourceSigle: sigle });
-        }
-      }
-
-      if (targetDocs.length === 0) {
-        this.patternProgress = { phase: 'No documents in results to analyze', current: 0, total: 0, percent: 100 };
-        this.patternSearching = false;
-        this.updatePatternCache();
-        this.cdRef.markForCheck();
-        return;
-      }
-
-      this.patternProgress = { phase: 'Loading document melodies...', current: 0, total: targetDocs.length, percent: 0 };
-      this.cdRef.markForCheck();
-
-      const loadedDocs: LoadedDoc[] = [];
-
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < targetDocs.length; i += BATCH_SIZE) {
-        if (this.patternCancelled) return;
-        
-        const batch = targetDocs.slice(i, i + BATCH_SIZE);
-        const promises = batch.map(async (target) => {
-          try {
-            const root = await NotesStore.get(target.doc.id);
-            if (root) {
-              const syllables = extractSyllables(root);
-              const { notes, sylIdx } = flattenNotes(syllables);
-              if (notes.length > 0) {
-                let sequence: string[] = [];
-                if (this.patternType === 'pitch') {
-                  sequence = toPitchNames(notes, this.patternWithOctave);
-                } else if (this.patternType === 'contour') {
-                  sequence = toContour(notes);
-                } else if (this.patternType === 'interval') {
-                  sequence = toIntervals(notes);
-                }
-
-                loadedDocs.push({
-                  doc: target.doc,
-                  sourceSigle: target.sourceSigle,
-                  notes,
-                  syllables,
-                  sylIdx,
-                  sequence
-                });
-              }
-            }
-          } catch (e) {
-            console.warn(`Failed to fetch notes for ${target.doc.id}:`, e);
-          }
-        });
-
-        await Promise.all(promises);
-
-        const currentProgress = Math.min(i + BATCH_SIZE, targetDocs.length);
-        this.patternProgress.current = currentProgress;
-        this.patternProgress.percent = Math.round((currentProgress / targetDocs.length) * 100);
-        this.cdRef.markForCheck();
-        await this.yieldToUI();
-      }
-
-      if (this.patternCancelled) return;
-
-      if (loadedDocs.length === 0) {
-        this.patternProgress = { phase: 'No melodies with notes found', current: 0, total: 0, percent: 100 };
-        this.patternSearching = false;
-        this.updatePatternCache();
-        this.cdRef.markForCheck();
-        return;
-      }
-
-      this.patternProgress.phase = 'Handing analysis to background worker…';
-      this.patternProgress.percent = 0;
-      this.cdRef.markForCheck();
-      await this.yieldToUI();
-
-      // Reset prior dedup state — the worker reports a fresh set with the
-      // success message. We pre-seed `patternDocTotalNotes` with every
-      // doc's note count and prune it down once the worker tells us which
-      // ones were dropped as duplicates.
-      this.detectedDuplicates = [];
-      this.patternDocTotalNotes.clear();
-      for (const ld of loadedDocs) {
-        this.patternDocTotalNotes.set(ld.doc.id!, ld.notes.length);
-      }
-
-      if (this.patternWorker) {
-        this.patternWorker.terminate();
-      }
-
-      this.patternWorker = new Worker(new URL('./pattern.worker', import.meta.url), { type: 'module' });
-
-      this.patternWorker.onmessage = ({ data }) => {
-        if (this.patternCancelled) {
-          if (this.patternWorker) {
-            this.patternWorker.terminate();
-            this.patternWorker = null;
-          }
-          return;
-        }
-
-        // Incremental progress message from the worker.
-        if (data.kind === 'progress') {
-          this.patternProgress = {
-            phase:   data.phase,
-            current: data.current,
-            total:   data.total,
-            percent: data.percent,
-          };
-          this.cdRef.markForCheck();
-          return;
-        }
-
-        if (data.kind === 'success') {
-          const groups = data.groups;
-          this.patternGroups = groups;
-
-          // Apply the worker's dedup decisions to the main-thread caches.
-          // We have to do this before timeline construction so that any
-          // dedup-excluded docs are removed from `patternDocTotalNotes`
-          // (otherwise the timeline view would still show their lanes).
-          this.detectedDuplicates = data.detectedDuplicates || [];
-          if (this.patternDeduplicateEnabled && Array.isArray(data.excludedDocIds)) {
-            for (const id of data.excludedDocIds as string[]) {
-              this.patternDocTotalNotes.delete(id);
-            }
-          }
-
-          this.patternTimelineDocs = data.patternTimelineDocs || [];
-
-          this.patternSearching = false;
-          this.patternProgress = { phase: 'Analysis completed successfully', current: groups.length, total: groups.length, percent: 100 };
-          this.updatePatternCache();
-          this.cdRef.markForCheck();
-        } else {
-          console.error('Worker reported error:', data.error);
-          this.patternSearching = false;
-          this.patternProgress.phase = 'Failed with error: ' + data.error;
-          this.updatePatternCache();
-          this.cdRef.markForCheck();
-        }
-
-        if (this.patternWorker) {
-          this.patternWorker.terminate();
-          this.patternWorker = null;
-        }
-      };
-
-      this.patternWorker.onerror = (err) => {
-        console.error('Worker error:', err);
-        this.patternSearching = false;
-        this.patternProgress.phase = 'Failed with worker error';
-        this.updatePatternCache();
-        this.cdRef.markForCheck();
-        if (this.patternWorker) {
-          this.patternWorker.terminate();
-          this.patternWorker = null;
-        }
-      };
-
-      // Hand the full list to the worker — duplicate detection happens
-      // there too, so we no longer need a main-thread pre-filter.
-      this.patternWorker.postMessage({
-        loadedDocs,
-        patternType: this.patternType,
-        patternLength: this.patternLength,
-        patternStrictness: this.patternStrictness,
-        patternMergeEnabled: this.patternMergeEnabled,
-        patternMinMergeOverlap: this.patternMinMergeOverlap,
-        patternDeduplicateEnabled: this.patternDeduplicateEnabled,
-      });
-      this.updatePatternCache();
-      this.cdRef.markForCheck();
-
-    } catch (err) {
-      console.error('Melodic Pattern Grouping failed:', err);
-      this.patternSearching = false;
-      this.patternProgress.phase = 'Failed with error: ' + (err as Error).message;
-      this.updatePatternCache();
-      this.cdRef.markForCheck();
-    }
+    await this.patternSvc.runPatternGrouping(
+      this.activeTab,
+      this.filteredQuickResults,
+      this.filteredSourceResults,
+      this.filteredDocumentResults,
+      this.filteredMelodyResults
+    );
   }
 
   enableDeduplicationAndReRun() {
-    this.patternDeduplicateEnabled = true;
+    this.patternSvc.patternDeduplicateEnabled = true;
     this.runPatternGrouping();
   }
 
   clearDetectedDuplicates() {
-    this.detectedDuplicates = [];
-    this.updatePatternCache();
+    this.patternSvc.detectedDuplicates = [];
+    this.patternSvc.updatePatternCache();
     this.cdRef.markForCheck();
   }
 }
