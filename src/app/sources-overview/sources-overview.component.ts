@@ -14,6 +14,7 @@ import * as localforage from 'localforage';
 import { PageTitleService } from '../page-title.service';
 import { NotesStore } from '../notes-store';
 import { WORKSPACE_SCHEMA_VERSION } from '../schema';
+import { buildWorkspaceExport, parseWorkspaceImport } from '../workspace-io';
 import * as JSZip from 'jszip';
 import * as Handlebars from 'handlebars';
 
@@ -223,13 +224,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       const notes = await NotesStore.getAll();
       const settings = await localforage.getItem('monodi_settings');
       
-      const data = {
-        schemaVersion: WORKSPACE_SCHEMA_VERSION,
-        sources,
-        documents,
-        notes,
-        settings
-      };
+      const data = buildWorkspaceExport(sources, documents, notes, settings);
       
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
@@ -259,11 +254,11 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       this.zone.run(async () => {
         try {
           const content = e.target?.result as string;
-          const data = JSON.parse(content);
+          const json = JSON.parse(content);
+          const data = parseWorkspaceImport(json);
           
-          const schemaVer = data.schemaVersion !== undefined ? data.schemaVersion : 1;
-          if (schemaVer > WORKSPACE_SCHEMA_VERSION) {
-            this.toastr.error("Fehler beim Importieren: Die Schemaversion der Importdatei (" + schemaVer + ") ist neuer als die vom Programm unterstützte Version (" + WORKSPACE_SCHEMA_VERSION + ").");
+          if (data.schemaVersion > WORKSPACE_SCHEMA_VERSION) {
+            this.toastr.error("Fehler beim Importieren: Die Schemaversion der Importdatei (" + data.schemaVersion + ") ist neuer als die vom Programm unterstützte Version (" + WORKSPACE_SCHEMA_VERSION + ").");
             event.target.value = '';
             return;
           }
@@ -272,7 +267,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
           if (data.documents) await localforage.setItem('monodi_documents', data.documents);
           // Per-document writes so we don't hit IndexedDB's structured-clone
           // limit when the user re-imports a very large workspace.
-          if (data.notes) await NotesStore.replaceAll(data.notes);
+          if (data.notesDict) await NotesStore.replaceAll(data.notesDict);
           if (data.settings) await localforage.setItem('monodi_settings', data.settings);
           
           this.api.invalidateCache();
