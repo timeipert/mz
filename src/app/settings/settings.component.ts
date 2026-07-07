@@ -3,7 +3,7 @@ import { APIService, ProjectSettings, sanitizeSettings, Source } from '../api.se
 import { UserService, User } from '../user.service';
 import { GithubService, GithubConfig } from '../github.service';
 import { Subscription } from 'rxjs';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { PageTitleService } from '../page-title.service';
 import { ToastrService } from 'ngx-toastr';
 import { NotesStore } from '../notes-store';
@@ -18,6 +18,54 @@ export interface FieldDef { key: string, label: string, isCustom: boolean }
 })
 export class SettingsComponent implements OnInit, OnDestroy {
   activeTab: 'metadata' | 'github' | 'pdf' | 'containers' | 'editor' | 'mei' | 'htmlExport' | 'workspace' = 'metadata';
+
+  /** Grouped sidebar navigation. Single source of truth for the nav —
+   *  the template loops over this instead of hardcoding eight buttons. */
+  readonly tabGroups: {
+    label: string;
+    tabs: { id: SettingsComponent['activeTab']; icon: string; label: string }[];
+  }[] = [
+    {
+      label: 'Project',
+      tabs: [
+        { id: 'metadata',   icon: 'bi-card-list',          label: 'Metadata Schemas' },
+        { id: 'containers', icon: 'bi-diagram-3',          label: 'Container Names' },
+        { id: 'editor',     icon: 'bi-pencil-square',      label: 'Editor' },
+      ]
+    },
+    {
+      label: 'Export',
+      tabs: [
+        { id: 'pdf',        icon: 'bi-file-pdf',           label: 'PDF Layout' },
+        { id: 'mei',        icon: 'bi-music-note-beamed',  label: 'MEI Mapping' },
+        { id: 'htmlExport', icon: 'bi-globe2',             label: 'HTML Edition' },
+      ]
+    },
+    {
+      label: 'Data',
+      tabs: [
+        { id: 'github',     icon: 'bi-github',             label: 'GitHub Sync' },
+        { id: 'workspace',  icon: 'bi-database-gear',      label: 'Workspace' },
+      ]
+    }
+  ];
+
+  /** Autosave feedback shown at the bottom of the sidebar. */
+  saveState: 'idle' | 'saving' | 'saved' | 'error' = 'idle';
+  private saveStateTimer: any;
+
+  /** Switch tab and keep the URL in sync so the current tab is always
+   *  linkable / reload-safe (the ?tab= param was previously only read). */
+  selectTab(tab: SettingsComponent['activeTab']): void {
+    this.activeTab = tab;
+    if (tab === 'workspace') this.loadCachedStats();
+    this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  }
 
   // ── Workspace tab state ────────────────────────────────────────────────
   /** Stats refreshed when the user enters the Workspace tab and after each
@@ -134,6 +182,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private toastr: ToastrService,
     private cdRef: ChangeDetectorRef,
     private route: ActivatedRoute,
+    private router: Router,
   ) {
     if (this.github.config) {
       this.githubConfig = { ...this.github.config };
@@ -213,6 +262,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy() {
     this.currentStatsRunId++;
+    clearTimeout(this.saveStateTimer);
     this.subs.forEach(s => s.unsubscribe());
   }
 
@@ -390,7 +440,23 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   private saveSettings() {
     if (!this.settings || !this.user) return;
-    this.api.updateSettings(this.user.token, this.settings).subscribe();
+    this.saveState = 'saving';
+    clearTimeout(this.saveStateTimer);
+    this.api.updateSettings(this.user.token, this.settings).subscribe({
+      next: () => {
+        this.saveState = 'saved';
+        // Let the checkmark linger briefly, then fade back to idle.
+        this.saveStateTimer = setTimeout(() => {
+          this.saveState = 'idle';
+          this.cdRef.markForCheck();
+        }, 2000);
+        this.cdRef.markForCheck();
+      },
+      error: () => {
+        this.saveState = 'error';
+        this.cdRef.markForCheck();
+      }
+    });
   }
 
   async connectGithub() {
@@ -760,6 +826,28 @@ export class SettingsComponent implements OnInit, OnDestroy {
       this.toastr.error(`Wipe failed: ${(e as Error)?.message ?? e}`);
     } finally {
       this.busyAction = '';
+    }
+  }
+
+  async requestPersistence() {
+    if (navigator.storage && navigator.storage.persist) {
+      try {
+        const persisted = await navigator.storage.persist();
+        this.api.storagePersisted = persisted;
+        if (persisted) {
+          this.toastr.success('Workspace storage is now protected from eviction.', 'Storage Protected');
+        } else {
+          this.toastr.warning(
+            'Browser rejected persistence request. To protect data, bookmark this app, grant notifications, or add it to your home screen.',
+            'Eviction Protection Rejected'
+          );
+        }
+        await this.refreshWorkspaceStats();
+      } catch (err) {
+        this.toastr.error('Failed to request storage persistence: ' + err, 'Request Failed');
+      }
+    } else {
+      this.toastr.error('Storage Persistence API is not supported by your browser.', 'Unsupported');
     }
   }
 

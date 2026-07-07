@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { ensureSchemaVersion } from './schema';
+import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings } from './mei/mei-mapping.model';
 
 @Injectable({
   providedIn: 'root'
@@ -516,6 +517,8 @@ export interface ProjectSettings {
   pdfParatextSpacing?: number;
   pdfFontFamily?: 'times' | 'helvetica';
   meiMappings?: MeiMappingSettings;
+  meiProfiles?: MeiMappingProfileV2[];
+  activeMeiProfileId?: string;
 }
 
 export interface MeiMappingSettings {
@@ -787,6 +790,49 @@ export function sanitizeSettings(settings: any): ProjectSettings {
       settings[key] = Number(settings[key]);
     }
   }
+
+  if (!settings.meiProfiles || settings.meiProfiles.length === 0) {
+    const defProfile = defaultMeiProfile();
+    settings.meiProfiles = [defProfile];
+    settings.activeMeiProfileId = defProfile.id;
+
+    if (settings.meiMappings) {
+      const defaultV1 = {
+        formteilContainer: { tag: 'section' },
+        zeileContainer: { tag: 'sb' },
+        syllable: { tag: 'syllable', textTag: 'syl' },
+        neume: { tag: 'neume' },
+        note: {
+          tag: 'nc',
+          pitchAttr: 'pname',
+          octaveAttr: 'oct',
+          liquescentAttr: 'curve',
+          liquescentValue: 'c',
+          connectionAttr: 'con',
+          connectionGapValue: 'g'
+        },
+        oriscus: { tag: 'oriscus' },
+        quilisma: { tag: 'quilisma' },
+        strophicus: { tag: 'strophicus' },
+        liquescentElement: { tag: 'liquescent' },
+        clef: {
+          tag: 'clef',
+          shapeAttr: 'shape',
+          lineAttr: 'line',
+          defaultLine: '1'
+        },
+        paratextContainer: { tag: 'dir' }
+      };
+
+      if (JSON.stringify(settings.meiMappings) !== JSON.stringify(defaultV1)) {
+        const migrated = migrateV1MeiMappings(settings.meiMappings);
+        migrated.name = 'Migrated legacy mapping';
+        settings.meiProfiles.push(migrated);
+        settings.activeMeiProfileId = migrated.id;
+      }
+    }
+  }
+
   return settings;
 }
 

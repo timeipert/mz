@@ -523,14 +523,12 @@ ul {
   margin-bottom: 2px;
   transition: background 0.12s;
 }
-.structure-row:hover { background: #f5f8fc; }
 
 /* Section rows get a soft tinted background + accent */
 .structure-row.is-section {
   background: #f3f7ff;
   box-shadow: inset 2px 0 0 #bcd3ff;
 }
-.structure-row.is-section:hover { background: #e9f1ff; }
 
 /* Type-coloured icons */
 .structure-icon {
@@ -611,3 +609,8 @@ ul {
   font-size: 0.8rem;
 }
 .struct-empty i { display: block; font-size: 1.4rem; opacity: 0.6; }
+
+/* Drag and drop states for structure tree in sidebar (disabled) */
+.structure-row {
+  cursor: default;
+}

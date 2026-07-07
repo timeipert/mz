@@ -322,35 +322,7 @@
                       <i *ngSwitchDefault class="bi bi-dot"></i>
                     </span>
 
-                    <!-- Editable name for Formteil signature -->
-                    <input *ngIf="item.kind === 'FormteilContainer'"
-                           class="structure-label-input"
-                           [value]="item.label"
-                           (change)="renameContainer(item.zipper, $any($event.target).value)"
-                           placeholder="Section name" />
-                    <span *ngIf="item.kind !== 'FormteilContainer'" class="structure-label">{{ item.label }}</span>
-
-                    <!-- Row Action Buttons -->
-                    <span class="structure-actions">
-                      <button *ngIf="item.kind === 'ZeileContainer' || item.kind === 'ParatextContainer'"
-                              type="button" class="structure-act act-split"
-                              (click)="splitContainerAt(item.zipper)"
-                              title="Split section here">
-                        <i class="bi bi-scissors"></i>
-                      </button>
-                      <button *ngIf="item.kind === 'FormteilContainer' && canMergeContainer(item.zipper)"
-                              type="button" class="structure-act act-merge"
-                              (click)="mergeContainerWithNext(item.zipper)"
-                              title="Merge with next section">
-                        <i class="bi bi-arrow-down-square"></i>
-                      </button>
-                      <button *ngIf="item.kind === 'FormteilContainer' && canDeleteContainer(item.zipper)"
-                              type="button" class="structure-act act-delete"
-                              (click)="deleteContainerAt(item.zipper)"
-                              title="Delete empty section">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                    </span>
+                    <span class="structure-label" [class.fw-semibold]="item.kind === 'FormteilContainer'">{{ item.label }}</span>
                   </div>
                 </div>
 

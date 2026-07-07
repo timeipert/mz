@@ -20,35 +20,13 @@ import { SourcesOverviewComponent } from './sources-overview/sources-overview.co
 import { SourceComponent } from './source/source.component';
 import { DocumentComponent } from './document/document.component';
 import { UsersOverviewComponent } from './users-overview/users-overview.component';
-
-import { NotesComponent } from './notes/notes.component';
-import { RootSectionComponent } from './section/root-section.component';
-import { FormteilSectionComponent } from './section/formteil-section.component';
-import { MiscSectionComponent } from './section/misc-section.component';
-import { ZeileSectionComponent } from './section/zeile-section.component';
-import { ParatextSectionComponent } from './section/paratext-section.component';
-import { DraggerComponent } from './dragger/dragger.component';
-import { LineChangeComponent } from './line-change/line-change.component';
-import { FolioChangeComponent } from './folio-change/folio-change.component';
 import { SmartTableComponent } from './smart-table/smart-table.component';
 import { SselectComponent } from './sselect/sselect.component';
-import { ClefComponent } from './clef/clef.component';
-import { BoxComponent } from './box/box.component';
-
 import { ConfirmDeactivateGuard } from './ConfirmDeactivateGuard';
 import { ZipUploadComponent } from './zip-upload/zip-upload.component';
-import { EditSyllableTextComponent } from './edit-syllable-text/edit-syllable-text.component';
 import { CommentComponent } from './comment/comment.component';
 import { ComplexCommentComponent } from './complex-comment/complex-comment.component';
 import { ParatextCommentComponent } from './paratext-comment/paratext-comment.component';
-import { CommentTreeComponent } from './complex-comment/comment-tree/comment-tree.component';
-import { CommentTreeLeafComponent } from './complex-comment/comment-tree/comment-tree-leaf/comment-tree-leaf.component';
-import { CommentTreeUndecidedComponent } from './complex-comment/comment-tree/comment-tree-undecided/comment-tree-undecided.component';
-import { CommentTreeGridComponent } from './complex-comment/comment-tree/comment-tree-grid/comment-tree-grid.component';
-import { CommentTreeBracketComponent } from './complex-comment/comment-tree/comment-tree-leaf/comment-tree-bracket/comment-tree-bracket.component';
-import { CommentTreeTextComponent } from './complex-comment/comment-tree/comment-tree-leaf/comment-tree-text/comment-tree-text.component';
-import { CommentTreeNotesComponent } from './complex-comment/comment-tree/comment-tree-leaf/comment-tree-notes/comment-tree-notes.component';
-import { CommentTreeActionDotComponent } from './complex-comment/comment-tree/comment-tree-action-dot/comment-tree-action-dot.component';
 import { CommentInfoComponent } from './comment/comment-info/comment-info.component';
 
 import { SearchComponent } from './search/search.component';
@@ -56,21 +34,10 @@ import { DragMapComponent } from './drag-map/drag-map.component';
 import { NotationsdokumentationModule } from './notationsdokumentation/notationsdokumentation.module';
 import { HelpButtonComponent } from './help-button/help-button.component';
 import { ContextMenuComponent } from './context-menu/context-menu.component';
+import { SharedEditorModule } from './shared-editor.module';
 
-import { ManualLayoutComponent } from './manual/manual-layout/manual-layout.component';
-import { OverviewComponent } from './manual/pages/overview/overview.component';
-import { TranscriptionComponent } from './manual/pages/transcription/transcription.component';
-import { SearchComponent as ManualSearchComponent } from './manual/pages/search/search.component';
-import { ManualHighlightTriggerDirective } from './manual/services/manual-highlight-trigger.directive';
-import { IiifComponent } from './manual/pages/iiif/iiif.component';
-import { MetadataComponent } from './manual/pages/metadata/metadata.component';
-import { UseCasesComponent } from './manual/pages/use-cases/use-cases.component';
-import { CommentsComponent } from './manual/pages/comments/comments.component';
-import { ManualSettingsComponent } from './manual/pages/settings/settings.component';
-import { ManualAnalysisComponent } from './manual/pages/analysis/analysis.component';
-import { ManualWorkspaceComponent } from './manual/pages/workspace/workspace.component';
 import { SubcorporaSelectorComponent } from './sources-overview/subcorpora-selector/subcorpora-selector.component';
-import { StatsComponent } from './stats/stats.component';
+import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
 
 @NgModule({ declarations: [
         AppComponent,
@@ -80,51 +47,19 @@ import { StatsComponent } from './stats/stats.component';
         SubcorporaSelectorComponent,
         SourceComponent,
         DocumentComponent,
-        NotesComponent,
-        RootSectionComponent,
-        FormteilSectionComponent,
-        MiscSectionComponent,
-        ZeileSectionComponent,
-        ParatextSectionComponent,
-        DraggerComponent,
-        LineChangeComponent,
-        FolioChangeComponent,
         SmartTableComponent,
         SselectComponent,
-        ClefComponent,
-        BoxComponent,
         ZipUploadComponent,
-        EditSyllableTextComponent,
         CommentComponent,
         ParatextCommentComponent,
         ComplexCommentComponent,
-        CommentTreeComponent,
-        CommentTreeLeafComponent,
-        CommentTreeUndecidedComponent,
-        CommentTreeGridComponent,
-        CommentTreeBracketComponent,
-        CommentTreeTextComponent,
-        CommentTreeNotesComponent,
-        CommentTreeActionDotComponent,
         CommentInfoComponent,
         SearchComponent,
         SettingsComponent,
         DragMapComponent,
         HelpButtonComponent,
         ContextMenuComponent,
-        ManualLayoutComponent,
-        OverviewComponent,
-        TranscriptionComponent,
-        ManualSearchComponent,
-        ManualHighlightTriggerDirective,
-        IiifComponent,
-        MetadataComponent,
-        UseCasesComponent,
-        CommentsComponent,
-        ManualSettingsComponent,
-        ManualAnalysisComponent,
-        ManualWorkspaceComponent,
-        StatsComponent
+        MeiMappingEditorComponent
     ],
     bootstrap: [AppComponent], imports: [BrowserModule,
         CommonModule,
@@ -135,6 +70,7 @@ import { StatsComponent } from './stats/stats.component';
         NgbModule,
         DragDropModule,
         ScrollingModule,
+        SharedEditorModule,
         RouterModule.forRoot([
             {
                 path: 'login',
@@ -164,7 +100,7 @@ import { StatsComponent } from './stats/stats.component';
                 component: SearchComponent,
             }, {
                 path: 'stats',
-                component: StatsComponent,
+                loadChildren: () => import('./stats/stats.module').then(m => m.StatsModule),
             }, {
                 path: 'settings',
                 component: SettingsComponent,
@@ -176,20 +112,7 @@ import { StatsComponent } from './stats/stats.component';
                 component: ComplexCommentComponent
             }, {
                 path: 'manual',
-                component: ManualLayoutComponent,
-                children: [
-                    { path: '', redirectTo: 'overview', pathMatch: 'full' },
-                    { path: 'overview', component: OverviewComponent },
-                    { path: 'transcription', component: TranscriptionComponent },
-                    { path: 'search', component: ManualSearchComponent },
-                    { path: 'analysis', component: ManualAnalysisComponent },
-                    { path: 'iiif', component: IiifComponent },
-                    { path: 'metadata', component: MetadataComponent },
-                    { path: 'comments', component: CommentsComponent },
-                    { path: 'settings', component: ManualSettingsComponent },
-                    { path: 'workspace', component: ManualWorkspaceComponent },
-                    { path: 'use-cases', component: UseCasesComponent },
-                ]
+                loadChildren: () => import('./manual/manual.module').then(m => m.ManualModule)
             }, {
                 path: '**',
                 component: WelcomeComponent

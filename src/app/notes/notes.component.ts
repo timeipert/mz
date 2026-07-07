@@ -475,18 +475,29 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     e.preventDefault();
     e.stopPropagation();
     const voices = this.getVoices();
-    if (voices[voiceIndex].spaced[0].nonSpaced.length === 0) {
+    const focused = VM.getFocused(voices[voiceIndex]);
+    if (voices[voiceIndex].spaced.length === 0 || voices[voiceIndex].spaced[0].nonSpaced.length === 0) {
       this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
       const emptyNotes = JSON.parse(JSON.stringify(VM.emptySyllable().notes));
-      emptyNotes.spaced[0].nonSpaced[0].grouped[0] = this.getNoteByClickPos(e.offsetY);
+      const newNote = this.getNoteByClickPos(e.offsetY);
+      newNote.isLatent = true;
+      newNote.focus = true;
+      emptyNotes.spaced[0].nonSpaced[0].grouped[0] = newNote;
       if (voiceIndex === 0) {
         this.model.notes = emptyNotes;
       } else {
         if (!this.model.additionalMelodies) this.model.additionalMelodies = [];
         this.model.additionalMelodies[voiceIndex - 1] = emptyNotes;
       }
-      this.focus({ focusLast: true });
+      this.focus({ preferredLevel: Focus.Notes, focusLast: true });
+    } else if (focused && focused.isLatent) {
+      this.undoService.beforeChange('Edit Note');
+      this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+      delete focused.isLatent;
+      const clickedNote = this.getNoteByClickPos(e.offsetY);
+      focused.base = clickedNote.base;
+      focused.octave = clickedNote.octave;
     } else {
       this.insertNoteNear(this.getNoteByClickPos(e.offsetY));
     }
@@ -652,6 +663,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     this.withPath((s, ns, gr, no) => {
       this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
+      if (no.isLatent) {
+        delete no.isLatent;
+      }
       const newNote = noteFromTemplate(no);
       this.insertNoteFar(newNote);
     });
@@ -698,6 +712,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     this.withPath((s, ns, gr, no) => {
       this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
+      if (no.isLatent) {
+        delete no.isLatent;
+      }
       const newNote = noteFromTemplate(no);
       this.insertNoteNear(newNote);
     });
@@ -722,6 +739,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     this.withPath((s, ns, gr, no) => {
       this.undoService.beforeChange('Edit Note');
       this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback)
+      if (no.isLatent) {
+        delete no.isLatent;
+      }
       const newNote = noteFromTemplate(no);
       no.focus = false;
 
@@ -773,11 +793,23 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
   }
 
   toggleLiquescent(): void {
-    this.withFocus(f => f.liquescent = !f.liquescent);
+    this.withFocus(f => {
+      this.undoService.beforeChange('Edit Note');
+      this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+      if (f.isLatent) {
+        delete f.isLatent;
+      }
+      f.liquescent = !f.liquescent;
+    });
   }
 
   toggleNoteType(t: VM.NoteType): void {
     this.withFocus(f => {
+      this.undoService.beforeChange('Edit Note');
+      this.undoService.registerNotesCallbacks(this.model.uuid, this.undoCallback);
+      if (f.isLatent) {
+        delete f.isLatent;
+      }
       if (f.noteType === t) {
         f.noteType = VM.NoteType.Normal;
       } else {
@@ -1160,7 +1192,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     let maxSvgWidth = 0;
     const voices = this.getVoices();
     for (let i = 0; i < voices.length; i++) {
-        const w = (maxOf(this.getDrawables(i).map(d => d.x)) || 0) + 4;
+        const w = (maxOf(this.getDrawables(i).map(d => d.x)) || 0) + 12;
         if (w > maxSvgWidth) maxSvgWidth = w;
     }
     this.svgWidth = maxSvgWidth;

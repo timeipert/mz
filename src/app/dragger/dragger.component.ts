@@ -65,7 +65,9 @@ export class DraggerComponent implements OnInit, AfterViewInit, OnDestroy {
   dragstart(ev: DragEvent): void {
     ev.dataTransfer!.setData('text/plain', JSON.stringify(this.zipper));
     ev.dataTransfer!.dropEffect = 'move';
-    this.dragState.startDrag(this.zipper);
+    setTimeout(() => {
+      this.dragState.startDrag(this.zipper);
+    }, 0);
   }
 
   dragend(_ev: DragEvent): void {

@@ -1366,6 +1366,10 @@ export class SearchComponent implements OnInit, OnDestroy, AfterViewChecked {
 
     if (params.tab) this.activeTab = params.tab;
     if (params.align) this.synopsisSvc.alignmentMode = params.align;
+    if (params.q) {
+      this.quickText = params.q;
+      this.searchQuick();
+    }
 
     if (params.compare) {
       const docIds = params.compare.split(',');

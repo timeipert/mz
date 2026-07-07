@@ -1,6 +1,8 @@
 import { Injectable } from '@angular/core';
 import { RootContainer, ContainerKind, LinePartKind, ZeileContainer, Syllable, Clef, Note, FormteilContainer, MiscContainer } from './types/model';
 import { ProjectSettings, MeiMappingSettings, Document as MonodiDocument } from './api.service';
+import { emitMei } from './mei/mei-emitter';
+import { defaultMeiProfile } from './mei/mei-mapping.model';
 
 @Injectable({
   providedIn: 'root'
@@ -9,6 +11,14 @@ export class MeiExportService {
   constructor() {}
 
   exportToMei(root: RootContainer, settings: ProjectSettings | null, documentMeta?: MonodiDocument): string {
+    const profile = settings?.meiProfiles?.find(p => p.id === settings.activeMeiProfileId) || defaultMeiProfile();
+    return emitMei(root, profile, documentMeta);
+  }
+
+  /**
+   * Retained for reference until v2 has been in production for a release, but no longer called.
+   */
+  private legacyExport(root: RootContainer, settings: ProjectSettings | null, documentMeta?: MonodiDocument): string {
     const mappings: MeiMappingSettings = settings?.meiMappings || {
       formteilContainer: { tag: 'section' },
       zeileContainer: { tag: 'sb' },

@@ -71,7 +71,7 @@ export class DragMapComponent implements OnDestroy {
     const dz = this.dragState.draggingZipper;
     if (!this.dragState.rootData || !dz) return [];
     
-    const items: TreeItem[] = [];
+    const allItems: TreeItem[] = [];
 
     const traverse = (node: any, currentZipper: number[], currentDepth: number) => {
       // Don't show the dragged item or its descendants in the tree map
@@ -79,8 +79,20 @@ export class DragMapComponent implements OnDestroy {
         return;
       }
 
+      const isContainer = [
+        'RootContainer',
+        'FormteilContainer',
+        'ParatextContainer',
+        'ZeileContainer',
+        'MiscContainer'
+      ].includes(node.kind);
+
+      if (!isContainer) {
+        return;
+      }
+
       if (currentZipper.length > 0) {
-        items.push({
+        allItems.push({
           zipper: currentZipper,
           label: this.getLabel(node),
           kind: node.kind,
@@ -99,7 +111,19 @@ export class DragMapComponent implements OnDestroy {
 
     traverse(this.dragState.rootData, [], -1);
 
-    return items;
+    const validZippers = allItems
+      .filter(item => this.dragState.isValidTarget(item.zipper))
+      .map(item => item.zipper);
+
+    const isAncestorOfAnyValid = (zipper: number[]): boolean => {
+      return validZippers.some(vz => 
+        vz.length > zipper.length && zipper.every((val, idx) => vz[idx] === val)
+      );
+    };
+
+    return allItems.filter(item => 
+      this.dragState.isValidTarget(item.zipper) || isAncestorOfAnyValid(item.zipper)
+    );
   }
 
   private getNodeAt(zipper: number[]): any {
@@ -118,7 +142,19 @@ export class DragMapComponent implements OnDestroy {
         const ti  = (node.data || []).find((d: any) => d.name === 'LemmatisiertesTextInitium')?.data;
         return sig || (ti ? ti.slice(0, 18) : '') || 'Section';
       }
-      case 'ZeileContainer':    return 'Line';
+      case 'ZeileContainer': {
+        const syllables = (node.children || []).filter((c: any) => c.kind === 'Syllable');
+        let text = '';
+        syllables.forEach((s: any) => {
+          const t = (s.text || '').trim();
+          if (!t) return;
+          if (text.length > 0 && !text.endsWith('-')) {
+            text += ' ';
+          }
+          text += t;
+        });
+        return text ? (text.slice(0, 20) + (text.length > 20 ? '...' : '')) : 'Line';
+      }
       case 'ParatextContainer': return (node.text || '').trim().slice(0, 22) || node.paratextType || 'Paratext';
       case 'MiscContainer':     return 'Misc';
       default:                  return node.kind;

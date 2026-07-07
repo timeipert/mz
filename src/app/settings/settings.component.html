@@ -1,8 +1,4 @@
 <div class="container-fluid py-4" style="max-width: 1600px;">
-  <div class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-    <h2 class="page-title">Settings</h2>
-    <span class="text-muted">Configure metadata, sync, and print formatting</span>
-  </div>
 
   <!-- Global settings loading spinner -->
   <div *ngIf="!settings" class="d-flex flex-column align-items-center justify-content-center py-5 my-5">
@@ -11,72 +7,61 @@
   </div>
 
   <div *ngIf="settings" class="row g-4">
-    <!-- Left Column: Tab Pills & Content -->
-    <div [class]="activeTab === 'pdf' ? 'col-lg-7 col-xl-8' : 'col-12'">
-      <!-- Tabs navigation -->
-      <ul class="nav nav-pills mb-4 bg-light p-1 rounded-3 border" style="font-size: 0.95rem;">
-        <li class="nav-item">
-          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
-                  [class.active]="activeTab === 'metadata'"
-                  (click)="activeTab = 'metadata'" type="button">
-            <i class="bi bi-card-list me-2"></i>Metadata Schemas
+
+    <!-- Sidebar navigation (desktop) -->
+    <div class="col-auto d-none d-lg-block">
+      <nav class="settings-nav position-sticky" style="top: 80px;" aria-label="Settings sections">
+        <div class="settings-nav-title">
+          <h2 class="page-title mb-0" style="font-size: 1.25rem;">Settings</h2>
+        </div>
+        <div class="settings-nav-group" *ngFor="let group of tabGroups">
+          <div class="settings-nav-group-label">{{ group.label }}</div>
+          <button *ngFor="let t of group.tabs" type="button"
+                  class="settings-nav-item"
+                  [class.active]="activeTab === t.id"
+                  (click)="selectTab(t.id)">
+            <i class="bi {{ t.icon }}"></i>
+            <span>{{ t.label }}</span>
           </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
-                  [class.active]="activeTab === 'github'"
-                  (click)="activeTab = 'github'" type="button">
-            <i class="bi bi-github me-2"></i>GitHub Sync
+        </div>
+        <!-- Autosave indicator -->
+        <div class="settings-save-state" [attr.data-state]="saveState">
+          <ng-container [ngSwitch]="saveState">
+            <span *ngSwitchCase="'saving'"><span class="spinner-border spinner-border-sm me-2" style="width: 0.7rem; height: 0.7rem;"></span>Saving…</span>
+            <span *ngSwitchCase="'saved'"><i class="bi bi-check-circle-fill me-2"></i>All changes saved</span>
+            <span *ngSwitchCase="'error'"><i class="bi bi-exclamation-triangle-fill me-2"></i>Save failed</span>
+            <span *ngSwitchDefault><i class="bi bi-cloud-check me-2"></i>Changes save automatically</span>
+          </ng-container>
+        </div>
+      </nav>
+    </div>
+
+    <!-- Content column -->
+    <div class="col settings-content-col" style="min-width: 0;">
+
+      <!-- Mobile navigation strip -->
+      <div class="settings-nav-mobile d-flex d-lg-none mb-3">
+        <ng-container *ngFor="let group of tabGroups">
+          <button *ngFor="let t of group.tabs" type="button"
+                  class="settings-nav-mobile-item"
+                  [class.active]="activeTab === t.id"
+                  (click)="selectTab(t.id)">
+            <i class="bi {{ t.icon }} me-1"></i>{{ t.label }}
           </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
-                  [class.active]="activeTab === 'pdf'"
-                  (click)="activeTab = 'pdf'" type="button">
-            <i class="bi bi-file-pdf me-2"></i>PDF Export & Layout
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
-                  [class.active]="activeTab === 'containers'"
-                  (click)="activeTab = 'containers'" type="button">
-            <i class="bi bi-diagram-3 me-2"></i>Container Names
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
-                  [class.active]="activeTab === 'editor'"
-                  (click)="activeTab = 'editor'" type="button">
-            <i class="bi bi-pencil-square me-2"></i>Editor Settings
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
-                  [class.active]="activeTab === 'mei'"
-                  (click)="activeTab = 'mei'" type="button">
-            <i class="bi bi-music-note-beamed me-2"></i>MEI Export
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
-                  [class.active]="activeTab === 'htmlExport'"
-                  (click)="activeTab = 'htmlExport'" type="button">
-            <i class="bi bi-browser-chrome me-2"></i>HTML Export
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link py-2.5 px-4 fw-semibold border-0 rounded-3"
-                  [class.active]="activeTab === 'workspace'"
-                  (click)="openWorkspaceTab()" type="button">
-            <i class="bi bi-database-gear me-2"></i>Workspace
-          </button>
-        </li>
-      </ul>
+        </ng-container>
+      </div>
 
       <!-- Active Tab Content -->
       <div class="tab-content">
         <!-- 1. Metadata Schema Tab -->
         <div class="tab-pane fade show active" *ngIf="activeTab === 'metadata'">
+          <div class="settings-pane-head">
+            <i class="bi bi-card-list"></i>
+            <div>
+              <div class="settings-pane-title">Metadata Schemas</div>
+              <div class="settings-pane-sub">Predefined value lists and custom fields for sources and documents.</div>
+            </div>
+          </div>
           <div class="row g-3">
             <!-- Master Column -->
             <div class="col-md-5">
@@ -164,6 +149,13 @@
 
         <!-- 2. GitHub Sync Tab -->
         <div class="tab-pane fade show active" *ngIf="activeTab === 'github'">
+          <div class="settings-pane-head">
+            <i class="bi bi-github"></i>
+            <div>
+              <div class="settings-pane-title">GitHub Sync</div>
+              <div class="settings-pane-sub">Connect a repository for versioned backup and team collaboration.</div>
+            </div>
+          </div>
           <div class="card shadow-sm border-light">
             <div class="card-header bg-light d-flex align-items-center">
               <i class="bi bi-github fs-5 me-2"></i>
@@ -211,6 +203,13 @@
 
         <!-- 3. PDF Export & Layout Settings Tab -->
         <div class="tab-pane fade show active" *ngIf="activeTab === 'pdf'">
+          <div class="settings-pane-head">
+            <i class="bi bi-file-pdf"></i>
+            <div>
+              <div class="settings-pane-title">PDF Layout</div>
+              <div class="settings-pane-sub">Page geometry, spacing, brackets, and typography of the vector PDF export — with live preview.</div>
+            </div>
+          </div>
           <!-- Group 1: Scaling & Zoom -->
           <div class="card shadow-sm border-light mb-4">
             <div class="card-header bg-light py-2">
@@ -582,6 +581,13 @@
         </div>
         <!-- 4. Container Names Tab -->
         <div class="tab-pane fade show active" *ngIf="activeTab === 'containers'">
+          <div class="settings-pane-head">
+            <i class="bi bi-diagram-3"></i>
+            <div>
+              <div class="settings-pane-title">Container Names</div>
+              <div class="settings-pane-sub">Map genre combinations to the structural level labels shown in the editor.</div>
+            </div>
+          </div>
           <div class="card shadow-sm border-light mb-4">
             <div class="card-header bg-light d-flex align-items-center">
               <i class="bi bi-diagram-3 fs-5 me-2"></i>
@@ -654,6 +660,13 @@
 
         <!-- 5. Editor Settings Tab -->
         <div class="tab-pane fade show active" *ngIf="activeTab === 'editor'">
+          <div class="settings-pane-head">
+            <i class="bi bi-pencil-square"></i>
+            <div>
+              <div class="settings-pane-title">Editor</div>
+              <div class="settings-pane-sub">Behaviour of the transcription editor.</div>
+            </div>
+          </div>
           <div class="card shadow-sm border-light mb-4">
             <div class="card-header bg-light d-flex align-items-center">
               <i class="bi bi-pencil-square fs-5 me-2"></i>
@@ -675,195 +688,25 @@
         </div>
       <!-- 6. MEI Export Tab -->
       <div class="tab-pane fade show active" *ngIf="activeTab === 'mei'">
-        <div class="card shadow-sm border-light mb-4">
-          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+          <div class="settings-pane-head">
+            <i class="bi bi-music-note-beamed"></i>
             <div>
-              <i class="bi bi-music-note-beamed fs-5 me-2"></i>
-              <h6 class="mb-0 fw-semibold d-inline-block">MEI Export Mappings</h6>
-            </div>
-            <button class="btn btn-sm btn-outline-secondary" (click)="resetMeiMappings()">Reset to Defaults</button>
-          </div>
-          <div class="card-body bg-white" *ngIf="settings.meiMappings">
-            <p class="text-muted small mb-4">Configure which MEI tags are generated for the corresponding Monodi elements during export.</p>
-            <div class="row g-4">
-              <!-- Containers -->
-              <div class="col-12">
-                <h6 class="border-bottom pb-2 mb-3">Containers & Structure</h6>
-                <div class="row g-3">
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">FormteilContainer (Level 1)</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.formteilContainer.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">ZeileContainer (Level 2)</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.zeileContainer.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">ParatextContainer / Dir</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.paratextContainer.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Syllables and Neumes -->
-              <div class="col-12">
-                <h6 class="border-bottom pb-2 mb-3">Syllable & Neume Groups</h6>
-                <div class="row g-3">
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">Syllable Tag</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.syllable.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">Syllable Text Tag</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.syllable.textTag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">Neume Group Tag</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.neume.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Note Mapping -->
-              <div class="col-12">
-                <h6 class="border-bottom pb-2 mb-3">Note / Neume Component (nc)</h6>
-                <div class="row g-3">
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">Element Tag</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.note.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">Pitch Attribute</label>
-                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.pitchAttr" (ngModelChange)="onSettingsChange()">
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">Octave Attribute</label>
-                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.octaveAttr" (ngModelChange)="onSettingsChange()">
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">Liquescent Attribute</label>
-                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.liquescentAttr" (ngModelChange)="onSettingsChange()">
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">Liquescent Value</label>
-                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.liquescentValue" (ngModelChange)="onSettingsChange()">
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">Connection Attribute (Gap)</label>
-                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.connectionAttr" (ngModelChange)="onSettingsChange()">
-                  </div>
-                  <div class="col-md-4">
-                    <label class="form-label small fw-medium text-muted mb-1">Gap Value</label>
-                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.note.connectionGapValue" (ngModelChange)="onSettingsChange()">
-                  </div>
-                </div>
-              </div>
-
-              <!-- Special Signs Mapping -->
-              <div class="col-12">
-                <h6 class="border-bottom pb-2 mb-3">Special Signs</h6>
-                <div class="row g-3">
-                  <div class="col-md-3">
-                    <label class="form-label small fw-medium text-muted mb-1">Oriscus</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.oriscus.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label small fw-medium text-muted mb-1">Quilisma</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.quilisma.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label small fw-medium text-muted mb-1">Strophicus</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.strophicus.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label small fw-medium text-muted mb-1">Liquescent Element</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.liquescentElement.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Clef Mapping -->
-              <div class="col-12">
-                <h6 class="border-bottom pb-2 mb-3">Clef</h6>
-                <div class="row g-3">
-                  <div class="col-md-3">
-                    <label class="form-label small fw-medium text-muted mb-1">Element Tag</label>
-                    <div class="input-group input-group-sm">
-                      <span class="input-group-text">&lt;</span>
-                      <input type="text" class="form-control" [(ngModel)]="settings.meiMappings.clef.tag" (ngModelChange)="onSettingsChange()">
-                      <span class="input-group-text">&gt;</span>
-                    </div>
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label small fw-medium text-muted mb-1">Shape Attribute</label>
-                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.clef.shapeAttr" (ngModelChange)="onSettingsChange()">
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label small fw-medium text-muted mb-1">Line Attribute</label>
-                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.clef.lineAttr" (ngModelChange)="onSettingsChange()">
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label small fw-medium text-muted mb-1">Default Line</label>
-                    <input type="text" class="form-control form-control-sm" [(ngModel)]="settings.meiMappings.clef.defaultLine" (ngModelChange)="onSettingsChange()">
-                  </div>
-                </div>
-              </div>
-
+              <div class="settings-pane-title">MEI Mapping</div>
+              <div class="settings-pane-sub">Control the structure and tag names of exported MEI XML with mapping profiles.</div>
             </div>
           </div>
-        </div>
+        <app-mei-mapping-editor [settings]="settings" (settingsChange)="onSettingsChange()"></app-mei-mapping-editor>
       </div>
 
       <!-- 7. HTML Export Settings Tab -->
       <div class="tab-pane fade show active" *ngIf="activeTab === 'htmlExport' && settings">
         <div class="settings-panel fade-in p-4 p-md-5">
-          <div class="mb-5 pb-3 border-bottom">
-            <h3 class="h4 fw-bold mb-2">HTML Export Settings</h3>
-            <p class="text-muted mb-0">Configure what is included in the static offline viewer.</p>
+          <div class="settings-pane-head">
+            <i class="bi bi-globe2"></i>
+            <div>
+              <div class="settings-pane-title">HTML Edition</div>
+              <div class="settings-pane-sub">Configure the self-contained offline edition viewer: metadata, frontpage, header, footer, and custom CSS.</div>
+            </div>
           </div>
 
           <div class="row g-4">
@@ -975,9 +818,12 @@
            ════════════════════════════════════════════════════════════════ -->
       <div class="tab-pane fade show active" *ngIf="activeTab === 'workspace'">
         <div class="settings-panel fade-in p-4 p-md-5">
-          <div class="mb-4 pb-3 border-bottom">
-            <h3 class="h4 fw-bold mb-2"><i class="bi bi-database-gear me-2 text-primary"></i>Workspace</h3>
-            <p class="text-muted mb-0">Import, export, inspect storage usage, and reset workspace state.</p>
+          <div class="settings-pane-head">
+            <i class="bi bi-database-gear"></i>
+            <div>
+              <div class="settings-pane-title">Workspace</div>
+              <div class="settings-pane-sub">Import, export, inspect storage usage, and reset workspace state.</div>
+            </div>
           </div>
 
           <!-- ─────────────────── Storage stats card ─────────────────── -->
@@ -995,12 +841,15 @@
                     <span class="badge bg-success-subtle text-success border" *ngIf="api.storagePersisted === true">
                       Protected from eviction
                     </span>
-                    <span class="badge bg-warning-subtle text-warning border" *ngIf="api.storagePersisted === false">
+                    <span class="badge bg-warning-subtle text-warning border text-wrap text-start" style="line-height: 1.35;" *ngIf="api.storagePersisted === false">
                       Not persisted — browser may evict data under storage pressure; back up regularly
                     </span>
                     <span class="badge bg-secondary-subtle text-secondary border" *ngIf="api.storagePersisted === null">
                       Unknown
                     </span>
+                    <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2" style="font-size: 0.75rem;" *ngIf="api.storagePersisted !== true" (click)="requestPersistence()">
+                      <i class="bi bi-shield-lock-fill me-1"></i>Enable Protection
+                    </button>
                   </div>
                 </div>
                 <button type="button" *ngIf="statsComputed || loadingStats" class="btn btn-sm btn-outline-secondary" (click)="refreshWorkspaceStats()" title="Recalculate stats" [disabled]="loadingStats">

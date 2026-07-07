@@ -194,7 +194,7 @@ export class DocumentComponent implements OnInit {
     private modalService: NgbModal,
     private location: Location,
     private toolService: ToolsService,
-    private dragState: DragStateService,
+    public dragState: DragStateService,
     private navService: NavigationService,
     private meiExport: MeiExportService,
     private pageTitle: PageTitleService, public focusService: FocusService) {
@@ -211,6 +211,17 @@ export class DocumentComponent implements OnInit {
     if (!this.cont) return [];
     const items: any[] = [];
     const traverse = (node: any, zipper: number[], depth: number) => {
+      const isContainer = [
+        'FormteilContainer',
+        'ZeileContainer',
+        'ParatextContainer',
+        'MiscContainer'
+      ].includes(node.kind);
+
+      if (!isContainer && zipper.length > 0) {
+        return;
+      }
+
       if (zipper.length > 0) {
         let label = '';
         let icon = '';
@@ -220,7 +231,17 @@ export class DocumentComponent implements OnInit {
           label = sig || (ti ? ti.slice(0, 15) : '') || 'Section';
           icon = '📁';
         } else if (node.kind === 'ZeileContainer') {
-          label = 'Line';
+          const syllables = (node.children || []).filter((c: any) => c.kind === 'Syllable');
+          let text = '';
+          syllables.forEach((s: any) => {
+            const t = (s.text || '').trim();
+            if (!t) return;
+            if (text.length > 0 && !text.endsWith('-')) {
+              text += ' ';
+            }
+            text += t;
+          });
+          label = text ? (text.slice(0, 20) + (text.length > 20 ? '...' : '')) : 'Line';
           icon = '♩';
         } else if (node.kind === 'ParatextContainer') {
           label = (node.text || '').trim().slice(0, 15) || node.paratextType || 'Text';
@@ -256,6 +277,55 @@ export class DocumentComponent implements OnInit {
       this.save();
       this.cont = { ...this.cont };
     }
+  }
+
+  onStructureDragStart(ev: DragEvent, zipper: number[]): void {
+    ev.dataTransfer!.setData('text/plain', JSON.stringify(zipper));
+    ev.dataTransfer!.dropEffect = 'move';
+    setTimeout(() => {
+      this.dragState.startDrag(zipper);
+    }, 0);
+  }
+
+  onStructureDragEnd(ev: DragEvent): void {
+    this.dragState.endDrag();
+  }
+
+  onStructureDragEnter(ev: DragEvent, zipper: number[]): void {
+    if (this.dragState.isValidTarget(zipper)) {
+      this.dragState.setHovered(zipper);
+    }
+  }
+
+  onStructureDragOver(ev: DragEvent): void {
+    ev.preventDefault();
+  }
+
+  onStructureDragLeave(ev: DragEvent, zipper: number[]): void {
+    if (this.dragState.hoveredZipper && this.dragState.zippersEqual(this.dragState.hoveredZipper, zipper)) {
+      this.dragState.setHovered(null);
+    }
+  }
+
+  onStructureDrop(ev: DragEvent, zipper: number[]): void {
+    ev.preventDefault();
+    if (!this.cont) return;
+    if (this.dragState.isValidTarget(zipper)) {
+      try {
+        const from = JSON.parse(ev.dataTransfer!.getData('text/plain'));
+        this.undoService.beforeChange();
+        const errorMessage = VM.move(this.cont, from, zipper);
+        if (errorMessage !== undefined) {
+          this.toastr.error(errorMessage);
+        } else {
+          this.save();
+          this.cont = { ...this.cont };
+        }
+      } catch (err) {
+        console.error('Drop failed:', err);
+      }
+    }
+    this.dragState.endDrag();
   }
 
   canMergeContainer(zipper: number[]): boolean {
@@ -654,16 +724,41 @@ export class DocumentComponent implements OnInit {
     setTimeout(async () => {
       try {
         const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-        const fontFamily = this.settings?.pdfFontFamily || 'times';
-        const pdfMarginLeft = this.settings?.pdfMarginLeft ?? 40;
-        const pdfMarginRight = this.settings?.pdfMarginRight ?? 40;
-        const pdfMarginTop = this.settings?.pdfMarginTop ?? 40;
-        const pdfMarginBottom = this.settings?.pdfMarginBottom ?? 40;
-        const pdfStaffSpacing = this.settings?.pdfStaffSpacing ?? 20;
-        const pdfBracketGap = this.settings?.pdfBracketGap ?? 5;
-        const pdfBracketTick = this.settings?.pdfBracketTick ?? 4;
-        const pdfSyllableTextOffset = this.settings?.pdfSyllableTextOffset ?? 10;
-        const pdfTextBlockGap = this.settings?.pdfTextBlockGap ?? 10;
+        const s: any = this.settings || {};
+        const fontFamily = s.pdfFontFamily || 'times';
+        const pdfMarginLeft = Number(s.pdfMarginLeft ?? 40);
+        const pdfMarginRight = Number(s.pdfMarginRight ?? 40);
+        const pdfMarginTop = Number(s.pdfMarginTop ?? 40);
+        const pdfMarginBottom = Number(s.pdfMarginBottom ?? 40);
+        const pdfStaffSpacing = Number(s.pdfStaffSpacing ?? 20);
+        const pdfBracketGap = Number(s.pdfBracketGap ?? 5);
+        const pdfBracketTick = Number(s.pdfBracketTick ?? 4);
+        const pdfSyllableTextOffset = Number(s.pdfSyllableTextOffset ?? 10);
+        const pdfTextBlockGap = Number(s.pdfTextBlockGap ?? 10);
+        
+        // Coerced layout parameters
+        const titleFontSize = Number(s.pdfTitleFontSize ?? 16);
+        const pdfTitleVerticalSpace = Number(s.pdfTitleVerticalSpace ?? 20);
+        const headerSource = s.pdfHeaderSource || 'textinitium';
+        const metaFontSize = Number(s.pdfMetadataFontSize ?? 9);
+        const pdfMetadataVerticalSpace = Number(s.pdfMetadataVerticalSpace ?? 15);
+        const pdfBracketThickness = Number(s.pdfBracketThickness ?? 1.2);
+        const pdfCommentTitleFontSize = Number(s.pdfCommentTitleFontSize ?? 8);
+        const pdfVerticalSpace = Number(s.pdfVerticalSpace ?? 15);
+        const SCALE = Number(s.pdfScale ?? 0.40);
+        const extraSyllableSpacing = Number(s.pdfSyllableSpacing ?? 10);
+        const pdfFontSize = Number(s.pdfFontSize ?? 10);
+        const pdfSignaturSpace = Number(s.pdfSignaturSpace ?? 60);
+        const pdfParatextFontSize = Number(s.pdfParatextFontSize ?? 10);
+        const pdfParatextSpacing = Number(s.pdfParatextSpacing ?? 12);
+        const pdfCommentStaffScale = Number(s.pdfCommentStaffScale ?? s.pdfScale ?? 0.40);
+        const pdfCommentFontSize = Number(s.pdfCommentFontSize ?? 9);
+        const pdfCommentTitleFontSizeActual = Number(s.pdfCommentTitleFontSize ?? 10);
+        const pdfCommentBlockGap = Number(s.pdfCommentBlockGap ?? 25);
+        const pdfShowPageNumbers = s.pdfShowPageNumbers === true || s.pdfShowPageNumbers === 'true';
+        const pdfPageNumberFontSize = Number(s.pdfPageNumberFontSize ?? 8);
+        const pdfHeadlineFontSize = Number(s.pdfHeadlineFontSize ?? 8);
+        const pdfHeadlineMetadataFields = s.pdfHeadlineMetadataFields || [];
 
         let cursorY = pdfMarginTop;
         const pageHeight = 842;
@@ -679,18 +774,15 @@ export class DocumentComponent implements OnInit {
         };
 
         // Title
-        const titleFontSize = this.settings?.pdfTitleFontSize ?? 16;
         doc.setFontSize(titleFontSize);
         doc.setFont(fontFamily, "bold");
-        const headerSource = this.settings?.pdfHeaderSource || 'textinitium';
         const headerText = this.getMetadataFieldValue(headerSource) || (this.document?.textinitium || "New Document");
         doc.text(headerText, pdfMarginLeft, cursorY);
-        cursorY += (this.settings?.pdfTitleVerticalSpace ?? 20);
+        cursorY += pdfTitleVerticalSpace;
         checkPageOverflow(0);
 
         // Metadata inline, styled & dense
         if (this.printIncludeMetadata && this.document) {
-          const metaFontSize = this.settings?.pdfMetadataFontSize ?? 9;
           doc.setFontSize(metaFontSize);
           
           const items = this.getInlineMetadataItems();
@@ -723,7 +815,7 @@ export class DocumentComponent implements OnInit {
             curX += valWidth;
           }
           
-          cursorY = curY + (this.settings?.pdfMetadataVerticalSpace ?? 15);
+          cursorY = curY + pdfMetadataVerticalSpace;
           checkPageOverflow(0);
         }
 
@@ -731,7 +823,7 @@ export class DocumentComponent implements OnInit {
         doc.setFontSize(12);
         
         const drawActiveBracket = (startX: number, endX: number, bY: number, label: string) => {
-           doc.setLineWidth(this.settings?.pdfBracketThickness ?? 1.2);
+           doc.setLineWidth(pdfBracketThickness);
            doc.setDrawColor(0, 0, 0);
            doc.line(startX, bY - pdfBracketTick, startX, bY);
            doc.line(startX, bY, endX, bY);
@@ -739,7 +831,7 @@ export class DocumentComponent implements OnInit {
            
            if (label) {
                const cleanLabel = label.replace(/^\[|\]$/g, '');
-               doc.setFontSize(this.settings?.pdfCommentTitleFontSize ?? 8);
+               doc.setFontSize(pdfCommentTitleFontSizeActual);
                doc.setFont(fontFamily, "italic");
                const txtX = startX + (endX - startX) / 2 - (doc.getTextWidth(cleanLabel) / 2);
                doc.text(cleanLabel, txtX, bY + pdfBracketTick + 4);
@@ -804,7 +896,6 @@ export class DocumentComponent implements OnInit {
           // Add vertical space ONLY if this is a FormteilContainer (level section)
           if (contentRow.classList.contains('formteil-section')) {
             if (!wasLastElementParatext) {
-              const pdfVerticalSpace = this.settings?.pdfVerticalSpace ?? 15;
               checkPageOverflow(pdfVerticalSpace);
               cursorY += pdfVerticalSpace;
             }
@@ -817,10 +908,6 @@ export class DocumentComponent implements OnInit {
           if (parts.length > 0) {
             wasLastElementParatext = false;
             // Horizontal layout for notes and breaks
-            const SCALE = this.settings?.pdfScale ?? 0.40;
-            const extraSyllableSpacing = this.settings?.pdfSyllableSpacing ?? 10;
-            const pdfFontSize = this.settings?.pdfFontSize ?? 10;
-            const pdfSignaturSpace = this.settings?.pdfSignaturSpace ?? 60;
             
             const musicStartX = pdfMarginLeft + pdfSignaturSpace;
             
@@ -876,7 +963,52 @@ export class DocumentComponent implements OnInit {
               let totalRawHeight = 0;
               for (let v = 0; v < svgs.length; v++) {
                  const s = svgs[v];
-                 const w = parseFloat(s.getAttribute('width') || '50');
+                 let w = parseFloat(s.getAttribute('width') || '50');
+
+                 // Dynamic width check: inspect note image and slur path coordinates
+                 // to ensure we never truncate content if DOM attributes are too small or lag.
+                 const images = s.querySelectorAll('image');
+                 const paths = s.querySelectorAll('path');
+                 let maxContentRight = 0;
+
+                 images.forEach(img => {
+                   const x = parseFloat(img.getAttribute('x') || '0');
+                   const width = parseFloat(img.getAttribute('width') || '12');
+                   if (x + width > maxContentRight) {
+                     maxContentRight = x + width;
+                   }
+                 });
+
+                 paths.forEach(p => {
+                   const d = p.getAttribute('d') || '';
+                   const numbers = d.match(/-?[0-9.]+/g);
+                   if (numbers && numbers.length >= 7) {
+                     const startX = parseFloat(numbers[0]);
+                     const offsetVal = parseFloat(numbers[6]);
+                     const endX = startX + offsetVal;
+                     if (endX > maxContentRight) {
+                       maxContentRight = endX;
+                     }
+                   }
+                 });
+
+                 if (maxContentRight > 0) {
+                   // Find the inner layout translation amount (default 12)
+                   const gTranslate = s.querySelector('g[transform*="translate"]');
+                   let translateAmt = 12;
+                   if (gTranslate) {
+                     const transform = gTranslate.getAttribute('transform') || '';
+                     const match = transform.match(/translate\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*\)/);
+                     if (match) {
+                       translateAmt = parseFloat(match[1]);
+                     }
+                   }
+                   const contentWidth = maxContentRight + translateAmt + 8;
+                   if (contentWidth > w) {
+                     w = contentWidth;
+                   }
+                 }
+
                  if (w > maxRawWidth) maxRawWidth = w;
                  totalRawHeight += (s.getBoundingClientRect().height || 80);
               }
@@ -1089,16 +1221,14 @@ export class DocumentComponent implements OnInit {
             }
             
             if (txt) {
-              const paratextFontSize = this.settings?.pdfParatextFontSize ?? 10;
-              const paratextSpacing = this.settings?.pdfParatextSpacing ?? 12;
-              checkPageOverflow(paratextFontSize * 2);
+              checkPageOverflow(pdfParatextFontSize * 2);
               
-              doc.setFontSize(paratextFontSize);
+              doc.setFontSize(pdfParatextFontSize);
               doc.setFont(fontFamily, "normal");
               
               const splitText = doc.splitTextToSize(txt, printWidth - paddingLeft);
               doc.text(splitText, xOffset, cursorY);
-              cursorY += (splitText.length * (paratextFontSize * 1.4)) + paratextSpacing;
+              cursorY += (splitText.length * (pdfParatextFontSize * 1.4)) + pdfParatextSpacing;
               checkPageOverflow(0);
               wasLastElementParatext = true;
             }
@@ -1111,11 +1241,10 @@ export class DocumentComponent implements OnInit {
         if (commentsArea && hasComments) {
             doc.addPage();
             let cursorY = pdfMarginTop;
-            const titleFontSize = this.settings?.pdfTitleFontSize ?? 16;
             doc.setFontSize(titleFontSize);
             doc.setFont(fontFamily, "bold");
             doc.text("Critical Apparatus", pdfMarginLeft, cursorY);
-            cursorY += (this.settings?.pdfTitleVerticalSpace ?? 20);
+            cursorY += pdfTitleVerticalSpace;
             checkPageOverflow(0);
 
             const commentBlocks = commentsArea.querySelectorAll('.pdf-comment-block');
@@ -1123,7 +1252,7 @@ export class DocumentComponent implements OnInit {
                 const block = commentBlocks[i] as HTMLElement;
                 const blockRect = block.getBoundingClientRect();
                 const blockWidth = blockRect.width > 0 ? blockRect.width : 1000;
-                const maxScale = this.settings?.pdfCommentStaffScale ?? this.settings?.pdfScale ?? 0.40;
+                const maxScale = pdfCommentStaffScale;
                 const SCALE_C = Math.min(maxScale, (pageWidth - pdfMarginLeft - pdfMarginRight) / blockWidth);
                 
                 let bHeight = blockRect.height * SCALE_C;
@@ -1163,10 +1292,9 @@ export class DocumentComponent implements OnInit {
                     else if (el.classList.contains('syllableText')) {
                         const val = el.innerText.trim();
                         if (val && val !== "X" && val !== "..." && val !== "<...>") {
-                            const commentFontSize = this.settings?.pdfCommentFontSize ?? 9;
-                            doc.setFontSize(commentFontSize);
+                            doc.setFontSize(pdfCommentFontSize);
                             doc.setFont(fontFamily, "normal");
-                            doc.text(val, drawX, drawY + commentFontSize);
+                            doc.text(val, drawX, drawY + pdfCommentFontSize);
                         }
                     }
                     else if (el.tagName.toLowerCase() === 'textarea' || el.tagName.toLowerCase() === 'span') {
@@ -1177,11 +1305,10 @@ export class DocumentComponent implements OnInit {
                             val = el.innerText.trim();
                         }
                         if (val) {
-                            const commentFontSize = this.settings?.pdfCommentFontSize ?? 9;
-                            const commentLineHeight = commentFontSize * 1.4;
+                            const commentLineHeight = pdfCommentFontSize * 1.4;
                             const rightBoundary = pageWidth - pdfMarginRight;
                             let curX = drawX;
-                            let textY = drawY + commentFontSize + 2;
+                            let textY = drawY + pdfCommentFontSize + 2;
                             const tokens = val.split(/(\(\(.*?\)\)|\{\{.*?\}\}|\[\[.*?\]\])/g);
                             
                             // Word-wrap helper: splits text into words and wraps at rightBoundary
@@ -1211,38 +1338,37 @@ export class DocumentComponent implements OnInit {
                                 if (!token) continue;
                                 if (token.startsWith('((')) {
                                     const t = token.replace(/\(\(|\)\)/g, '');
-                                    wrapAndDraw(t, 'normal', commentFontSize, false);
+                                    wrapAndDraw(t, 'normal', pdfCommentFontSize, false);
                                 } else if (token.startsWith('[[')) {
                                     const t = token.replace(/\[\[|\]\]/g, '').toUpperCase();
-                                    wrapAndDraw(t, 'bold', commentFontSize - 1, false);
+                                    wrapAndDraw(t, 'bold', pdfCommentFontSize - 1, false);
                                 } else if (token.startsWith('{{')) {
                                     const t = token.replace(/\{\{|\}\}/g, '');
-                                    wrapAndDraw(t, 'normal', commentFontSize, true);
+                                    wrapAndDraw(t, 'normal', pdfCommentFontSize, true);
                                 } else {
-                                    wrapAndDraw(token, 'italic', commentFontSize, false);
+                                    wrapAndDraw(token, 'italic', pdfCommentFontSize, false);
                                 }
                             }
                         }
                     }
                     else if (el.tagName.toLowerCase() === 'h4' || el.classList.contains('app-index')) {
                         const val = el.innerText.trim();
-                        const commentTitleFontSize = this.settings?.pdfCommentTitleFontSize ?? 10;
-                        doc.setFontSize(commentTitleFontSize);
+                        doc.setFontSize(pdfCommentTitleFontSizeActual);
                         doc.setFont(fontFamily, "bolditalic");
-                        doc.text(val, drawX, drawY + commentTitleFontSize);
+                        doc.text(val, drawX, drawY + pdfCommentTitleFontSizeActual);
                     }
                     else if (el.classList.contains('bracket')) {
                         const bWidth = elRect.width * SCALE_C;
                         const bHeight = elRect.height * SCALE_C;
                         doc.setDrawColor(0,0,0);
-                        doc.setLineWidth(this.settings?.pdfBracketThickness ?? 1.2);
+                        doc.setLineWidth(pdfBracketThickness);
                         doc.line(drawX, drawY, drawX + bWidth, drawY); // top
                         doc.line(drawX + bWidth, drawY, drawX + bWidth, drawY + bHeight); // right
                         doc.line(drawX + bWidth, drawY + bHeight, drawX, drawY + bHeight); // bottom
                     }
                 }
                 
-                cursorY += bHeight + (this.settings?.pdfCommentBlockGap ?? 25);
+                cursorY += bHeight + pdfCommentBlockGap;
             }
         }
 
@@ -1252,9 +1378,8 @@ export class DocumentComponent implements OnInit {
           doc.setPage(pageNum);
           
           // Page Numbers
-          if (this.settings?.pdfShowPageNumbers) {
-            const pageNumFontSize = this.settings?.pdfPageNumberFontSize ?? 8;
-            doc.setFontSize(pageNumFontSize);
+          if (pdfShowPageNumbers) {
+            doc.setFontSize(pdfPageNumberFontSize);
             doc.setFont(fontFamily, "normal");
             doc.setTextColor(120, 120, 120);
             const pageNumText = `Page ${pageNum} of ${totalPages}`;
@@ -1265,11 +1390,10 @@ export class DocumentComponent implements OnInit {
 
           // Running Headline on page 2+
           if (pageNum > 1) {
-            const headlineFields = this.settings?.pdfHeadlineMetadataFields || [];
-            const headlineText = this.buildHeadlineText(headlineFields);
+            const headlineText = this.buildHeadlineText(pdfHeadlineMetadataFields);
             if (headlineText) {
-              const headlineFontSize = this.settings?.pdfHeadlineFontSize ?? 8;
-              doc.setFontSize(headlineFontSize);
+              const headlineFontSize = pdfHeadlineFontSize;
+              doc.setFontSize(pdfHeadlineFontSize);
               doc.setFont(fontFamily, "italic");
               doc.setTextColor(80, 80, 80);
               
@@ -1558,6 +1682,22 @@ export class DocumentComponent implements OnInit {
                 this.sourceSigle || undefined,
                 'Editing'
               );
+              try {
+                const recentDocsRaw = localStorage.getItem('monodi_recent_documents');
+                let recentDocs: any[] = recentDocsRaw ? JSON.parse(recentDocsRaw) : [];
+                recentDocs = recentDocs.filter((d: any) => d.id !== res.document.id);
+                recentDocs.unshift({
+                  id: res.document.id,
+                  quelle_id: res.document.quelle_id,
+                  textinitium: res.document.textinitium || '',
+                  dokumenten_id: res.document.dokumenten_id || '',
+                  timestamp: new Date().toISOString()
+                });
+                recentDocs = recentDocs.slice(0, 8);
+                localStorage.setItem('monodi_recent_documents', JSON.stringify(recentDocs));
+              } catch (recentErr) {
+                console.warn('Failed to save recent document:', recentErr);
+              }
             }
             break;
           default: assertNever(res);
