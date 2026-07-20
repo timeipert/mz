@@ -77,45 +77,8 @@
       <div class="left-rail">
         <div class="sidebar-panel">
 
-          <!-- Original Text (Lemma) -->
-          <div *ngIf="getOriginal(getActiveCommentIndex(comment)) as orig" class="sidebar-section lemma-section">
-            <div *ngIf="lemmaText(orig) as text">
-              <div class="sidebar-section-header d-flex justify-content-between align-items-center mb-1">
-                <span class="section-label mb-0">Original Text (Lemma)</span>
-                <i class="bi bi-info-circle text-muted"
-                   style="font-size: 0.8rem; cursor: help;"
-                   title="The original manuscript text segment that this comment annotates.">
-                </i>
-              </div>
-              <div class="lemma-text-quote">“{{text}}”</div>
-              
-              <!-- Toggle for original notation -->
-              <div class="notation-toggle mt-2">
-                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none text-secondary d-inline-flex align-items-center gap-1" (click)="showOriginalNotation = !showOriginalNotation">
-                  <i class="bi" [class.bi-chevron-right]="!showOriginalNotation" [class.bi-chevron-down]="showOriginalNotation"></i>
-                  <span>Notation</span>
-                </button>
-                
-                <div *ngIf="showOriginalNotation" class="original-notation-display mt-2 bg-white border rounded p-2">
-                  <app-zeile-section [documentType]="'Gesang'" [readOnly]="true" [data]="orig" [comments]="[]"
-                    [zipper]="[0]"></app-zeile-section>
-                  <div class="hider"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Apparatus preview card -->
-          <div class="sidebar-section preview-section border-top pt-3" *ngIf="activeComments().length > 0">
-            <span class="section-label">Apparatus Preview</span>
-            <div class="apparatus-preview-text">
-              <span *ngIf="apparatusPreviewParts.category" class="apparatus-preview-category text-uppercase me-1">[{{ apparatusPreviewParts.category }}]</span>
-              {{ apparatusPreviewParts.rest }}
-            </div>
-          </div>
-
           <!-- Classification card -->
-          <div class="sidebar-section border-top pt-3">
+          <div class="sidebar-section">
             <span class="section-label">Classification</span>
             <div class="toggle-chips">
               <button *ngFor="let cat of COMMENT_CATEGORIES"

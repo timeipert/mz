@@ -6,7 +6,7 @@ import * as M from '../types/model';
  * a fresh CommentTree (with fresh UUIDs) each time it is called.
  */
 export interface CommentTemplate {
-  key: 'text' | 'lemma' | 'grid';
+  key: 'text' | 'lemma';
   label: string;
   icon: string;
   build(originalCreator: () => M.ZeileContainer): M.CommentTree;
@@ -39,21 +39,9 @@ export const COMMENT_TEMPLATES: CommentTemplate[] = [
       kind: 'CommentTreeGrid',
       id: UUID(),
       items: [
-        [ notesLeaf(originalCreator()) ],       // row 0 — the lemma
-        [ notesLeaf(M.emptyZeileContainer()) ], // row 1 — an empty reading
-      ],
-    }),
-  },
-  {
-    key: 'grid',
-    label: 'Witness comparison',
-    icon: 'bi-grid-3x3',
-    build: () => ({
-      kind: 'CommentTreeGrid',
-      id: UUID(),
-      items: [
-        [ undecided(), undecided() ],
-        [ undecided(), undecided() ],
+        [ notesLeaf(originalCreator()) ],       // row 0 — the lemma (chant)
+        [ textLeaf(']') ],                      // row 1 — the bracket
+        [ notesLeaf(M.emptyZeileContainer()) ], // row 2 — the reading (chant)
       ],
     }),
   },
