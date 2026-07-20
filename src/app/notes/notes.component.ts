@@ -93,19 +93,50 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     return voices;
   }
 
+  private isUUIDInCommentSpan(targetUUID: string, comment: VM.Comment): boolean {
+    if (!targetUUID || !comment) return false;
+    if (comment.startUUID === targetUUID || comment.endUUID === targetUUID) return true;
+
+    if (typeof document !== 'undefined') {
+      const allEl = Array.from(document.querySelectorAll('[data-uuid]'));
+      if (allEl.length > 0) {
+        const uuids = allEl.map(el => el.getAttribute('data-uuid')).filter((u): u is string => !!u);
+        const startIdx = uuids.indexOf(comment.startUUID);
+        const endIdx = uuids.indexOf(comment.endUUID);
+        const targetIdx = uuids.indexOf(targetUUID);
+
+        if (startIdx !== -1 && endIdx !== -1 && targetIdx !== -1) {
+          const min = Math.min(startIdx, endIdx);
+          const max = Math.max(startIdx, endIdx);
+          return targetIdx >= min && targetIdx <= max;
+        }
+      }
+    }
+    return false;
+  }
+
   getActiveComments(): VM.Comment[] {
     const focusedNote = VM.getFocused(this.getVoices()[this.focusedVoiceIndex]);
     if (focusedNote) {
-      return this.comments.filter(c => c.endUUID === focusedNote.uuid || c.startUUID === focusedNote.uuid);
+      return this.comments.filter(c => this.isUUIDInCommentSpan(focusedNote.uuid, c));
     }
     return [];
   }
 
   getSyllableComments(): VM.Comment[] {
-    if (this.model.uuid) {
-      return this.comments.filter(c => c.endUUID === this.model.uuid || c.startUUID === this.model.uuid);
+    const syllableUUIDs = [this.model.uuid];
+    if (this.model.notes && this.model.notes.spaced) {
+      for (const sp of this.model.notes.spaced) {
+        for (const ns of sp.nonSpaced) {
+          for (const n of ns.grouped) {
+            if (n.uuid) syllableUUIDs.push(n.uuid);
+          }
+        }
+      }
     }
-    return [];
+    return this.comments.filter(c =>
+      syllableUUIDs.some(uuid => this.isUUIDInCommentSpan(uuid, c))
+    );
   }
 
   constructor(
@@ -398,6 +429,9 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
          this.focusedVoiceIndex--;
          this.focusService.preferredFocus = Focus.Code;
          this.focus({ focusLast: false });
+      } else {
+         event.preventDefault();
+         this.request.emit({ kind: 'LineFocusShiftRequest', uuid: this.model.uuid, direction: -1 });
       }
     }
     if (event.ctrlKey && event.key === 'z') {
@@ -573,6 +607,8 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
       }
       this.notesToText();
       this.cdr.detectChanges();
+    } else {
+      this.request.emit({ kind: 'LineFocusShiftRequest', uuid: this.model.uuid, direction: delta < 0 ? -1 : 1 });
     }
   }
 
@@ -587,8 +623,8 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     this.focusService.preferredVoiceIndex = voiceIndex;
     e.preventDefault();
     e.stopPropagation();
-    if (e.altKey && e.key === 'ArrowDown') { this.switchVoice(1); }
-    else if (e.altKey && e.key === 'ArrowUp') { this.switchVoice(-1); }
+    if ((e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) && e.key === 'ArrowDown') { this.switchVoice(1); }
+    else if ((e.altKey || e.shiftKey || e.ctrlKey || e.metaKey) && e.key === 'ArrowUp') { this.switchVoice(-1); }
     else if (e.key === 'ArrowUp') { this.changePitch(VM.nextNote); }
     else if (e.altKey && e.key === 't') { this.request.emit({ kind: 'EditSyllableTextReqested' }); }
     else if (e.altKey && e.key === 'n') { this.request.emit({ kind: 'EditNotesTextReqested' }); }

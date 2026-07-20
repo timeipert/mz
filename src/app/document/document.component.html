@@ -591,3 +591,35 @@
     </div>
   </div>
 </div>
+
+<!-- Second Voice Reincorporation Import Modal -->
+<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showSecondVoiceImportDialog">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+    <div class="modal-content shadow border-0">
+      <div class="modal-header border-bottom bg-white px-4 py-3">
+        <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+          <i class="bi bi-music-note-beamed text-danger"></i>
+          <span>Second Voice Detected</span>
+        </h5>
+        <button type="button" class="btn-close" (click)="keepSecondVoiceAsComments()"></button>
+      </div>
+      <div class="modal-body p-4 bg-light">
+        <p class="text-dark fw-semibold mb-2">
+          This document contains {{ detectedSecondVoiceCommentCount }} phrase comment(s) stored as a Second Voice.
+        </p>
+        <p class="text-muted small mb-0">
+          Would you like to incorporate them back into native 2nd voice staves, or leave them as apparatus comments?
+        </p>
+      </div>
+      <div class="modal-footer border-top bg-white px-4 py-3 d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-secondary px-3 fw-medium" (click)="keepSecondVoiceAsComments()">
+          Keep as Comments
+        </button>
+        <button type="button" class="btn btn-primary px-3 fw-medium d-inline-flex align-items-center gap-2" (click)="confirmReincorporateSecondVoice()">
+          <i class="bi bi-arrow-repeat"></i>
+          <span>Incorporate as 2nd Voice</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

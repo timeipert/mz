@@ -7,9 +7,11 @@ import {
   convertToBackwardsCompatibleSplitDocuments,
   ContainerKind, 
   DocumentType, 
+  findSecondVoiceComments,
   LinePartKind, 
   normalizeDocumentComments,
   NoteType,
+  reincorporateSecondVoiceComments,
   RootContainer, 
   Syllable, 
   SyllableType, 
@@ -128,6 +130,34 @@ describe('convertToBackwardsCompatibleMonodi Modes', () => {
     const zeile2 = result.v2.children[0] as ZeileContainer;
     expect((zeile2.children[0] as Syllable).notes.spaced[0].nonSpaced[0].grouped[0].base).toBe(BaseNote.E);
     expect((zeile2.children[0] as Syllable).additionalMelodies).toBeUndefined();
+  });
+
+  it('should detect Second Voice comments with second_voice category and reincorporate them back into native 2nd voice staves', () => {
+    // 1. First convert testRoot with polyphony to backwards-compatible comment format
+    const converted = convertToBackwardsCompatibleComment(testRoot);
+
+    expect(converted.comments.length).toBe(1);
+    expect(converted.comments[0].category).toBe('second_voice');
+
+    // Verify 2nd voice staves were stripped from phrase
+    const zeileBefore = converted.children[0] as ZeileContainer;
+    expect(zeileBefore.voiceCount).toBeUndefined();
+
+    const found = findSecondVoiceComments(converted);
+    expect(found.length).toBe(1);
+
+    // 2. Reincorporate back into native polyphony
+    const result = reincorporateSecondVoiceComments(converted);
+
+    expect(result.count).toBe(1);
+    expect(result.root.comments.length).toBe(0);
+
+    const zeileAfter = result.root.children[0] as ZeileContainer;
+    expect(zeileAfter.voiceCount).toBe(2);
+
+    const syl1 = zeileAfter.children[0] as Syllable;
+    expect(syl1.additionalMelodies).toBeDefined();
+    expect(syl1.additionalMelodies![0].spaced[0].nonSpaced[0].grouped[0].base).toBe(BaseNote.E);
   });
 });
 

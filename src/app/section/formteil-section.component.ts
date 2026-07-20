@@ -2,7 +2,7 @@ import { ChangeDetectorRef, OnChanges, ViewChildren, QueryList, Component, OnDes
 import * as S from './Section';
 import * as Model from '../types/model';
 import { Event, NewNoteLineRequsted } from './Event';
-import { FocusShiftRequested, DeletionRequested } from '../types/CommonEvent';
+import { FocusShiftRequested, DeletionRequested, LineFocusShiftRequest } from '../types/CommonEvent';
 import { handleFocusShiftFromChild, handleFocusChangeFromParent } from '../../utils';
 import { Focusable, FocusChange } from "../types/Focus";
 import { UndoService } from '../undoService';
@@ -44,8 +44,8 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
   private focusSub?: Subscription;
 
   constructor(
+    undo: UndoService,
     private cdr: ChangeDetectorRef, 
-    undo: UndoService, 
     private contextMenuService: ContextMenuService, 
     private toastr: ToastrService,
     private focusService: FocusService,
@@ -60,6 +60,7 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
       'NewParatextRequested': (e: Event, oldIndex: number) => { undo.beforeChange(); this.newAt(Model.emptyParatextContainer(), oldIndex + 1); },
       'DeletionRequested': (e: Event, oldIndex: number) => { undo.beforeChange(); this.deletionRequest(e as DeletionRequested, oldIndex) },
       'FocusShiftRequested': (e: Event, oldIndex: number) => this.focusShiftRequest(e as FocusShiftRequested, oldIndex),
+      'LineFocusShiftRequest': (e: Event, oldIndex: number) => this.lineFocusShiftRequest(e as LineFocusShiftRequest, oldIndex),
       // A child container is requesting a new PEER sibling (same depth as itself).
       // This FormteilContainer is the parent — it creates the new child at `oldIndex + 1`.
       // Using this.zipper.concat([oldIndex+1]) keeps the depth correct.
@@ -72,6 +73,16 @@ export class FormteilSectionComponent extends S.Section<Model.FormteilContainer>
         );
       },
     }, undo);
+  }
+
+  lineFocusShiftRequest(e: LineFocusShiftRequest, oldIndex: number): void {
+    const nextIndex = oldIndex + e.direction;
+    const targetChild = this.children.toArray()[nextIndex];
+    if (targetChild) {
+      targetChild.focus({ focusLast: e.direction < 0 });
+    } else {
+      this.onEvent.emit({ kind: 'LineFocusShiftRequest', uuid: this.data.uuid, direction: e.direction });
+    }
   }
 
   focusShiftRequest(e: FocusShiftRequested, oldIndex: number): void {

@@ -485,6 +485,7 @@ export class ZeileSectionComponent extends S.Section<Model.ZeileContainer> imple
         break;
       }
       case 'LineFocusShiftRequest': {
+        this.onEvent.emit({ kind: 'LineFocusShiftRequest', uuid: this.data.uuid, direction: r.direction });
         break;
       }
       case 'ViewIiifRequested': {

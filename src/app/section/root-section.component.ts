@@ -180,11 +180,27 @@ export class RootSectionComponent extends S.Section<Model.RootContainer> impleme
   }
 
   shiftFocusToNextLine(e: LineFocusShiftRequest): void {
+    const containsUUID = (node: any, targetUUID: string): boolean => {
+      if (!node || !targetUUID) return false;
+      if (node.uuid === targetUUID) return true;
+      if (Array.isArray(node.children)) {
+        return node.children.some((child: any) => containsUUID(child, targetUUID));
+      }
+      return false;
+    };
+
     let index = this.data.children.findIndex(c => c.uuid === e.uuid);
-    if (index >= 0 && this.data.children[index + e.direction]) {
-      this.children.toArray()[index + e.direction].focus({ focusLast: (e.direction < 0) })
-    } else {
-      this.children.toArray()[index].focus({ focusLast: (e.direction > 0) })
+    if (index < 0) {
+      index = this.data.children.findIndex(c => containsUUID(c, e.uuid));
+    }
+
+    const nextIndex = index >= 0 ? index + e.direction : -1;
+    const childrenArray = this.children.toArray();
+
+    if (nextIndex >= 0 && nextIndex < childrenArray.length && childrenArray[nextIndex]) {
+      childrenArray[nextIndex].focus({ focusLast: (e.direction < 0) });
+    } else if (index >= 0 && index < childrenArray.length && childrenArray[index]) {
+      childrenArray[index].focus({ focusLast: (e.direction > 0) });
     }
   }
 

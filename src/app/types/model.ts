@@ -135,7 +135,7 @@ export interface Comment {
   emendation?: boolean;
   lines?: FormteilChildren[];
   tree?: CommentTree;
-  category?: 'variant' | 'scribal' | 'liturgical' | 'commentary' | 'bibliography';
+  category?: 'variant' | 'scribal' | 'liturgical' | 'commentary' | 'bibliography' | 'second_voice';
   readingWitnesses?: string[];
   intervention?: 'correction' | 'unclear' | 'supplied' | 'addition' | 'deletion' | 'damage';
   certainty?: 'high' | 'medium' | 'low';
@@ -1785,7 +1785,7 @@ export function convertToBackwardsCompatibleComment(root: RootContainer): RootCo
         text: 'Second Voice',
         lines: [voice2Zeile],
         tree: commentTree,
-        category: 'variant'
+        category: 'second_voice'
       };
       cloned.comments.push(newComment);
     }
@@ -1796,6 +1796,114 @@ export function convertToBackwardsCompatibleComment(root: RootContainer): RootCo
 }
 
 export const convertToBackwardsCompatibleMonodi = convertToBackwardsCompatibleComment;
+
+/** Checks if a comment represents an exported Second Voice. */
+export function isSecondVoiceComment(c: Comment): boolean {
+  if (!c) return false;
+  if (c.category === 'second_voice') return true;
+  if (c.text === 'Second Voice') return true;
+  if (c.tree && c.tree.kind === 'CommentTreeGrid') {
+    for (const row of c.tree.items) {
+      for (const cell of row) {
+        if (cell.kind === 'CommentTreeLeaf' && cell.content.kind === 'Text' && cell.content.content.trim() === 'Second Voice') {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/** Finds all Second Voice comments present in a RootContainer. */
+export function findSecondVoiceComments(root: RootContainer): Comment[] {
+  if (!root || !Array.isArray(root.comments)) return [];
+  return root.comments.filter(isSecondVoiceComment);
+}
+
+/** Extracts the voice 2 ZeileContainer from a Second Voice comment. */
+export function extractZeileFromSecondVoiceComment(c: Comment): ZeileContainer | undefined {
+  if (!c) return undefined;
+  if (c.tree && c.tree.kind === 'CommentTreeGrid') {
+    for (const row of c.tree.items) {
+      for (const cell of row) {
+        if (cell.kind === 'CommentTreeLeaf' && cell.content.kind === 'Notes') {
+          return cell.content.content as ZeileContainer;
+        }
+      }
+    }
+  }
+  if (c.lines && c.lines.length > 0 && c.lines[0].kind === ContainerKind.ZeileContainer) {
+    return c.lines[0] as ZeileContainer;
+  }
+  return undefined;
+}
+
+/**
+ * Reincorporates "Second Voice" apparatus comments back into native polyphonic staves
+ * (restoring zeile.voiceCount = 2 and syllable.additionalMelodies).
+ */
+export function reincorporateSecondVoiceComments(root: RootContainer): { root: RootContainer; count: number } {
+  if (!root || !Array.isArray(root.comments)) return { root, count: 0 };
+
+  const cloned: RootContainer = JSON.parse(JSON.stringify(root));
+  const svComments = cloned.comments.filter(isSecondVoiceComment);
+  if (svComments.length === 0) return { root: cloned, count: 0 };
+
+  let reincorporatedCount = 0;
+
+  // Build a lookup map of note/syllable/zeile UUID -> ZeileContainer
+  const uuidToZeileMap = new Map<string, ZeileContainer>();
+  function collectZeiles(node: any) {
+    if (!node) return;
+    if (node.kind === ContainerKind.ZeileContainer) {
+      const zeile = node as ZeileContainer;
+      uuidToZeileMap.set(zeile.uuid, zeile);
+      for (const child of zeile.children || []) {
+        if (child.uuid) uuidToZeileMap.set(child.uuid, zeile);
+        if (child.kind === LinePartKind.Syllable && child.notes?.spaced) {
+          for (const sp of child.notes.spaced) {
+            for (const ns of sp.nonSpaced || []) {
+              for (const n of ns.grouped || []) {
+                if (n.uuid) uuidToZeileMap.set(n.uuid, zeile);
+              }
+            }
+          }
+        }
+      }
+    } else if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) collectZeiles(child);
+    }
+  }
+  collectZeiles(cloned);
+
+  const commentsToRemove = new Set<Comment>();
+
+  for (const c of svComments) {
+    const targetZeile = uuidToZeileMap.get(c.startUUID) || uuidToZeileMap.get(c.endUUID);
+    const voice2Zeile = extractZeileFromSecondVoiceComment(c);
+
+    if (targetZeile && voice2Zeile) {
+      targetZeile.voiceCount = 2;
+
+      const targetSyllables = (targetZeile.children || []).filter(ch => ch.kind === LinePartKind.Syllable) as Syllable[];
+      const v2Syllables = (voice2Zeile.children || []).filter(ch => ch.kind === LinePartKind.Syllable) as Syllable[];
+
+      for (let i = 0; i < targetSyllables.length; i++) {
+        const syl1 = targetSyllables[i];
+        if (i < v2Syllables.length) {
+          const syl2 = v2Syllables[i];
+          syl1.additionalMelodies = [JSON.parse(JSON.stringify(syl2.notes))];
+        }
+      }
+
+      commentsToRemove.add(c);
+      reincorporatedCount++;
+    }
+  }
+
+  cloned.comments = cloned.comments.filter(c => !commentsToRemove.has(c));
+  return { root: cloned, count: reincorporatedCount };
+}
 
 /**
  * Option 2: Converts any 2nd voice phrase into a second standalone staff line (Notenzeile)

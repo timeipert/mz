@@ -188,6 +188,9 @@ export class DocumentComponent implements OnInit {
   printIncludeMetadata = true;
   isPrinting = false;
 
+  showSecondVoiceImportDialog = false;
+  detectedSecondVoiceCommentCount = 0;
+
   importText: string = '';
   importType: keyof typeof parsers = "Misc";
   importTypes = Object.keys(parsers);
@@ -1742,7 +1745,11 @@ export class DocumentComponent implements OnInit {
               'Notes missing'
             );
             break;
-          case 'NotesRetrieved': this.cont = VM.normalizeDocumentComments(res.data); this.contJsonClone = JSON.stringify(this.cont); break;
+          case 'NotesRetrieved':
+            this.cont = VM.normalizeDocumentComments(res.data);
+            this.contJsonClone = JSON.stringify(this.cont);
+            this.checkSecondVoiceComments(this.cont);
+            break;
           default: assertNever(res);
         }
       });
@@ -1923,6 +1930,7 @@ export class DocumentComponent implements OnInit {
               this.cont = VM.normalizeDocumentComments(res.data);
               this.contJsonClone = JSON.stringify(this.cont);
               this.toastr.success("Upload erfolgreich!");
+              this.checkSecondVoiceComments(this.cont);
               break;
 
             default: assertNever(res);
@@ -1932,6 +1940,31 @@ export class DocumentComponent implements OnInit {
       }
     }
     reader.readAsText(file);
+  }
+
+  checkSecondVoiceComments(root: VM.RootContainer): void {
+    if (!root) return;
+    const svComments = VM.findSecondVoiceComments(root);
+    if (svComments.length > 0) {
+      this.detectedSecondVoiceCommentCount = svComments.length;
+      this.showSecondVoiceImportDialog = true;
+    }
+  }
+
+  confirmReincorporateSecondVoice(): void {
+    if (this.cont) {
+      this.undoService.beforeChange('Incorporate 2nd Voice Comments');
+      const result = VM.reincorporateSecondVoiceComments(this.cont);
+      this.cont = result.root;
+      this.contJsonClone = JSON.stringify(this.cont);
+      this.save();
+      this.toastr.success(`${result.count} 2nd voice comment(s) incorporated into native polyphonic staves!`);
+    }
+    this.showSecondVoiceImportDialog = false;
+  }
+
+  keepSecondVoiceAsComments(): void {
+    this.showSecondVoiceImportDialog = false;
   }
 
   @HostListener('window:unload', ['$event'])
