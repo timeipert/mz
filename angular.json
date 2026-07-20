@@ -88,6 +88,10 @@
                   "with": "src/environments/environment.prod.ts"
                 }
               ]
+            },
+            "electron": {
+              "outputPath": "dist/electron",
+              "baseHref": "./"
             }
           },
           "defaultConfiguration": ""

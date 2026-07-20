@@ -7,6 +7,7 @@ import * as localforage from 'localforage';
 import { NotesStore } from './notes-store';
 import { ensureSchemaVersion } from './schema';
 import { MeiMappingProfileV2, defaultMeiProfile, migrateV1MeiMappings } from './mei/mei-mapping.model';
+import { SavedCommentTemplate } from './comment/comment-templates';
 
 @Injectable({
   providedIn: 'root'
@@ -469,6 +470,7 @@ export interface ProjectSettings {
   customSourceFields?: { key: string, label: string }[];
   customDocumentFields?: { key: string, label: string }[];
   customLists?: { [key: string]: string[] };
+  commentTemplates?: SavedCommentTemplate[];
   pdfScale?: number;
   pdfSynopsisScale?: number;
   pdfSynopsisShowHeader?: boolean;
@@ -789,6 +791,13 @@ export function sanitizeSettings(settings: any): ProjectSettings {
     if (settings[key] !== undefined && settings[key] !== null) {
       settings[key] = Number(settings[key]);
     }
+  }
+
+  if (settings.commentTemplates !== undefined) {
+    settings.commentTemplates = Array.isArray(settings.commentTemplates)
+      ? settings.commentTemplates.filter((t: any) =>
+          t && typeof t.id === 'string' && typeof t.name === 'string' && t.tree && typeof t.tree === 'object')
+      : [];
   }
 
   if (!settings.meiProfiles || settings.meiProfiles.length === 0) {

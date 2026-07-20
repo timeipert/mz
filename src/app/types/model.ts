@@ -135,6 +135,10 @@ export interface Comment {
   emendation?: boolean;
   lines?: FormteilChildren[];
   tree?: CommentTree;
+  category?: 'variant' | 'scribal' | 'liturgical' | 'commentary' | 'bibliography';
+  readingWitnesses?: string[];
+  intervention?: 'correction' | 'unclear' | 'supplied' | 'addition' | 'deletion' | 'damage';
+  certainty?: 'high' | 'medium' | 'low';
 }
 
 export interface ParatextComment {
@@ -303,7 +307,15 @@ export function isOfFormteilDataName(x: any): boolean {
 }
 
 export function isOfComment(x: any): boolean {
-  return typeof (x['startUUID']) === 'string' && typeof (x['endUUID']) === 'string' && typeof (x['text']) === 'string' && (x['emendation'] === undefined || typeof (x['emendation']) === 'boolean') && (x['line'] === undefined || isOfZeileContainer(x['line']));
+  return typeof (x['startUUID']) === 'string' &&
+    typeof (x['endUUID']) === 'string' &&
+    typeof (x['text']) === 'string' &&
+    (x['emendation'] === undefined || typeof (x['emendation']) === 'boolean') &&
+    (x['line'] === undefined || isOfZeileContainer(x['line'])) &&
+    (x['category'] === undefined || x['category'] === 'variant' || x['category'] === 'scribal' || x['category'] === 'liturgical' || x['category'] === 'commentary' || x['category'] === 'bibliography') &&
+    (x['readingWitnesses'] === undefined || (Array.isArray(x['readingWitnesses']) && x['readingWitnesses'].every((y: any) => typeof y === 'string'))) &&
+    (x['intervention'] === undefined || x['intervention'] === 'correction' || x['intervention'] === 'unclear' || x['intervention'] === 'supplied' || x['intervention'] === 'addition' || x['intervention'] === 'deletion' || x['intervention'] === 'damage') &&
+    (x['certainty'] === undefined || x['certainty'] === 'high' || x['certainty'] === 'medium' || x['certainty'] === 'low');
 }
 
 export function isOfParatextComment(x: any): boolean {
@@ -1245,6 +1257,70 @@ export const applyCommentTreeEvent = (commentTree: CommentTree, event: CommentTr
   return go(commentTree, event.source, (tg) => tg ?? { kind: "CommentTreeUndecided", id: UUID() });
 }
 
+/** Build a CommentTree from a legacy text-only comment body. */
+export const textToCommentTree = (text: string): CommentTree => ({
+  kind: "CommentTreeLeaf",
+  id: UUID(),
+  content: { kind: "Text", content: text },
+});
+
+/**
+ * Build a CommentTree from legacy `lines[]` (the old "Staff Line" reading
+ * editor): a single-column grid with one row per line. ZeileContainer lines
+ * become Notes leaves, ParatextContainer lines become Text leaves, anything
+ * else becomes an empty (Undecided) cell.
+ */
+export const linesToCommentTree = (lines: FormteilChildren[]): CommentTree => {
+  const rows: CommentTree[][] = lines.map((line): CommentTree[] => {
+    if (line.kind === ContainerKind.ZeileContainer) {
+      return [{
+        kind: "CommentTreeLeaf",
+        id: UUID(),
+        content: { kind: "Notes", content: JSON.parse(JSON.stringify(line)) as ZeileContainer },
+      }];
+    }
+    if (line.kind === ContainerKind.ParatextContainer) {
+      return [{
+        kind: "CommentTreeLeaf",
+        id: UUID(),
+        content: { kind: "Text", content: (line as ParatextContainer).text ?? "" },
+      }];
+    }
+    return [{ kind: "CommentTreeUndecided", id: UUID() }];
+  });
+  if (rows.length === 0) return emptyCommentTree();
+  return { kind: "CommentTreeGrid", id: UUID(), items: rows };
+};
+
+/**
+ * Ensure a comment has a `tree`, migrating a legacy text/lines body in place.
+ * The old `text`/`lines` fields are left untouched as a back-compat fallback;
+ * we simply stop editing them. Returns the (possibly newly created) tree.
+ */
+export const ensureCommentTree = (comment: Comment): CommentTree => {
+  if (comment.tree) return comment.tree;
+  if (comment.lines && comment.lines.length > 0) {
+    comment.tree = linesToCommentTree(comment.lines);
+  } else if (comment.text && comment.text.trim().length > 0) {
+    comment.tree = textToCommentTree(comment.text);
+  } else {
+    comment.tree = emptyCommentTree();
+  }
+  return comment.tree;
+};
+
+/**
+ * True when a comment carries no editorial content: empty text, no legacy
+ * lines, and an empty / Undecided tree. Used to drop accidentally-created
+ * comments when the editor is dismissed without any input.
+ */
+export const isCommentEmpty = (comment: Comment): boolean => {
+  const emptyText = !comment.text || comment.text.trim() === '';
+  const emptyLines = !comment.lines || comment.lines.length === 0;
+  const emptyTree = !comment.tree || comment.tree.kind === 'CommentTreeUndecided';
+  return emptyText && emptyLines && emptyTree;
+};
+
 export function changeDocumentStructure(root: RootContainer, targetType: DocumentType): void {
   let currentLevel = parseInt(root.documentType.replace(/level/i, ''), 10) || 0;
   const hasFormteil = root.children.some((c: any) => c.kind === ContainerKind.FormteilContainer);
@@ -1458,5 +1534,340 @@ export function fixSyllableDashes(root: RootContainer): void {
       }
     }
   }
+}
+
+function hasNotesInSpaced(spaced: Spaced | undefined): boolean {
+  if (!spaced || !Array.isArray(spaced.spaced)) return false;
+  for (const sp of spaced.spaced) {
+    for (const ns of (sp?.nonSpaced ?? [])) {
+      if ((ns?.grouped ?? []).length > 0) return true;
+    }
+  }
+  return false;
+}
+
+function regenerateNotesUUIDs(spaced: Spaced): void {
+  if (!spaced || !Array.isArray(spaced.spaced)) return;
+  for (const sp of spaced.spaced) {
+    for (const ns of (sp?.nonSpaced ?? [])) {
+      for (const n of (ns?.grouped ?? [])) {
+        if (n) n.uuid = UUID();
+      }
+    }
+  }
+}
+
+/**
+ * Converts a RootContainer into a backwards-compatible document tree for older Monodi versions.
+ * Option 1: Any phrase (ZeileContainer) with a 2nd voice has its 2nd voice extracted into an
+ * apparatus Comment (2-row grid: Row 0 "Second Voice" text, Row 1 staff line) attached to the phrase range.
+ */
+export function convertToBackwardsCompatibleComment(root: RootContainer): RootContainer {
+  if (!root || root.kind !== ContainerKind.RootContainer) return root;
+
+  const cloned: RootContainer = JSON.parse(JSON.stringify(root));
+  if (!cloned.comments) {
+    cloned.comments = [];
+  }
+
+  function processNode(node: any) {
+    if (!node) return;
+
+    if (node.kind === ContainerKind.FormteilContainer || node.kind === ContainerKind.MiscContainer || node.kind === ContainerKind.RootContainer) {
+      if (Array.isArray(node.children)) {
+        for (const child of node.children) {
+          processNode(child);
+        }
+      }
+    } else if (node.kind === ContainerKind.ZeileContainer) {
+      processZeile(node as ZeileContainer);
+    }
+  }
+
+  function processZeile(zeile: ZeileContainer) {
+    if (!zeile.children || !Array.isArray(zeile.children) || zeile.children.length === 0) return;
+
+    const hasSecondVoice = zeile.voiceCount === 2 || zeile.children.some(child => {
+      return child.kind === LinePartKind.Syllable && 
+             (child as Syllable).additionalMelodies && 
+             (child as Syllable).additionalMelodies!.length > 0 &&
+             hasNotesInSpaced((child as Syllable).additionalMelodies![0]);
+    });
+
+    if (!hasSecondVoice) {
+      delete zeile.voiceCount;
+      return;
+    }
+
+    // Find Note UUIDs for startUUID and endUUID in Voice 1
+    let firstUUID = '';
+    let lastUUID = '';
+    for (const child of zeile.children) {
+      if (child.kind === LinePartKind.Syllable) {
+        const syl = child as Syllable;
+        if (syl.notes && Array.isArray(syl.notes.spaced)) {
+          for (const sp of syl.notes.spaced) {
+            for (const ns of (sp?.nonSpaced ?? [])) {
+              for (const n of (ns?.grouped ?? [])) {
+                if (n && n.uuid) {
+                  if (!firstUUID) firstUUID = n.uuid;
+                  lastUUID = n.uuid;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback to child UUIDs if no note UUIDs found
+    if (!firstUUID && zeile.children.length > 0) {
+      firstUUID = zeile.children[0].uuid;
+      lastUUID = zeile.children[zeile.children.length - 1].uuid;
+    }
+
+    const voice2Children: LinePart[] = [];
+    for (const child of zeile.children) {
+      if (child.kind === LinePartKind.Syllable) {
+        const syl = child as Syllable;
+        const syl2Uuid = UUID();
+
+        let notes2: Spaced;
+        if (syl.additionalMelodies && syl.additionalMelodies.length > 0) {
+          notes2 = JSON.parse(JSON.stringify(syl.additionalMelodies[0]));
+          regenerateNotesUUIDs(notes2);
+        } else {
+          notes2 = { spaced: [{ nonSpaced: [{ grouped: [] }] }] };
+        }
+
+        const syl2: Syllable = {
+          kind: LinePartKind.Syllable,
+          uuid: syl2Uuid,
+          text: syl.text || '',
+          syllableType: syl.syllableType || SyllableType.Normal,
+          notes: notes2
+        };
+        voice2Children.push(syl2);
+      } else {
+        const childCopy = JSON.parse(JSON.stringify(child));
+        childCopy.uuid = UUID();
+        voice2Children.push(childCopy);
+      }
+    }
+
+    const voice2Zeile: ZeileContainer = {
+      kind: ContainerKind.ZeileContainer,
+      uuid: UUID(),
+      children: voice2Children
+    };
+
+    // Strip voiceCount and additionalMelodies from original zeile
+    delete zeile.voiceCount;
+    for (const child of zeile.children) {
+      if (child.kind === LinePartKind.Syllable) {
+        delete (child as Syllable).additionalMelodies;
+      }
+    }
+
+    // Attach as comment to cloned.comments with 2-row grid: Row 0 "Second Voice" text, Row 1 staff line
+    if (firstUUID && lastUUID) {
+      const textLeaf: CommentTreeLeaf = {
+        kind: 'CommentTreeLeaf',
+        id: UUID(),
+        content: { kind: 'Text', content: 'Second Voice' }
+      };
+      const notesLeaf: CommentTreeLeaf = {
+        kind: 'CommentTreeLeaf',
+        id: UUID(),
+        content: { kind: 'Notes', content: voice2Zeile }
+      };
+      const commentTree: CommentTreeGrid = {
+        kind: 'CommentTreeGrid',
+        id: UUID(),
+        items: [
+          [ textLeaf ],
+          [ notesLeaf ]
+        ]
+      };
+
+      const newComment: Comment = {
+        startUUID: firstUUID,
+        endUUID: lastUUID,
+        commentType: 'tree',
+        text: 'Second Voice',
+        lines: [voice2Zeile],
+        tree: commentTree,
+        category: 'variant'
+      };
+      cloned.comments.push(newComment);
+    }
+  }
+
+  processNode(cloned);
+  return cloned;
+}
+
+export const convertToBackwardsCompatibleMonodi = convertToBackwardsCompatibleComment;
+
+/**
+ * Option 2: Converts any 2nd voice phrase into a second standalone staff line (Notenzeile)
+ * with the same text and 2nd voice notes, placed directly below the 1st voice phrase.
+ */
+export function convertToBackwardsCompatibleConsecutiveLines(root: RootContainer): RootContainer {
+  if (!root || root.kind !== ContainerKind.RootContainer) return root;
+
+  const cloned: RootContainer = JSON.parse(JSON.stringify(root));
+
+  function processChildren(children: any[]) {
+    if (!Array.isArray(children)) return;
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      if (!child) continue;
+
+      if (child.kind === ContainerKind.FormteilContainer || child.kind === ContainerKind.MiscContainer || child.kind === ContainerKind.RootContainer) {
+        processChildren(child.children);
+      } else if (child.kind === ContainerKind.ZeileContainer) {
+        const zeile = child as ZeileContainer;
+        const hasSecondVoice = zeile.voiceCount === 2 || zeile.children?.some(c => {
+          return c.kind === LinePartKind.Syllable && 
+                 (c as Syllable).additionalMelodies && 
+                 (c as Syllable).additionalMelodies!.length > 0 &&
+                 hasNotesInSpaced((c as Syllable).additionalMelodies![0]);
+        });
+
+        if (hasSecondVoice) {
+          const voice2Children: LinePart[] = [];
+          for (const c of zeile.children) {
+            if (c.kind === LinePartKind.Syllable) {
+              const syl = c as Syllable;
+              const syl2Uuid = UUID();
+
+              let notes2: Spaced;
+              if (syl.additionalMelodies && syl.additionalMelodies.length > 0) {
+                notes2 = JSON.parse(JSON.stringify(syl.additionalMelodies[0]));
+                regenerateNotesUUIDs(notes2);
+              } else {
+                notes2 = { spaced: [{ nonSpaced: [{ grouped: [] }] }] };
+              }
+
+              const syl2: Syllable = {
+                kind: LinePartKind.Syllable,
+                uuid: syl2Uuid,
+                text: syl.text || '',
+                syllableType: syl.syllableType || SyllableType.Normal,
+                notes: notes2
+              };
+              voice2Children.push(syl2);
+            } else {
+              const childCopy = JSON.parse(JSON.stringify(c));
+              childCopy.uuid = UUID();
+              voice2Children.push(childCopy);
+            }
+          }
+
+          const voice2Zeile: ZeileContainer = {
+            kind: ContainerKind.ZeileContainer,
+            uuid: UUID(),
+            children: voice2Children
+          };
+
+          // Strip 2nd voice fields from original zeile (Voice 1)
+          delete zeile.voiceCount;
+          for (const c of zeile.children) {
+            if (c.kind === LinePartKind.Syllable) {
+              delete (c as Syllable).additionalMelodies;
+            }
+          }
+
+          // Insert voice2Zeile immediately after zeile
+          children.splice(i + 1, 0, voice2Zeile);
+          i++; // Skip the inserted voice2Zeile in loop iteration
+        } else {
+          delete zeile.voiceCount;
+        }
+      }
+    }
+  }
+
+  if (cloned.children) {
+    processChildren(cloned.children);
+  }
+
+  return cloned;
+}
+
+export interface SplitDocumentsExportResult {
+  v1: RootContainer;
+  v2: RootContainer;
+  filename1: string;
+  filename2: string;
+}
+
+/**
+ * Option 3: Generates two separate RootContainer documents for download:
+ * - Document 1 (Voice 1): Contains only the first voice.
+ * - Document 2 (Voice 2): Contains only the second voice.
+ */
+export function convertToBackwardsCompatibleSplitDocuments(
+  root: RootContainer, 
+  baseDocId: string = 'document'
+): SplitDocumentsExportResult {
+  if (!root || root.kind !== ContainerKind.RootContainer) {
+    return { v1: root, v2: root, filename1: `${baseDocId}-v1.json`, filename2: `${baseDocId}-v2.json` };
+  }
+
+  // Build Voice 1 Document
+  const v1: RootContainer = JSON.parse(JSON.stringify(root));
+  function cleanV1(node: any) {
+    if (!node) return;
+    if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) {
+        if (child.kind === ContainerKind.ZeileContainer) {
+          delete (child as ZeileContainer).voiceCount;
+          for (const lp of child.children) {
+            if (lp.kind === LinePartKind.Syllable) {
+              delete (lp as Syllable).additionalMelodies;
+            }
+          }
+        } else {
+          cleanV1(child);
+        }
+      }
+    }
+  }
+  cleanV1(v1);
+
+  // Build Voice 2 Document
+  const v2: RootContainer = JSON.parse(JSON.stringify(root));
+  function cleanV2(node: any) {
+    if (!node) return;
+    if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) {
+        if (child.kind === ContainerKind.ZeileContainer) {
+          delete (child as ZeileContainer).voiceCount;
+          for (const lp of child.children) {
+            if (lp.kind === LinePartKind.Syllable) {
+              const syl = lp as Syllable;
+              if (syl.additionalMelodies && syl.additionalMelodies.length > 0 && hasNotesInSpaced(syl.additionalMelodies[0])) {
+                syl.notes = JSON.parse(JSON.stringify(syl.additionalMelodies[0]));
+                regenerateNotesUUIDs(syl.notes);
+              }
+              delete syl.additionalMelodies;
+            }
+          }
+        } else {
+          cleanV2(child);
+        }
+      }
+    }
+  }
+  cleanV2(v2);
+
+  const cleanBaseId = baseDocId.replace(/\.json$/i, '').replace(/\.monodijson$/i, '');
+  const filename1 = `${cleanBaseId}-v1.json`;
+  const filename2 = `${cleanBaseId}-v2.json`;
+
+  return { v1, v2, filename1, filename2 };
 }
 

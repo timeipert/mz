@@ -18,7 +18,8 @@ import {
   comparePositions,
   nextNote,
   previousNote,
-  isOfRootContainer
+  isOfRootContainer,
+  isOfComment
 } from './model';
 
 describe('Model Pure Functions Characterization Tests', () => {
@@ -194,6 +195,61 @@ describe('Model Pure Functions Characterization Tests', () => {
       // the 'kind' property of null/undefined without checking truthiness first.
       expect(() => isOfRootContainer(null)).toThrow();
       expect(() => isOfRootContainer(undefined)).toThrow();
+    });
+  });
+
+  describe('isOfComment', () => {
+    it('should validate a comment without a category', () => {
+      const comment = {
+        startUUID: 'u1',
+        endUUID: 'u2',
+        text: 'Hello test',
+        emendation: true
+      };
+      expect(isOfComment(comment)).toBeTrue();
+    });
+
+    it('should validate a comment with a valid category', () => {
+      const comment = {
+        startUUID: 'u1',
+        endUUID: 'u2',
+        text: 'Hello test',
+        category: 'variant'
+      };
+      expect(isOfComment(comment)).toBeTrue();
+    });
+
+    it('should reject a comment with an invalid category', () => {
+      const comment = {
+        startUUID: 'u1',
+        endUUID: 'u2',
+        text: 'Hello test',
+        category: 'invalid-category-name'
+      };
+      expect(isOfComment(comment)).toBeFalse();
+    });
+
+    it('should validate a comment with a valid intervention and certainty', () => {
+      const comment = {
+        startUUID: 'u1',
+        endUUID: 'u2',
+        text: 'Hello test',
+        intervention: 'unclear',
+        certainty: 'high'
+      };
+      expect(isOfComment(comment)).toBeTrue();
+      const roundtripped = JSON.parse(JSON.stringify(comment));
+      expect(isOfComment(roundtripped)).toBeTrue();
+    });
+
+    it('should reject a comment with an invalid intervention', () => {
+      const comment = {
+        startUUID: 'u1',
+        endUUID: 'u2',
+        text: 'Hello test',
+        intervention: 'invalid-intervention-type'
+      };
+      expect(isOfComment(comment)).toBeFalse();
     });
   });
 });

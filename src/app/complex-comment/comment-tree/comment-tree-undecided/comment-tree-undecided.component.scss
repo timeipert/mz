@@ -3,23 +3,60 @@
 :host {
   @include common.block;
 
-  display: grid;
-  grid-template-columns: repeat(4, auto);
-  justify-items: center;
-  align-items: center;
-  grid-gap: 1rem;
-  overflow-x: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: 0.4rem;
+
+  border: 2px dashed #cbd5e1;
+  background-color: transparent;
+  min-height: 80px;
+  padding: 0.6rem;
 }
 
-.option {
-  text-align: center;
-  background-color: #0d5d80;
-  color: white;
-  padding: 0.5rem;
-  border-radius: 0.3rem;
+.tile {
+  flex: 0 0 auto;
+  width: 3.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.45rem 0.3rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #475569;
   cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s, box-shadow 0.12s;
+
+  .bi {
+    font-size: 1.05rem;
+    line-height: 1;
+    color: #64748b;
+    transition: color 0.12s;
+  }
+
+  .tile-ico {
+    width: 1.05rem;
+    height: 1.05rem;
+    color: #64748b;
+    transition: color 0.12s;
+  }
+
+  .tile-label {
+    font-size: 0.64rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
 
   &:hover {
-    color: gold;
+    color: #0d5d80;
+    background: #f0f9ff;
+    border-color: #0d5d80;
+    box-shadow: 0 2px 6px rgba(13, 93, 128, 0.12);
+
+    .bi, .tile-ico { color: #0d5d80; }
   }
 }

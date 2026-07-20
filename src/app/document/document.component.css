@@ -319,6 +319,20 @@ ul {
 }
 .emendation-badge i { font-size: 0.65rem; }
 
+.category-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.category-badge i { font-size: 0.7rem; }
+
+
 .comment-lemma {
   font-size: 0.82rem;
   font-weight: 600;

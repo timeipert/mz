@@ -23,6 +23,7 @@ export interface MeiMappingProfileV2 {
   name: string;
   skeleton: string[];                 // element chain inside <mei> around the content, e.g. ['music','body','mdiv','score']
   emitHeader: boolean;                // emit the meiHead block
+  inlineInterventions?: boolean;       // encode interventions inline
   entities: Record<MeiEntityKey, MeiEntityRule>;
 }
 
@@ -336,6 +337,7 @@ export function defaultMeiProfile(): MeiMappingProfileV2 {
     name: 'Default MEI Profile',
     skeleton: ['music', 'body', 'mdiv', 'score'],
     emitHeader: true,
+    inlineInterventions: false,
     entities: buildEntities(null)
   };
 }
@@ -347,6 +349,7 @@ export function migrateV1MeiMappings(v1: any): MeiMappingProfileV2 {
     name: 'Migrated Profile',
     skeleton: ['music', 'body', 'mdiv', 'score'],
     emitHeader: true,
+    inlineInterventions: false,
     entities: buildEntities(v1)
   };
 }

@@ -14,6 +14,9 @@ import * as VM from '../types/model';
 import * as S from '../sselect/sselect.component';
 import { UndoService } from '../undoService';
 import { CommentComponent } from '../comment/comment.component';
+import { commentColor } from '../comment/comment-colors';
+import { getCategoryDetails } from '../comment/comment-categories';
+import { getInterventionLabel, INTERVENTIONS } from '../comment/intervention-vocabulary';
 import { DragStateService } from '../dragger/drag-state.service';
 import { NavigationService } from '../notationsdokumentation/navigation.service';
 import { PageTitleService } from '../page-title.service';
@@ -30,6 +33,12 @@ import autoTable from 'jspdf-autotable';
   styleUrls: ['./document.component.css']
 })
 export class DocumentComponent implements OnInit {
+  getCategoryDetails = getCategoryDetails;
+  getInterventionLabel = getInterventionLabel;
+  getInterventionIcon(key: string): string {
+    const found = INTERVENTIONS.find(i => i.key === key);
+    return found ? found.icon : 'bi-pencil-fill';
+  }
   @ViewChild('textImport', { static: true }) textImportModal!: ElementRef;
   @ViewChild('globalComment', { static: true }) globalCommentModal!: ElementRef;
   subs: Subscription[] = [];
@@ -1262,7 +1271,7 @@ export class DocumentComponent implements OnInit {
                 }
 
                 // Draw each element relative to the block
-                const elementsToDraw = block.querySelectorAll('textarea, svg, .bracket, h4, span.text, .syllableText:not(.dnone), .app-index');
+                const elementsToDraw = block.querySelectorAll('textarea, svg, .bracket, h4, span.text, .syllableText:not(.dnone), .app-index, .app-category, .app-witness-siglum');
                 for (let j = 0; j < elementsToDraw.length; j++) {
                     const el = elementsToDraw[j] as HTMLElement;
                     const elRect = el.getBoundingClientRect();
@@ -1356,6 +1365,18 @@ export class DocumentComponent implements OnInit {
                         doc.setFontSize(pdfCommentTitleFontSizeActual);
                         doc.setFont(fontFamily, "bolditalic");
                         doc.text(val, drawX, drawY + pdfCommentTitleFontSizeActual);
+                    }
+                    else if (el.classList.contains('app-category')) {
+                        const val = el.innerText.trim();
+                        doc.setFontSize(pdfCommentTitleFontSizeActual);
+                        doc.setFont(fontFamily, "italic");
+                        doc.text(val, drawX, drawY + pdfCommentTitleFontSizeActual);
+                    }
+                    else if (el.classList.contains('app-witness-siglum')) {
+                        const val = el.innerText.trim();
+                        doc.setFontSize(pdfCommentFontSize);
+                        doc.setFont(fontFamily, "bold");
+                        doc.text(val, drawX, drawY + pdfCommentFontSize);
                     }
                     else if (el.classList.contains('bracket')) {
                         const bWidth = elRect.width * SCALE_C;
@@ -1608,7 +1629,7 @@ export class DocumentComponent implements OnInit {
         title: 'Upload Document'
       },
       {
-        callback: () => { this.download(); },
+        callback: () => { this.openJsonExport(); },
         icon: 'download',
         title: 'Export Document'
       },
@@ -1618,7 +1639,7 @@ export class DocumentComponent implements OnInit {
         title: 'Export as PDF'
       },
       {
-        callback: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document); },
+        callback: () => { if (this.cont) this.meiExport.exportAndDownload(this.cont, (this.document?.dokumenten_id || 'document') + '.mei', this.settings, this.document, this.sourceSigle); },
         icon: 'mei',
         title: 'Export MEI'
       },
@@ -1832,21 +1853,53 @@ export class DocumentComponent implements OnInit {
     }
   }
 
-  download(): void {
-    const pom = document.createElement('a');
-    pom.setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(this.cont)));
-    if (this.document && this.document.dokumenten_id) {
-      pom.setAttribute('download', this.document.dokumenten_id + ".json");
-    } else {
-      pom.setAttribute('download', "document.json");
+  showJsonExportDialog = false;
+  exportJsonMode: 'none' | 'comment' | 'consecutive_lines' | 'split_documents' = 'none';
+
+  openJsonExport(): void {
+    this.showJsonExportDialog = true;
+  }
+
+  confirmJsonExport(): void {
+    this.showJsonExportDialog = false;
+    this.download(this.exportJsonMode);
+  }
+
+  download(mode: 'none' | 'comment' | 'consecutive_lines' | 'split_documents' | boolean = 'none'): void {
+    if (!this.cont) return;
+
+    const compatMode = typeof mode === 'boolean' ? (mode ? 'comment' : 'none') : mode;
+    const baseId = (this.document && this.document.dokumenten_id) ? this.document.dokumenten_id : 'document';
+
+    if (compatMode === 'split_documents') {
+      const split = VM.convertToBackwardsCompatibleSplitDocuments(this.cont, baseId);
+      this.triggerDownloadBlob(split.v1, split.filename1);
+      setTimeout(() => {
+        this.triggerDownloadBlob(split.v2, split.filename2);
+      }, 250);
+      return;
     }
+
+    let exportData: VM.RootContainer = this.cont;
+    if (compatMode === 'consecutive_lines') {
+      exportData = VM.convertToBackwardsCompatibleConsecutiveLines(this.cont);
+    } else if (compatMode === 'comment') {
+      exportData = VM.convertToBackwardsCompatibleComment(this.cont);
+    }
+
+    this.triggerDownloadBlob(exportData, `${baseId}.json`);
+  }
+
+  private triggerDownloadBlob(data: any, filename: string): void {
+    const pom = document.createElement('a');
+    pom.setAttribute('href', 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(data, null, 2)));
+    pom.setAttribute('download', filename);
 
     if (document.createEvent) {
       var event = document.createEvent('MouseEvents');
       event.initEvent('click', true, true);
       pom.dispatchEvent(event);
-    }
-    else {
+    } else {
       pom.click();
     }
   }
@@ -2025,7 +2078,7 @@ export class DocumentComponent implements OnInit {
     this.undoService.beforeChange('Edit Comment');
     const original = VM.extractComment(this.cont, comment);
 
-    const modalRef = this.modalService.open(CommentComponent, { size: 'xl', centered: true, backdrop: 'static', windowClass: 'comment-modal-window', fullscreen: 'lg' });
+    const modalRef = this.modalService.open(CommentComponent, { size: 'xl', centered: true, backdrop: 'static', windowClass: 'comment-modal-window', scrollable: true, fullscreen: 'lg' });
     modalRef.componentInstance.comments = [comment];
     modalRef.componentInstance.originals = [original];
 
@@ -2047,10 +2100,11 @@ export class DocumentComponent implements OnInit {
     });
 
     const onModalClose = () => {
-      // If the user added a comment and then dismissed without typing
-      // anything (and didn't switch to lines/tree), treat it as an
-      // accidental creation and drop it.
-      if (!deletedInModal && comment.text === '' && comment.commentType === 'text') {
+      // If the user added a comment and then dismissed without entering
+      // any content, treat it as an accidental creation and drop it. A
+      // comment's content is now always a tree, so emptiness is checked
+      // via VM.isCommentEmpty (empty text + empty/Undecided tree).
+      if (!deletedInModal && VM.isCommentEmpty(comment)) {
         this.cont!.comments = this.cont!.comments.filter(c => c !== comment);
         VM.removeStaleComments(this.cont!);
       }
@@ -2150,20 +2204,13 @@ export class DocumentComponent implements OnInit {
     }
   }
 
-  /** Same palette as NotesComponent — keep them in sync. */
-  private static readonly COMMENT_PALETTE = [
-    '#2563eb', '#16a34a', '#f59e0b', '#a855f7',
-    '#ec4899', '#0891b2', '#dc2626', '#84cc16',
-  ];
-
   /** Hex color assigned to a comment based on its position in
    *  `cont.comments`. Used to color both the SVG bracket and the matching
    *  sidebar card stripe so the user can easily pair them up. */
   commentColor(c: VM.Comment): string {
     if (!this.cont) return '#94a3b8';
     const idx = this.cont.comments.indexOf(c);
-    if (idx < 0) return '#94a3b8';
-    return DocumentComponent.COMMENT_PALETTE[idx % DocumentComponent.COMMENT_PALETTE.length];
+    return commentColor(idx);
   }
 
   isCommentHighlighted(comment: VM.Comment): boolean {

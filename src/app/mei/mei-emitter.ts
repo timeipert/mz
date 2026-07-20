@@ -118,7 +118,7 @@ function getOrCreateWrapper(parent: Element, wrapperTag: string, doc: Document):
   return existing;
 }
 
-export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, documentMeta?: MonodiDocument): string {
+export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, documentMeta?: MonodiDocument, sourceSiglum?: string): string {
   const doc = document.implementation.createDocument('http://www.music-encoding.org/ns/mei', 'mei', null);
   const mei = doc.documentElement;
   mei.setAttribute('meiversion', '5.0');
@@ -135,6 +135,35 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
     
     const pubStmt = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'pubStmt');
     fileDesc.appendChild(pubStmt);
+
+    // Collect all distinct sigla
+    const siglaSet = new Set<string>();
+    if (sourceSiglum) {
+        siglaSet.add(sourceSiglum);
+    }
+    if (root.comments) {
+        root.comments.forEach(c => {
+            if (c && c.readingWitnesses) {
+                c.readingWitnesses.forEach(sig => {
+                    if (sig) siglaSet.add(sig);
+                });
+            }
+        });
+    }
+
+    if (siglaSet.size > 0) {
+        const sourceDesc = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'sourceDesc');
+        Array.from(siglaSet).sort().forEach(sig => {
+            const slug = sig.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            const sourceEl = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'source');
+            sourceEl.setAttribute('xml:id', 'wit-' + slug);
+            const identifier = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'identifier');
+            identifier.textContent = sig;
+            sourceEl.appendChild(identifier);
+            sourceDesc.appendChild(sourceEl);
+        });
+        fileDesc.appendChild(sourceDesc);
+    }
     
     if (documentMeta && documentMeta.kommentar) {
         const notesStmt = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'notesStmt');
@@ -158,24 +187,62 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
             const annot = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'annot');
             annot.setAttribute('startid', '#m-' + comment.startUUID);
             annot.setAttribute('endid', '#m-' + comment.endUUID);
+            
+            const typeParts: string[] = [];
             if (comment.emendation) {
-                annot.setAttribute('type', 'emendation');
+                typeParts.push('emendation');
             }
+            if (comment.intervention) {
+                typeParts.push(comment.intervention);
+            }
+            if (comment.category) {
+                typeParts.push('cat:' + comment.category);
+            }
+            if (typeParts.length > 0) {
+                annot.setAttribute('type', typeParts.join(' '));
+            }
+
+            if (comment.certainty) {
+                annot.setAttribute('cert', comment.certainty);
+            }
+
             let treeResult = { element: null as Element | null, zeilen: [] as { id: string, zeile: ZeileContainer }[] };
             if (comment.tree) {
                 const noteCounter = { count: 0 };
                 treeResult = generateCommentTreeDOM(comment.tree, doc, i, noteCounter);
             }
             
-            const hasMusicalStructure = (comment.lines && comment.lines.length > 0) || treeResult.zeilen.length > 0;
+            // A comment's content is a CommentTree when present; legacy
+            // `lines`/`text` are only consulted for truly-legacy comments that
+            // have never been migrated (no `tree`).
+            const hasMusicalStructure = treeResult.zeilen.length > 0 || (!comment.tree && !!comment.lines && comment.lines.length > 0);
             if (hasMusicalStructure) {
                 annot.setAttribute('corresp', '#m-comment-' + i);
             }
-            
-            if (treeResult.element) {
-                annot.appendChild(treeResult.element);
-            } else if (comment.text) {
-                annot.textContent = comment.text;
+
+            const hasWitnessLabels = comment.readingWitnesses && comment.readingWitnesses.some(w => !!w);
+            if (!comment.tree && comment.lines && comment.lines.length > 0 && hasWitnessLabels) {
+                for (let j = 0; j < comment.lines.length; j++) {
+                    const sig = comment.readingWitnesses?.[j];
+                    const ptr = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'ptr');
+                    ptr.setAttribute('target', `#m-comment-${i}-reading-${j}`);
+                    
+                    if (sig) {
+                        const slug = sig.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                        const childAnnot = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'annot');
+                        childAnnot.setAttribute('source', '#wit-' + slug);
+                        childAnnot.appendChild(ptr);
+                        annot.appendChild(childAnnot);
+                    } else {
+                        annot.appendChild(ptr);
+                    }
+                }
+            } else {
+                if (treeResult.element) {
+                    annot.appendChild(treeResult.element);
+                } else if (comment.text) {
+                    annot.textContent = comment.text;
+                }
             }
             
             notesStmt.appendChild(annot);
@@ -268,34 +335,50 @@ export function emitMei(root: RootContainer, profile: MeiMappingProfileV2, docum
             treeResult = generateCommentTreeDOM(comment.tree, doc, i, noteCounter);
         }
         
-        const hasMusicalStructure = (comment.lines && comment.lines.length > 0) || treeResult.zeilen.length > 0;
-        
+        // Tree is the source of truth when present; legacy `lines` are only
+        // emitted for truly-legacy comments that were never migrated.
+        const hasMusicalStructure = treeResult.zeilen.length > 0 || (!comment.tree && !!comment.lines && comment.lines.length > 0);
+
         if (hasMusicalStructure) {
             const commentMdiv = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'mdiv');
             commentMdiv.setAttribute('type', 'commentary');
             commentMdiv.setAttribute('xml:id', 'm-comment-' + i);
-            
+
             const commentScore = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'score');
             const commentScoreDef = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'scoreDef');
             commentScore.appendChild(commentScoreDef);
-            
-            if (comment.lines && comment.lines.length > 0) {
+
+            if (!comment.tree && comment.lines && comment.lines.length > 0) {
                 const commentSection = doc.createElementNS('http://www.music-encoding.org/ns/mei', profile.entities.formteil.tag);
                 let currentStaff: Element | null = null;
                 let currentLayer: Element | null = null;
+                const hasWitnessLabels = comment.readingWitnesses && comment.readingWitnesses.some(w => !!w);
+                let readingIndex = 0;
                 for (const child of comment.lines) {
                     if (child.kind === ContainerKind.FormteilContainer) {
                         walkFormteil(child, commentSection, doc, profile);
                     } else if (child.kind === ContainerKind.ZeileContainer) {
-                        if (!currentStaff) {
-                          currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
-                          currentStaff.setAttribute('n', '1');
-                          currentLayer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
-                          currentLayer.setAttribute('n', '1');
-                          currentStaff.appendChild(currentLayer);
-                          commentSection.appendChild(currentStaff);
+                        if (hasWitnessLabels) {
+                            currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
+                            currentStaff.setAttribute('n', '1');
+                            currentStaff.setAttribute('xml:id', `m-comment-${i}-reading-${readingIndex}`);
+                            currentLayer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
+                            currentLayer.setAttribute('n', '1');
+                            currentStaff.appendChild(currentLayer);
+                            commentSection.appendChild(currentStaff);
+                            walkZeile(child, currentLayer!, doc, profile);
+                        } else {
+                            if (!currentStaff) {
+                              currentStaff = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'staff');
+                              currentStaff.setAttribute('n', '1');
+                              currentLayer = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'layer');
+                              currentLayer.setAttribute('n', '1');
+                              currentStaff.appendChild(currentLayer);
+                              commentSection.appendChild(currentStaff);
+                            }
+                            walkZeile(child, currentLayer!, doc, profile);
                         }
-                        walkZeile(child, currentLayer!, doc, profile);
+                        readingIndex++;
                     }
                 }
                 commentScore.appendChild(commentSection);

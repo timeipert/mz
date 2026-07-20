@@ -1,15 +1,25 @@
 :host {
   position: absolute;
-  transform: translate(-1rem, -1rem);
+  transform: translate(-0.75rem, -0.75rem);
+  z-index: 10;
+}
 
-  &:focus-within {
-    background-color: white;
-    border: 1px solid #ccc;
+.hit-target {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  border-radius: 50%;
+
+  &:focus-within, &:hover {
+    .menu-panel {
+      display: flex;
+    }
     svg .center {
       display: none;
-    }
-    .action {
-      display: block;
     }
   }
 }
@@ -18,14 +28,40 @@ svg {
   display: block;
 }
 
-.action {
+.menu-panel {
   display: none;
-  margin: 0.5rem;
-  cursor: pointer;
-  text-decoration: underline;
-  user-select: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 0.25rem;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  flex-direction: column;
+  min-width: 260px;
+  padding: 0.5rem 0;
+  z-index: 20;
 }
 
-.action.active {
-  font-weight: bold;
+.action {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #333;
+
+  &:hover {
+    background-color: #f8f9fa;
+  }
+  
+  &.active {
+    font-weight: bold;
+    background-color: #e9ecef;
+  }
+
+  &.text-danger {
+    color: #dc3545;
+  }
 }

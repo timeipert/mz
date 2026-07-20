@@ -1,104 +1,220 @@
-<div class="modal-header">
-  <h4 class="modal-title fw-bold mb-0">
-    <i class="bi bi-chat-square-text"></i>
-    Edit Comment
-    <span class="header-sub" *ngIf="activeComments().length > 0">
-      ({{activeComments().length}} {{activeComments().length === 1 ? 'entry' : 'entries'}})
-    </span>
-  </h4>
-  <button type="button" class="btn-close" aria-label="Close" (click)="activeModal.dismiss()"></button>
+<div class="modal-header d-flex align-items-center">
+  <div class="d-flex align-items-center">
+    <h4 class="modal-title fw-bold mb-0">
+      <i class="bi bi-chat-square-text"></i>
+      Critical Apparatus
+      <span class="header-sub" *ngIf="activeComments().length > 0">
+        ({{activeComments().length}} {{activeComments().length === 1 ? 'entry' : 'entries'}})
+      </span>
+    </h4>
+    
+    <button type="button" 
+            class="btn btn-sm btn-outline-secondary rounded-circle ms-2"
+            style="width: 20px; height: 20px; padding: 0; line-height: 1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: bold; border-color: #cbd5e1; color: #64748b;"
+            [ngbPopover]="helpContent"
+            popoverTitle="Apparatus Help"
+            placement="bottom-end"
+            triggers="click"
+            [autoClose]="'outside'">
+      ?
+    </button>
+  </div>
+  <button type="button" class="btn-close" aria-label="Close" (click)="closeModal()"></button>
 </div>
-<div class="modal-body">
-  <app-comment-info />
 
-  <div *ngFor="let comment of activeComments(); index as i" class="note-comment">
+<ng-template #helpContent>
+  <div style="font-size: 0.85rem; max-width: 250px; line-height: 1.4; color: #334155;">
+    <p class="mb-2">An apparatus entry records editorial notes and variant readings for a span of music.</p>
+    <ul class="list-unstyled mb-2 ps-0" style="margin-left: 0;">
+      <li class="mb-1"><strong>Text:</strong> A prose comment or descriptive note.</li>
+      <li class="mb-1"><strong>Staff Line:</strong> A musical variant reading shown on a staff line.</li>
+      <li class="mb-1"><strong>Grid:</strong> A structured comparison across multiple witnesses.</li>
+    </ul>
+    <p class="mb-0 text-muted" style="font-size: 0.78rem;">All modifications are automatically saved.</p>
+  </div>
+</ng-template>
+
+<div class="comment-chips-container" *ngIf="activeComments().length > 1">
+  <button *ngFor="let item of getCommentsWithIndices()"
+          class="comment-chip"
+          [class.active]="selectedIndex === item.originalIndex"
+          (click)="selectComment(item.originalIndex)">
+    <span class="color-dot" [style.background-color]="commentColor(item.originalIndex)"></span>
+    {{item.sequentialIndex}}
+  </button>
+</div>
+
+<div class="modal-body">
+
+  <!-- Inline Undo Bar -->
+  <div *ngIf="pendingDeletion" class="undo-alert-bar alert alert-secondary d-flex justify-content-between align-items-center mb-3 py-2 px-3">
+    <span class="undo-message"><i class="bi bi-trash3 me-2"></i>Comment deleted</span>
+    <button type="button" class="btn btn-sm btn-outline-danger undo-btn px-3 rounded-pill" (click)="undoDeletion()">Undo</button>
+  </div>
+
+  <div *ngIf="comments[selectedIndex] as comment" class="note-comment">
 
     <!-- Header row: index pill + delete -->
     <div class="card-header-row">
       <span class="index-pill">
         <i class="bi bi-chat-left-quote"></i>
-        Comment {{i + 1}}
+        Comment {{getSequentialIndex(comment)}}
       </span>
-      <button type="button" class="delete-btn" (click)="deleteComment(comment)" title="Delete this comment">
-        <i class="bi bi-trash3 me-1"></i>Delete
+      <button type="button"
+              class="delete-btn"
+              [class.armed]="isArmed"
+              (click)="deleteComment(comment)"
+              [title]="isArmed ? 'Confirm deletion' : 'Delete this comment'">
+        <i class="bi bi-trash3"></i>
+        <span *ngIf="isArmed">Confirm delete</span>
       </button>
     </div>
 
-    <!-- Content type switcher -->
-    <label class="mb-1">Content Type</label>
-    <ul class="nav nav-pills type-switcher">
-      <li class="nav-item">
-        <a class="nav-link" [class.active]="comment.commentType === 'text'" (click)="setCommentType(comment, 'text')">
-          <i class="bi bi-text-paragraph me-1"></i>Text
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" [class.active]="comment.commentType === 'lines'" (click)="setCommentType(comment, 'lines')">
-          <i class="bi bi-music-note-list me-1"></i>Staff Line
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" [class.active]="comment.commentType === 'tree'" (click)="setCommentType(comment, 'tree')">
-          <i class="bi bi-grid-3x3-gap me-1"></i>Grid
-        </a>
-      </li>
-    </ul>
+    <!-- 2-Pane Split Grid -->
+    <div class="comment-grid">
+      
+      <!-- LEFT Rail (fixed context & metadata) -->
+      <div class="left-rail">
+        <div class="sidebar-panel">
 
-    <!-- Text editor with undo/redo -->
-    <div *ngIf="comment.commentType === 'text'" class="position-relative">
-      <label>Comment Text</label>
-      <div class="undo-redo-bar">
-        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" (click)="undoText(comment)"
-                [disabled]="!canUndo(comment)" title="Undo">
-          <i class="bi bi-arrow-counterclockwise me-1"></i>Undo
-        </button>
-        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" (click)="redoText(comment)"
-                [disabled]="!canRedo(comment)" title="Redo">
-          Redo<i class="bi bi-arrow-clockwise ms-1"></i>
-        </button>
+          <!-- Original Text (Lemma) -->
+          <div *ngIf="getOriginal(getActiveCommentIndex(comment)) as orig" class="sidebar-section lemma-section">
+            <div *ngIf="lemmaText(orig) as text">
+              <div class="sidebar-section-header d-flex justify-content-between align-items-center mb-1">
+                <span class="section-label mb-0">Original Text (Lemma)</span>
+                <i class="bi bi-info-circle text-muted"
+                   style="font-size: 0.8rem; cursor: help;"
+                   title="The original manuscript text segment that this comment annotates.">
+                </i>
+              </div>
+              <div class="lemma-text-quote">“{{text}}”</div>
+              
+              <!-- Toggle for original notation -->
+              <div class="notation-toggle mt-2">
+                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none text-secondary d-inline-flex align-items-center gap-1" (click)="showOriginalNotation = !showOriginalNotation">
+                  <i class="bi" [class.bi-chevron-right]="!showOriginalNotation" [class.bi-chevron-down]="showOriginalNotation"></i>
+                  <span>Notation</span>
+                </button>
+                
+                <div *ngIf="showOriginalNotation" class="original-notation-display mt-2 bg-white border rounded p-2">
+                  <app-zeile-section [documentType]="'Gesang'" [readOnly]="true" [data]="orig" [comments]="[]"
+                    [zipper]="[0]"></app-zeile-section>
+                  <div class="hider"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Apparatus preview card -->
+          <div class="sidebar-section preview-section border-top pt-3" *ngIf="activeComments().length > 0">
+            <span class="section-label">Apparatus Preview</span>
+            <div class="apparatus-preview-text">
+              <span *ngIf="apparatusPreviewParts.category" class="apparatus-preview-category text-uppercase me-1">[{{ apparatusPreviewParts.category }}]</span>
+              {{ apparatusPreviewParts.rest }}
+            </div>
+          </div>
+
+          <!-- Classification card -->
+          <div class="sidebar-section border-top pt-3">
+            <span class="section-label">Classification</span>
+            <div class="toggle-chips">
+              <button *ngFor="let cat of COMMENT_CATEGORIES"
+                      type="button"
+                      class="toggle-chip"
+                      [class.active]="comment.category === cat.key"
+                      [style.--chip-color]="cat.color"
+                      [title]="cat.label"
+                      (click)="toggleCategory(comment, cat.key)">
+                <i class="bi" [class]="cat.icon"></i>
+                <span>{{cat.short}}</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Intervention card -->
+          <div class="sidebar-section border-top pt-3">
+            <span class="section-label">Intervention</span>
+            <div class="toggle-chips intervention-chips">
+              <button *ngFor="let item of INTERVENTIONS"
+                      type="button"
+                      class="toggle-chip"
+                      [class.active]="comment.intervention === item.key"
+                      [title]="item.label"
+                      (click)="toggleIntervention(comment, item.key)">
+                <i class="bi" [class]="item.icon"></i>
+                <span>{{item.label}}</span>
+              </button>
+            </div>
+
+            <!-- Certainty selection (if unclear) -->
+            <div *ngIf="comment.intervention === 'unclear'" class="certainty-container mt-3 border-top pt-3">
+              <span class="section-label mb-2 d-block">Certainty</span>
+              <select class="form-select form-select-sm"
+                      [ngModel]="comment.certainty ?? ''"
+                      (ngModelChange)="updateCertainty(comment, $event)">
+                <option value="">Not set</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
       </div>
-      <textarea class="form-control p-3" rows="6"
-                [ngModel]="comment.text"
-                (ngModelChange)="onTextChange(comment, $event)"
-                placeholder="Enter your comment here…"
-                style="resize: vertical;"></textarea>
-    </div>
 
-    <!-- Emendation flag (always visible) -->
-    <div class="emendation-row form-check form-switch p-0">
-      <input class="form-check-input" type="checkbox"
-             [ngModel]="comment.emendation"
-             (ngModelChange)="onEmendationChange(comment, $event)"
-             [id]="'emendation-' + i" />
-      <label [for]="'emendation-' + i">
-        Mark as Emendation
-        <div class="emendation-hint">Editorial correction of the source — shown with a distinct symbol in the published edition.</div>
-      </label>
-    </div>
+      <!-- RIGHT Pane (content editor) — a comment's content is always a tree -->
+      <div class="right-pane">
+        <label class="mb-2">Structure</label>
 
-    <!-- Staff line (lemma + reading) -->
-    <div *ngIf="comment.commentType === 'lines' && comment.lines" class="panel">
-      <div class="panel-label">Lemma</div>
-      <div class="original mb-3 bg-white border rounded p-2">
-        <app-zeile-section [documentType]="'Gesang'" [readOnly]="false" [data]="getOriginal(i)" [comments]="[]"
-          [zipper]="[0]"></app-zeile-section>
-        <div class="hider"></div>
+        <!-- Template bar: one-click starting structures -->
+        <div class="template-bar">
+          <!-- Built-in templates -->
+          <button *ngFor="let tpl of COMMENT_TEMPLATES"
+                  type="button"
+                  class="toggle-chip template-chip"
+                  [class.armed]="armedTemplateKey === tpl.key"
+                  [title]="armedTemplateKey === tpl.key ? 'Click again to replace the current structure' : tpl.label"
+                  (click)="applyTemplate(comment, tpl.key)">
+            <i class="bi" [class]="armedTemplateKey === tpl.key ? 'bi-exclamation-triangle' : tpl.icon"></i>
+            <span>{{ armedTemplateKey === tpl.key ? 'Replace?' : tpl.label }}</span>
+          </button>
+
+          <!-- User-saved templates -->
+          <span *ngFor="let saved of savedTemplates" class="saved-chip-wrap">
+            <button type="button"
+                    class="toggle-chip template-chip saved-chip"
+                    [class.armed]="armedTemplateKey === saved.id"
+                    [title]="armedTemplateKey === saved.id ? 'Click again to replace the current structure' : ('Apply template: ' + saved.name)"
+                    (click)="applySavedTemplate(comment, saved)">
+              <i class="bi" [class]="armedTemplateKey === saved.id ? 'bi-exclamation-triangle' : 'bi-bookmark'"></i>
+              <span>{{ armedTemplateKey === saved.id ? 'Replace?' : saved.name }}</span>
+            </button>
+            <button type="button" class="saved-chip-delete"
+                    title="Delete template" aria-label="Delete template"
+                    (click)="deleteSavedTemplate(saved, $event)">
+              <i class="bi bi-x"></i>
+            </button>
+          </span>
+
+          <!-- Save current structure as a template -->
+          <button type="button"
+                  class="toggle-chip template-chip save-chip"
+                  title="Save the current structure as a template"
+                  (click)="saveAsTemplate(comment)">
+            <i class="bi bi-bookmark-plus"></i>
+            <span>Save</span>
+          </button>
+        </div>
+
+        <div class="panel">
+          <app-comment-tree *ngIf="comment.tree" [tree]="comment.tree" (treeEvent)="handleCommentTreeEvent($event, comment)"
+            [originalCreator]="originalCreator(comment)" />
+        </div>
       </div>
-      <div class="panel-label">Reading</div>
-      <div *ngFor="let line of comment.lines; index as j" class="line-comment">
-        <app-zeile-section #sub [documentType]="documentType" [readOnly]="false" (onEvent)="handleEvent($event, i, j)"
-          *ngIf="line.kind === 'ZeileContainer'" [data]="line" [comments]="[]" [zipper]="[0]"></app-zeile-section>
-        <app-paratext-section #sub [documentType]="documentType" [readOnly]="false"
-          (onEvent)="handleEvent($event, i, j)" *ngIf="line.kind === 'ParatextContainer'" [data]="line" [comments]="[]"
-          [zipper]="[0]"></app-paratext-section>
-      </div>
+
     </div>
 
-    <!-- Tree / grid -->
-    <div *ngIf="comment.commentType === 'tree'" class="panel">
-      <app-comment-tree *ngIf="comment.tree" [tree]="comment.tree" (treeEvent)="handleCommentTreeEvent($event, comment)"
-        [originalCreator]="originalCreator(comment)" />
-    </div>
   </div>
 
   <div *ngIf="activeComments().length === 0" class="empty-state">
@@ -107,3 +223,15 @@
     <p class="small mb-0">All comments on this span have been deleted.</p>
   </div>
 </div>
+
+<div class="modal-footer">
+  <div class="autosave-hint">
+    <i class="bi bi-cloud-check text-success"></i>
+    Changes save automatically
+  </div>
+  <button type="button" class="btn btn-primary done-btn px-4" (click)="closeModal()">Done</button>
+</div>
+
+<datalist id="sigla-list">
+  <option *ngFor="let s of sigla" [value]="s"></option>
+</datalist>

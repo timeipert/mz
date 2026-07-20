@@ -14,6 +14,7 @@ import { FocusService } from '../focus.service';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { handleTextInputMove, Focusable, Focus, FocusChange } from '../types/Focus';
 import { CommentComponent } from '../comment/comment.component';
+import { commentColor } from '../comment/comment-colors';
 import { ReplaySubject, Subscription } from 'rxjs';
 import { UndoService } from '../undoService';
 import { ContextMenuService } from '../context-menu/context-menu.service';
@@ -317,7 +318,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     rp.subscribe(originals => {
       // Use the same modal options as document.openComment() for a
       // consistent look-and-feel across every route into the comment dialog.
-      const modalRef = this.modalService.open(CommentComponent, { size: 'xl', centered: true, backdrop: 'static', windowClass: 'comment-modal-window', fullscreen: 'lg' });
+      const modalRef = this.modalService.open(CommentComponent, { size: 'xl', centered: true, backdrop: 'static', windowClass: 'comment-modal-window', scrollable: true, fullscreen: 'lg' });
       modalRef.componentInstance.comments = JSON.parse(JSON.stringify(comments));
       modalRef.componentInstance.originals = JSON.parse(JSON.stringify(originals));
       modalRef.componentInstance.saveEvent.subscribe((newComments: (VM.Comment | null)[]) => {
@@ -1231,14 +1232,6 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     return this.comments.some(c => c.endUUID === this.model.uuid);
   }
 
-  /** Palette of distinguishable hues used to color comment brackets and the
-   *  matching sidebar card stripes. Keep this list in sync with
-   *  DocumentComponent.COMMENT_PALETTE. */
-  private static readonly COMMENT_PALETTE = [
-    '#2563eb', '#16a34a', '#f59e0b', '#a855f7',
-    '#ec4899', '#0891b2', '#dc2626', '#84cc16',
-  ];
-
   /** Default neutral color when nothing is selected. */
   private static readonly NEUTRAL = '#A5A5A5';
 
@@ -1248,7 +1241,7 @@ export class NotesComponent implements OnDestroy, OnInit, Focusable, AfterViewIn
     if (!c) return NotesComponent.NEUTRAL;
     const idx = this.comments.indexOf(c);
     if (idx < 0) return NotesComponent.NEUTRAL;
-    return NotesComponent.COMMENT_PALETTE[idx % NotesComponent.COMMENT_PALETTE.length];
+    return commentColor(idx);
   }
 
   /** True when palette colors should currently be shown — i.e., the user has

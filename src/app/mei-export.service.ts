@@ -10,9 +10,9 @@ import { defaultMeiProfile } from './mei/mei-mapping.model';
 export class MeiExportService {
   constructor() {}
 
-  exportToMei(root: RootContainer, settings: ProjectSettings | null, documentMeta?: MonodiDocument): string {
+  exportToMei(root: RootContainer, settings: ProjectSettings | null, documentMeta?: MonodiDocument, sourceSiglum?: string): string {
     const profile = settings?.meiProfiles?.find(p => p.id === settings.activeMeiProfileId) || defaultMeiProfile();
-    return emitMei(root, profile, documentMeta);
+    return emitMei(root, profile, documentMeta, sourceSiglum);
   }
 
   /**
@@ -95,11 +95,13 @@ export class MeiExportService {
                 treeResult = this.generateCommentTreeDOM(comment.tree, doc, i, noteCounter);
             }
             
-            const hasMusicalStructure = (comment.lines && comment.lines.length > 0) || treeResult.zeilen.length > 0;
+            // Tree is the source of truth when present; legacy `lines` are
+            // only consulted for comments that were never migrated.
+            const hasMusicalStructure = treeResult.zeilen.length > 0 || (!comment.tree && !!comment.lines && comment.lines.length > 0);
             if (hasMusicalStructure) {
                 annot.setAttribute('corresp', '#m-comment-' + i);
             }
-            
+
             if (treeResult.element) {
                 annot.appendChild(treeResult.element);
             } else if (comment.text) {
@@ -180,18 +182,18 @@ export class MeiExportService {
                 treeResult = this.generateCommentTreeDOM(comment.tree, doc, i, noteCounter);
             }
             
-            const hasMusicalStructure = (comment.lines && comment.lines.length > 0) || treeResult.zeilen.length > 0;
-            
+            const hasMusicalStructure = treeResult.zeilen.length > 0 || (!comment.tree && !!comment.lines && comment.lines.length > 0);
+
             if (hasMusicalStructure) {
                 const commentMdiv = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'mdiv');
                 commentMdiv.setAttribute('type', 'commentary');
                 commentMdiv.setAttribute('xml:id', 'm-comment-' + i);
-                
+
                 const commentScore = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'score');
                 const commentScoreDef = doc.createElementNS('http://www.music-encoding.org/ns/mei', 'scoreDef');
                 commentScore.appendChild(commentScoreDef);
-                
-                if (comment.lines && comment.lines.length > 0) {
+
+                if (!comment.tree && comment.lines && comment.lines.length > 0) {
                     const commentSection = doc.createElementNS('http://www.music-encoding.org/ns/mei', mappings.formteilContainer?.tag || 'section');
                     let currentStaff: Element | null = null;
                     let currentLayer: Element | null = null;
@@ -446,8 +448,8 @@ export class MeiExportService {
     layer.appendChild(meiSyllable);
   }
 
-  exportAndDownload(root: RootContainer, filename: string = 'export.mei', settings: ProjectSettings | null = null, documentMeta?: MonodiDocument) {
-    const xml = this.exportToMei(root, settings, documentMeta);
+  exportAndDownload(root: RootContainer, filename: string = 'export.mei', settings: ProjectSettings | null = null, documentMeta?: MonodiDocument, sourceSiglum?: string) {
+    const xml = this.exportToMei(root, settings, documentMeta, sourceSiglum);
     const blob = new Blob([xml], { type: 'application/xml' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');

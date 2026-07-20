@@ -41,17 +41,21 @@
            <app-comment-tree [tree]="cont.globalComment" [readOnly]="true"></app-comment-tree>
        </div>
        <!-- Numbered comments -->
-       <div *ngFor="let comment of cont?.comments; let i = index" class="pdf-comment-block" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px;">
-           <span class="app-index" style="margin-bottom: 5px;">{{i + 1}}</span>
-           <span *ngIf="getCommentType(comment) === 'text'" class="text" style="font-family: helvetica; font-size: 10pt; margin-bottom: 10px;">{{comment.text}}</span>
-           <app-comment-tree *ngIf="getCommentType(comment) === 'tree' && comment.tree" [tree]="comment.tree" [readOnly]="true"></app-comment-tree>
-           <div *ngIf="getCommentType(comment) === 'lines' && comment.lines" class="lines-container" style="width: 100%;">
-               <div *ngFor="let line of comment.lines">
-                   <app-zeile-section *ngIf="line.kind === 'ZeileContainer'" [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-zeile-section>
-                   <app-paratext-section *ngIf="line.kind === 'ParatextContainer'" [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-paratext-section>
-               </div>
-           </div>
-       </div>
+        <div *ngFor="let comment of cont?.comments; let i = index" class="pdf-comment-block" style="display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 20px; width: 100%;">
+            <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                <span *ngIf="comment.category && getCategoryDetails(comment.category) as cat" class="app-category" style="font-family: times; font-style: italic; font-size: 10pt; margin-right: 5px;">{{cat.label}}</span>
+                <span class="app-index" style="font-family: times; font-weight: bold; font-size: 10pt;">{{i + 1}}<span *ngIf="comment.emendation"> ⟨em.⟩</span></span>
+            </div>
+            <span *ngIf="getCommentType(comment) === 'text'" class="text" style="font-family: helvetica; font-size: 10pt; margin-bottom: 10px;">{{comment.text}}</span>
+            <app-comment-tree *ngIf="getCommentType(comment) === 'tree' && comment.tree" [tree]="comment.tree" [readOnly]="true"></app-comment-tree>
+            <div *ngIf="getCommentType(comment) === 'lines' && comment.lines" class="lines-container" style="width: 100%;">
+                <div *ngFor="let line of comment.lines; let j = index" style="margin-bottom: 10px; width: 100%;">
+                    <span *ngIf="comment.readingWitnesses?.[j]" class="app-witness-siglum" style="font-family: times; font-weight: bold; font-size: 9pt; display: block; margin-bottom: 2px;">{{comment.readingWitnesses[j]}}</span>
+                    <app-zeile-section *ngIf="line.kind === 'ZeileContainer'" [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-zeile-section>
+                    <app-paratext-section *ngIf="line.kind === 'ParatextContainer'" [data]="line" [readOnly]="true" [comments]="[]" [zipper]="[0]" [documentType]="cont!.documentType"></app-paratext-section>
+                </div>
+            </div>
+        </div>
     </div>
 
 
@@ -251,8 +255,18 @@
                     }"></i>
                     {{getCommentType(comment) === 'text' ? 'Text' : (getCommentType(comment) === 'lines' ? 'Staff' : 'Grid')}}
                   </span>
-                  <span *ngIf="comment.emendation" class="emendation-badge" title="Emendation">
-                    <i class="bi bi-pencil-fill"></i>Emend.
+                  <span *ngIf="comment.intervention || comment.emendation" 
+                        class="emendation-badge" 
+                        [attr.title]="comment.intervention ? getInterventionLabel(comment.intervention) : 'Emendation'">
+                    <i class="bi" [class]="comment.intervention ? getInterventionIcon(comment.intervention) : 'bi-pencil-fill'"></i>
+                    {{ comment.intervention ? getInterventionLabel(comment.intervention) : 'Emend.' }}
+                    <span *ngIf="comment.intervention === 'unclear' && comment.certainty" class="text-lowercase font-monospace">({{comment.certainty}})</span>
+                  </span>
+                  <span *ngIf="comment.category && getCategoryDetails(comment.category) as cat" 
+                        class="category-badge text-white ms-1" 
+                        [style.background-color]="cat.color"
+                        [attr.title]="cat.label">
+                    <i class="bi" [class]="cat.icon"></i>{{cat.label}}
                   </span>
                 </div>
 
@@ -505,6 +519,73 @@
         <button type="button" class="btn btn-outline-secondary px-3" (click)="showPdfExportDialog = false">Cancel</button>
         <button type="button" class="btn btn-danger px-4" (click)="confirmPdfExport()">
           <i class="bi bi-printer me-1"></i> Print / Save PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JSON Export Modal -->
+<div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);" *ngIf="showJsonExportDialog">
+  <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+    <div class="modal-content shadow border-0">
+      <div class="modal-header border-bottom bg-white px-4 py-3">
+        <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+          <i class="bi bi-download text-primary"></i>
+          <span>Export Document JSON</span>
+        </h5>
+        <button type="button" class="btn-close" (click)="showJsonExportDialog = false"></button>
+      </div>
+      <div class="modal-body p-4 bg-light">
+        <p class="text-muted small fw-medium mb-3">Choose the format option for exporting this document:</p>
+        
+        <div class="d-flex flex-column gap-2">
+          <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
+            <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatStandard" value="none" [(ngModel)]="exportJsonMode" style="float: left;">
+            <div class="ms-4">
+              <label class="form-check-label fw-bold text-dark" for="formatStandard">
+                Standard (Monodi-Zero)
+              </label>
+              <div class="text-muted small mt-1">Native two-voice file (recommended)</div>
+            </div>
+          </div>
+
+          <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
+            <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatComment" value="comment" [(ngModel)]="exportJsonMode" style="float: left;">
+            <div class="ms-4">
+              <label class="form-check-label fw-bold text-dark" for="formatComment">
+                Apparatus Comment
+              </label>
+              <div class="text-muted small mt-1">2nd voice as a phrase comment</div>
+            </div>
+          </div>
+
+          <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
+            <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatConsecutive" value="consecutive_lines" [(ngModel)]="exportJsonMode" style="float: left;">
+            <div class="ms-4">
+              <label class="form-check-label fw-bold text-dark" for="formatConsecutive">
+                Consecutive Staff Lines
+              </label>
+              <div class="text-muted small mt-1">2nd voice as a staff line below the first</div>
+            </div>
+          </div>
+
+          <div class="form-check p-3 border rounded bg-white shadow-sm hover-shadow transition-all">
+            <input class="form-check-input ms-0" type="radio" name="jsonExportFormat" id="formatSplit" value="split_documents" [(ngModel)]="exportJsonMode" style="float: left;">
+            <div class="ms-4">
+              <label class="form-check-label fw-bold text-dark" for="formatSplit">
+                Split Documents
+              </label>
+              <div class="text-muted small mt-1">Save as two separate files (-v1 & -v2)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-top bg-white px-4 py-3 d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-secondary px-3 fw-medium" (click)="showJsonExportDialog = false">Cancel</button>
+        <button type="button" class="btn btn-primary px-4 fw-medium d-inline-flex align-items-center gap-2" (click)="confirmJsonExport()">
+          <i class="bi bi-download"></i>
+          <span>{{ exportJsonMode === 'split_documents' ? 'Download 2 Files' : 'Download JSON' }}</span>
         </button>
       </div>
     </div>

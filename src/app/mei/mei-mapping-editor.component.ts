@@ -266,11 +266,10 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
   skeletonDiffers(): boolean {
     const profile = this.activeProfile;
     if (!profile) return false;
-    if (this.diffCache.skeleton === undefined) {
       this.diffCache.skeleton =
         this.stableStringify(profile.skeleton) !== this.stableStringify(this.defaultProfile.skeleton) ||
-        profile.emitHeader !== this.defaultProfile.emitHeader;
-    }
+        profile.emitHeader !== this.defaultProfile.emitHeader ||
+        profile.inlineInterventions !== this.defaultProfile.inlineInterventions;
     return this.diffCache.skeleton;
   }
 
@@ -389,11 +388,15 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
 
   copyXml() {
     if (this.previewXml) {
-      navigator.clipboard.writeText(this.previewXml).then(() => {
-        this.toastr.success('XML copied to clipboard!');
-      }).catch(() => {
-        this.toastr.error('Failed to copy XML.');
-      });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(this.previewXml).then(() => {
+          this.toastr.success('XML copied to clipboard!');
+        }).catch(() => {
+          this.toastr.error('Failed to copy XML.');
+        });
+      } else {
+        this.toastr.error('Clipboard API not supported on this origin (requires HTTPS or secure context).');
+      }
     }
   }
 
@@ -524,6 +527,7 @@ export class MeiMappingEditorComponent implements OnInit, OnDestroy {
       this.activeProfile.entities = JSON.parse(JSON.stringify(def.entities));
       this.activeProfile.skeleton = JSON.parse(JSON.stringify(def.skeleton));
       this.activeProfile.emitHeader = def.emitHeader;
+      this.activeProfile.inlineInterventions = def.inlineInterventions;
       this.emitChange(true);
       this.toastr.success('Profile reset to defaults.');
     }

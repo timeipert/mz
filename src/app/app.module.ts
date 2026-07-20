@@ -27,7 +27,6 @@ import { ZipUploadComponent } from './zip-upload/zip-upload.component';
 import { CommentComponent } from './comment/comment.component';
 import { ComplexCommentComponent } from './complex-comment/complex-comment.component';
 import { ParatextCommentComponent } from './paratext-comment/paratext-comment.component';
-import { CommentInfoComponent } from './comment/comment-info/comment-info.component';
 
 import { SearchComponent } from './search/search.component';
 import { DragMapComponent } from './drag-map/drag-map.component';
@@ -53,7 +52,6 @@ import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
         CommentComponent,
         ParatextCommentComponent,
         ComplexCommentComponent,
-        CommentInfoComponent,
         SearchComponent,
         SettingsComponent,
         DragMapComponent,
@@ -119,7 +117,7 @@ import { MeiMappingEditorComponent } from './mei/mei-mapping-editor.component';
             }
         ], { useHash: true, anchorScrolling: 'enabled' }),
         ServiceWorkerModule.register('ngsw-worker.js', {
-          enabled: !isDevMode(),
+          enabled: !isDevMode() && typeof window !== 'undefined' && window.location.protocol !== 'file:',
           registrationStrategy: 'registerWhenStable:30000'
         })
     ], providers: [ConfirmDeactivateGuard, provideHttpClient(withInterceptorsFromDi()), { provide: ErrorHandler, useClass: GlobalErrorHandler }] })

@@ -19,6 +19,10 @@ export class CommentTreeGridComponent {
   ) { }
 
 
+  @HostBinding('class.is-root') get isRoot(): boolean {
+    return this.path.length === 0;
+  }
+
   @HostBinding('style.grid-template-columns') get gridTemplateColumns(): string {
     const dataCols = Array.from(Array(this.data.items[0].length).keys()).map(i => this.getColumnWidth(i));
     return this.readOnly ? dataCols.join(" ") : [...dataCols, "auto"].join(" ");
@@ -29,16 +33,11 @@ export class CommentTreeGridComponent {
   }
 
   private getColumnWidth(index: number): string {
-    const allCells = this.data.items.map(row => row[index]);
-    const hasBracket = allCells.some(cell => cell.kind === "CommentTreeLeaf" && cell.content && cell.content.kind === "Bracket");
-    if (hasBracket) {
-      return "auto";
-    }
-    const allUndecided = allCells.every(cell => cell.kind === "CommentTreeUndecided");
-    if (allUndecided) {
-      return "auto";
-    }
-    return "1fr";
+    // Every column sizes to its own content ("max-content") so a cell is never
+    // squeezed below what fits inside it (no clipped staves, no tiles forced to
+    // stack). When the total exceeds the available width, the grid host
+    // (overflow: auto) scrolls horizontally instead.
+    return "max-content";
   }
 
   entries(): { path: M.CommentTreePath, sub: M.CommentTree }[] {
@@ -75,5 +74,13 @@ export class CommentTreeGridComponent {
         source: this.path, intent: { kind: "DeleteColumn", index: i }
       });
     }
+  }
+
+  hoverRow: number | null = null;
+  hoverCol: number | null = null;
+
+  setHover(row: number | null, col: number | null): void {
+    this.hoverRow = row;
+    this.hoverCol = col;
   }
 }

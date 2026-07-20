@@ -183,6 +183,39 @@
           (selectionChange)="onExportSelectionChange($event)">
         </app-subcorpora-selector>
         
+        <!-- Backwards Compatibility Option for ZIP export -->
+        <div *ngIf="!isExporting && exportMode === 'zip'" class="mt-3 p-3 bg-white border rounded shadow-sm">
+          <label class="form-label fw-bold text-dark mb-2">Backwards-Compatible Polyphony Export (Monodi v1)</label>
+          
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeNone" value="none" [(ngModel)]="exportBackwardsCompatMode">
+            <label class="form-check-label text-dark fw-medium ms-1" for="zipModeNone">
+              Standard Format (Monodi-Zero)
+            </label>
+          </div>
+
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeComment" value="comment" [(ngModel)]="exportBackwardsCompatMode">
+            <label class="form-check-label text-dark fw-medium ms-1" for="zipModeComment">
+              Apparatus Comment (2nd voice as phrase comment)
+            </label>
+          </div>
+
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeConsecutive" value="consecutive_lines" [(ngModel)]="exportBackwardsCompatMode">
+            <label class="form-check-label text-dark fw-medium ms-1" for="zipModeConsecutive">
+              Consecutive Staff Lines (2nd voice as 2nd Notenzeile below 1st)
+            </label>
+          </div>
+
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="zipCompatMode" id="zipModeSplit" value="split_documents" [(ngModel)]="exportBackwardsCompatMode">
+            <label class="form-check-label text-dark fw-medium ms-1" for="zipModeSplit">
+              Split Documents (Generates -v1 and -v2 document folders)
+            </label>
+          </div>
+        </div>
+        
         <!-- Loading Spinner -->
         <div *ngIf="isExporting" class="text-center py-5">
           <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>

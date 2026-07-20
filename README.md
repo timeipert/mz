@@ -77,7 +77,22 @@ npx ng build --configuration production
 npx ng test --watch=false --browsers=ChromeHeadless   # unit tests
 ```
 
-Continuous integration builds and tests every push (see `.github/workflows/ci.yml`). Release conventions, versioning, and the data-migration policy are documented in `RELEASING.md`.
+### Desktop app (Electron)
+
+The same web build is also packaged as a cross-platform desktop app:
+
+```bash
+npm run electron:start   # build and launch the desktop shell locally
+npm run pack             # unpacked build for the current platform (fast, no installers)
+npm run dist:electron    # full installers (dmg / nsis / AppImage) via electron-builder
+```
+
+> **Node 22 required for packaging.** `electron-builder` depends on an ESM-only
+> module that only loads under Node ≥ 22 (or ≥ 20.19). The packaging scripts
+> refuse to run on older Node with a clear message — use `nvm use 22` first.
+> The web build and the test suite are unaffected and run on Node 20.
+
+Continuous integration builds and tests every push (see `.github/workflows/ci.yml`); the desktop-release workflow (`.github/workflows/electron.yml`) must run its build job on **Node 22**. Release conventions, versioning, and the data-migration policy are documented in `RELEASING.md`.
 
 Issues and contributions are welcome via the [GitHub repository](https://github.com/timeipert/mz).
 

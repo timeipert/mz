@@ -262,4 +262,161 @@ describe('MeiEmitter', () => {
     expect(clefEl!.hasAttribute('custom-empty')).toBe(false);
     expect(clefEl!.getAttribute('custom-empty-present')).toBe('');
   });
+
+  it('should produce identical output for legacy comments without new fields', () => {
+    const root = emptyRootContainer();
+    const comment = {
+      startUUID: 'u1',
+      endUUID: 'u2',
+      text: 'legacy note text',
+      emendation: true
+    };
+    root.comments = [comment];
+    const profile = defaultMeiProfile();
+    profile.emitHeader = true;
+
+    const xml = emitMei(root, profile);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, 'application/xml');
+
+    const annot = doc.querySelector('annot');
+    expect(annot).not.toBeNull();
+    expect(annot!.getAttribute('type')).toBe('emendation');
+    expect(annot!.hasAttribute('cert')).toBe(false);
+    expect(doc.querySelector('sourceDesc')).toBeNull();
+  });
+
+  it('should enrich header with witnesses, certainty, type list, and nested annotations', () => {
+    const root = emptyRootContainer();
+    const comment = {
+      startUUID: 'u1',
+      endUUID: 'u2',
+      text: 'enriched note text',
+      emendation: true,
+      category: 'variant' as any,
+      intervention: 'correction' as any,
+      certainty: 'high' as any,
+      readingWitnesses: ['WitnessA', 'WitnessB'],
+      lines: [
+        { kind: 'ZeileContainer', id: 'z1', children: [] } as any,
+        { kind: 'ZeileContainer', id: 'z2', children: [] } as any
+      ]
+    };
+    root.comments = [comment];
+    const profile = defaultMeiProfile();
+    profile.emitHeader = true;
+
+    const xml = emitMei(root, profile, undefined, 'MainSource');
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, 'application/xml');
+
+    // Test sourceDesc
+    const sourceDesc = doc.querySelector('sourceDesc');
+    expect(sourceDesc).not.toBeNull();
+    const sources = sourceDesc!.querySelectorAll('source');
+    expect(sources.length).toBe(3); // MainSource, WitnessA, WitnessB
+    expect(sources[0].getAttribute('xml:id')).toBe('wit-mainsource');
+    expect(sources[1].getAttribute('xml:id')).toBe('wit-witnessa');
+
+    // Test annot
+    const annot = doc.querySelector('notesStmt > annot');
+    expect(annot).not.toBeNull();
+    expect(annot!.getAttribute('type')).toBe('emendation correction cat:variant');
+    expect(annot!.getAttribute('cert')).toBe('high');
+
+    // Test nested annot readings
+    const nestedAnnots = annot!.querySelectorAll('annot');
+    expect(nestedAnnots.length).toBe(2);
+    expect(nestedAnnots[0].getAttribute('source')).toBe('#wit-witnessa');
+    expect(nestedAnnots[1].getAttribute('source')).toBe('#wit-witnessb');
+    const nestedPtrs = annot!.querySelectorAll('ptr');
+    expect(nestedPtrs.length).toBe(2);
+    expect(nestedPtrs[0].getAttribute('target')).toBe('#m-comment-0-reading-0');
+  });
+
+  it('should not wrap notes inline if inlineInterventions is false', () => {
+    const root = emptyRootContainer();
+    const formteil = emptyFormteilContainer(DocumentType.Level1, []);
+    const zeile = emptyZeileContainer(1);
+    const syl = emptySyllable(1);
+    syl.notes = {
+      spaced: [
+        {
+          nonSpaced: [
+            {
+              grouped: [
+                { uuid: 'note-1', base: BaseNote.C, noteType: NoteType.Normal } as any
+              ]
+            }
+          ]
+        }
+      ]
+    };
+    zeile.children = [syl];
+    formteil.children = [zeile];
+    root.children = [formteil];
+
+    const comment = {
+      startUUID: 'note-1',
+      endUUID: 'note-1',
+      text: 'unclear comment',
+      intervention: 'unclear' as any,
+      certainty: 'high' as any
+    };
+    root.comments = [comment];
+
+    const profile = defaultMeiProfile();
+    profile.inlineInterventions = false;
+
+    const xml = emitMei(root, profile);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, 'application/xml');
+
+    const noteEl = doc.querySelector('nc');
+    expect(noteEl).not.toBeNull();
+    expect(doc.querySelector('unclear')).toBeNull();
+  });
+
+  it('should not wrap notes inline even when inlineInterventions is true (due to MEI 5 schema validity constraints at nc level)', () => {
+    const root = emptyRootContainer();
+    const formteil = emptyFormteilContainer(DocumentType.Level1, []);
+    const zeile = emptyZeileContainer(1);
+    const syl = emptySyllable(1);
+    syl.notes = {
+      spaced: [
+        {
+          nonSpaced: [
+            {
+              grouped: [
+                { uuid: 'note-1', base: BaseNote.C, noteType: NoteType.Normal } as any
+              ]
+            }
+          ]
+        }
+      ]
+    };
+    zeile.children = [syl];
+    formteil.children = [zeile];
+    root.children = [formteil];
+
+    const comment = {
+      startUUID: 'note-1',
+      endUUID: 'note-1',
+      text: 'unclear comment',
+      intervention: 'unclear' as any,
+      certainty: 'high' as any
+    };
+    root.comments = [comment];
+
+    const profile = defaultMeiProfile();
+    profile.inlineInterventions = true;
+
+    const xml = emitMei(root, profile);
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, 'application/xml');
+
+    const noteEl = doc.querySelector('nc');
+    expect(noteEl).not.toBeNull();
+    expect(doc.querySelector('unclear')).toBeNull();
+  });
 });

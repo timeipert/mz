@@ -165,7 +165,7 @@ export class FolioChangeComponent implements OnDestroy, OnInit {
     const rp = new ReplaySubject<VM.ZeileContainer[]>(1);
     const comments = this.getActiveComments();
     rp.subscribe(originals => {
-      const modalRef = this.modalService.open(CommentComponent, { size: 'lg' });
+      const modalRef = this.modalService.open(CommentComponent, { size: 'xl', centered: true, backdrop: 'static', windowClass: 'comment-modal-window', scrollable: true, fullscreen: 'lg' });
       modalRef.componentInstance.comments = JSON.parse(JSON.stringify(comments));
       modalRef.componentInstance.originals = JSON.parse(JSON.stringify(originals));
       modalRef.componentInstance.saveEvent.subscribe((newComments: (VM.Comment | null)[]) => {

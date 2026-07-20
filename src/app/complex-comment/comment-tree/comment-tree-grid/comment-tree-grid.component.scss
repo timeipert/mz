@@ -5,50 +5,88 @@
 
   display: grid;
   grid-gap: 1rem;
+  position: relative;
+  /* The grid is the scroll owner: cells keep their natural size and, when the
+     whole structure is wider than the pane, this scrolls horizontally instead
+     of squeezing the cells. */
+  overflow: auto;
+  max-width: 100%;
+}
+
+/* Only the top-level grid shows the orientation caption; give it room inside
+   the padding box so overflow:auto doesn't clip it. */
+:host.is-root {
+  padding-top: 1.7rem;
+}
+
+.orientation-caption {
+  position: absolute;
+  top: 0.4rem;
+  left: 1rem;
+  font-size: 0.7rem;
+  color: #6c757d; // muted text
+  user-select: none;
+  pointer-events: none;
 }
 
 .add-row {
   grid-column: 1 / -2;
   grid-row: -2 / span 1;
-  text-align: center;
-  background-color: #89bdd3;
-  cursor: pointer;
-  height: 1.5rem;
+  justify-self: center;
+  margin-top: 0.5rem;
 }
 
 .add-col {
   grid-column: -2 / span 1;
   grid-row: 1 / -2;
-  display: grid;
-  align-content: center;
-  text-align: center;
-  background-color: #89bdd3;
-  cursor: pointer;
-  width: 1.5rem;
+  align-self: center;
+  margin-left: 0.5rem;
 }
 
 .grid-entry {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  /* min-content floor (not 0) so a cell never collapses below its content and
+     clips — e.g. the undecided-cell icon tiles. Genuinely-wide content instead
+     produces one clean scrollbar on the enclosing panel. */
+  grid-template-columns: auto minmax(min-content, 1fr);
   grid-template-rows: auto minmax(0, 1fr);
+  transition: background-color 0.2s;
+  border-radius: 0.25rem;
+
+  &.hovered-row {
+    background-color: rgba(13, 93, 128, 0.05);
+  }
+  &.hovered-col {
+    background-color: rgba(13, 93, 128, 0.03);
+  }
+  &.hovered-row.hovered-col {
+    background-color: rgba(13, 93, 128, 0.1);
+  }
+
+  &:hover {
+    > .del-col, > .del-row {
+      opacity: 0.5;
+      &:hover { opacity: 1; }
+    }
+  }
 }
 
 .del-row, .del-col {
-  background-color: #89bdd3;
-  width: 0;
-  height: 0;
-  overflow: hidden;
+  color: #dc3545;
+  background: transparent;
+  width: unset;
+  height: unset;
   display: grid;
   place-items: center;
   cursor: pointer;
-  visibility: hidden;
   user-select: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  visibility: hidden;
 }
 
 .first-row .del-col, .first-col .del-row {
   visibility: visible;
   min-width: 1.5rem;
   min-height: 1.5rem;
-  width: unset;
-  height: unset;
 }

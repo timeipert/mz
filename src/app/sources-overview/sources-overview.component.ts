@@ -14,7 +14,13 @@ import * as localforage from 'localforage';
 import { PageTitleService } from '../page-title.service';
 import { NotesStore } from '../notes-store';
 import { WORKSPACE_SCHEMA_VERSION } from '../schema';
-import { buildWorkspaceExport, parseWorkspaceImport } from '../workspace-io';
+import { buildWorkspaceExport, parseWorkspaceImport, BackwardsCompatMode } from '../workspace-io';
+import { 
+  convertToBackwardsCompatibleComment, 
+  convertToBackwardsCompatibleConsecutiveLines, 
+  convertToBackwardsCompatibleSplitDocuments, 
+  RootContainer 
+} from '../types/model';
 import * as JSZip from 'jszip';
 import * as Handlebars from 'handlebars';
 
@@ -61,6 +67,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
   selectedSourcesForExport: Source[] = [];
   selectedDocsForExport: any[] = [];
   renderingDocument: any = null;
+  exportBackwardsCompatMode: BackwardsCompatMode = 'none';
 
   importProgress: {
     active: boolean;
@@ -224,7 +231,7 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
       const notes = await NotesStore.getAll();
       const settings = await localforage.getItem('monodi_settings');
       
-      const data = buildWorkspaceExport(sources, documents, notes, settings);
+      const data = buildWorkspaceExport(sources, documents, notes, settings, this.exportBackwardsCompatMode);
       
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
@@ -869,11 +876,32 @@ export class SourcesOverviewComponent implements OnInit, OnDestroy {
             publish: d.custom?.publish || 'all'
           };
           
-          zip.file(`${s.id}/${d.id}/meta.json`, JSON.stringify(mappedDoc, null, 2));
-          
-          const notes = await NotesStore.get(d.id);
-          if (notes) {
-            zip.file(`${s.id}/${d.id}/data.json`, JSON.stringify(notes, null, 2));
+          let notes = await NotesStore.get(d.id);
+          if (notes && (notes as any).kind === 'RootContainer') {
+            if (this.exportBackwardsCompatMode === 'split_documents') {
+              const split = convertToBackwardsCompatibleSplitDocuments(notes as RootContainer, d.id);
+              const doc1 = JSON.parse(JSON.stringify(mappedDoc));
+              const doc2 = JSON.parse(JSON.stringify(mappedDoc));
+              doc1.textinitium = (mappedDoc.textinitium || d.id) + ' (Voice 1)';
+              doc2.textinitium = (mappedDoc.textinitium || d.id) + ' (Voice 2)';
+              zip.file(`${s.id}/${d.id}-v1/meta.json`, JSON.stringify(doc1, null, 2));
+              zip.file(`${s.id}/${d.id}-v1/data.json`, JSON.stringify(split.v1, null, 2));
+              zip.file(`${s.id}/${d.id}-v2/meta.json`, JSON.stringify(doc2, null, 2));
+              zip.file(`${s.id}/${d.id}-v2/data.json`, JSON.stringify(split.v2, null, 2));
+            } else {
+              if (this.exportBackwardsCompatMode === 'consecutive_lines') {
+                notes = convertToBackwardsCompatibleConsecutiveLines(notes as RootContainer);
+              } else if (this.exportBackwardsCompatMode === 'comment') {
+                notes = convertToBackwardsCompatibleComment(notes as RootContainer);
+              }
+              zip.file(`${s.id}/${d.id}/meta.json`, JSON.stringify(mappedDoc, null, 2));
+              zip.file(`${s.id}/${d.id}/data.json`, JSON.stringify(notes, null, 2));
+            }
+          } else {
+            zip.file(`${s.id}/${d.id}/meta.json`, JSON.stringify(mappedDoc, null, 2));
+            if (notes) {
+              zip.file(`${s.id}/${d.id}/data.json`, JSON.stringify(notes, null, 2));
+            }
           }
         }
         

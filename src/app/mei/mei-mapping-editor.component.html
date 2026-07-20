@@ -234,6 +234,14 @@
               <small class="text-muted d-block mt-1">If enabled, a standard MEI header containing document metadata will be prepended.</small>
             </div>
 
+            <div class="mb-4">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="inlineInterventionsCheck" [(ngModel)]="activeProfile.inlineInterventions" (ngModelChange)="emitChange()">
+                <label class="form-check-label fw-medium" for="inlineInterventionsCheck">Encode interventions inline (experimental)</label>
+              </div>
+              <small class="text-muted d-block mt-1">If enabled, unclear and supplied editorial interventions will be encoded directly in the musical notation structure.</small>
+            </div>
+
             <div>
               <label class="form-label fw-medium">Root Wrappers / Skeleton</label>
               <p class="text-muted small mb-2">Defines the nested elements created inside the root <code>&lt;mei&gt;</code> element. (Outermost &rarr; Innermost)</p>
