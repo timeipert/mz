@@ -1742,7 +1742,7 @@ export class DocumentComponent implements OnInit {
               'Notes missing'
             );
             break;
-          case 'NotesRetrieved': this.cont = res.data; this.contJsonClone = JSON.stringify(this.cont); break;
+          case 'NotesRetrieved': this.cont = VM.normalizeDocumentComments(res.data); this.contJsonClone = JSON.stringify(this.cont); break;
           default: assertNever(res);
         }
       });
@@ -1920,7 +1920,7 @@ export class DocumentComponent implements OnInit {
             case 'LoginRequired': this.userService.logout(); break;
             case 'Failed': this.toastr.error("Invalides Format", "Upload gescheitert!"); break;
             case 'NotesRetrieved':
-              this.cont = res.data;
+              this.cont = VM.normalizeDocumentComments(res.data);
               this.contJsonClone = JSON.stringify(this.cont);
               this.toastr.success("Upload erfolgreich!");
               break;

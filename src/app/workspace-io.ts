@@ -3,6 +3,7 @@ import {
   convertToBackwardsCompatibleComment, 
   convertToBackwardsCompatibleConsecutiveLines, 
   convertToBackwardsCompatibleSplitDocuments,
+  normalizeDocumentComments,
   RootContainer 
 } from './types/model';
 
@@ -83,10 +84,19 @@ export function parseWorkspaceImport(json: any): WorkspaceImportResult {
     throw new Error('Ungültiges Workspace-Format: JSON ist kein Objekt.');
   }
   const schemaVersion = json.schemaVersion !== undefined ? json.schemaVersion : 1;
+  const notesDict = json.notes;
+  if (notesDict && typeof notesDict === 'object') {
+    for (const [docId, root] of Object.entries(notesDict)) {
+      if (root && typeof root === 'object' && (root as any).kind === 'RootContainer') {
+        normalizeDocumentComments(root as RootContainer);
+      }
+    }
+  }
+
   return {
     sources: json.sources,
     documents: json.documents,
-    notesDict: json.notes,
+    notesDict,
     settings: json.settings,
     schemaVersion
   };

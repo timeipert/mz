@@ -8,6 +8,7 @@ import {
   ContainerKind, 
   DocumentType, 
   LinePartKind, 
+  normalizeDocumentComments,
   NoteType,
   RootContainer, 
   Syllable, 
@@ -127,5 +128,58 @@ describe('convertToBackwardsCompatibleMonodi Modes', () => {
     const zeile2 = result.v2.children[0] as ZeileContainer;
     expect((zeile2.children[0] as Syllable).notes.spaced[0].nonSpaced[0].grouped[0].base).toBe(BaseNote.E);
     expect((zeile2.children[0] as Syllable).additionalMelodies).toBeUndefined();
+  });
+});
+
+describe('normalizeDocumentComments legacy structure migration', () => {
+  it('should upgrade old comments lacking a tree property and resolve Syllable UUIDs to Note UUIDs', () => {
+    const sylUuid = 'syl-old-1';
+    const noteUuid = 'note-old-1';
+
+    const legacyRoot: any = {
+      kind: ContainerKind.RootContainer,
+      uuid: UUID(),
+      documentType: DocumentType.Level0,
+      comments: [
+        {
+          startUUID: sylUuid,
+          endUUID: sylUuid,
+          text: 'Legacy comment without tree property'
+        }
+      ],
+      children: [
+        {
+          kind: ContainerKind.ZeileContainer,
+          uuid: 'zeile-old',
+          children: [
+            {
+              kind: LinePartKind.Syllable,
+              uuid: sylUuid,
+              text: 'Ky-',
+              syllableType: SyllableType.Normal,
+              notes: {
+                spaced: [
+                  { nonSpaced: [{ grouped: [{ uuid: noteUuid, noteType: NoteType.Normal, base: BaseNote.G, liquescent: false, octave: 4, focus: false }] }] }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    };
+
+    const normalized = normalizeDocumentComments(legacyRoot);
+
+    expect(normalized.comments.length).toBe(1);
+    const comment = normalized.comments[0];
+
+    // Check tree migration
+    expect(comment.tree).toBeDefined();
+    expect(comment.tree!.kind).toBe('CommentTreeLeaf');
+    expect((comment.tree as any).content.content).toBe('Legacy comment without tree property');
+
+    // Check UUID resolution to note level
+    expect(comment.startUUID).toBe(noteUuid);
+    expect(comment.endUUID).toBe(noteUuid);
   });
 });

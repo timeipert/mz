@@ -1310,6 +1310,94 @@ export const ensureCommentTree = (comment: Comment): CommentTree => {
 };
 
 /**
+ * Normalizes and upgrades a RootContainer loaded from storage or import.
+ * 1. Ensures root.comments is defined as an array.
+ * 2. Migrates legacy comments lacking a `tree` structure.
+ * 3. Resolves startUUID/endUUID to note UUIDs if they were assigned to Syllable/Zeile UUIDs in older Monodi versions.
+ */
+export function normalizeDocumentComments(root: RootContainer): RootContainer {
+  if (!root || root.kind !== ContainerKind.RootContainer) return root;
+
+  if (!Array.isArray(root.comments)) {
+    root.comments = [];
+  }
+
+  // Build a lookup map of all container UUIDs in the document to their first & last Note UUIDs
+  const uuidToNoteMap = new Map<string, { firstNoteUUID: string; lastNoteUUID: string }>();
+
+  function collectUUIDs(node: any) {
+    if (!node) return;
+
+    if (node.kind === ContainerKind.ZeileContainer) {
+      const zeile = node as ZeileContainer;
+      let zeileFirstNote = '';
+      let zeileLastNote = '';
+
+      for (const child of zeile.children) {
+        if (!child) continue;
+
+        if (child.kind === LinePartKind.Syllable) {
+          const syl = child as Syllable;
+          let sylFirstNote = '';
+          let sylLastNote = '';
+
+          if (syl.notes && Array.isArray(syl.notes.spaced)) {
+            for (const sp of syl.notes.spaced) {
+              for (const ns of (sp?.nonSpaced ?? [])) {
+                for (const n of (ns?.grouped ?? [])) {
+                  if (n && n.uuid) {
+                    if (!sylFirstNote) sylFirstNote = n.uuid;
+                    sylLastNote = n.uuid;
+                    if (!zeileFirstNote) zeileFirstNote = n.uuid;
+                    zeileLastNote = n.uuid;
+                    uuidToNoteMap.set(n.uuid, { firstNoteUUID: n.uuid, lastNoteUUID: n.uuid });
+                  }
+                }
+              }
+            }
+          }
+
+          if (syl.uuid && sylFirstNote && sylLastNote) {
+            uuidToNoteMap.set(syl.uuid, { firstNoteUUID: sylFirstNote, lastNoteUUID: sylLastNote });
+          }
+        }
+      }
+
+      if (zeile.uuid && zeileFirstNote && zeileLastNote) {
+        uuidToNoteMap.set(zeile.uuid, { firstNoteUUID: zeileFirstNote, lastNoteUUID: zeileLastNote });
+      }
+    } else if (node.children && Array.isArray(node.children)) {
+      for (const child of node.children) {
+        collectUUIDs(child);
+      }
+    }
+  }
+
+  collectUUIDs(root);
+
+  for (const comment of root.comments) {
+    if (!comment) continue;
+
+    // Upgrade missing comment tree
+    ensureCommentTree(comment);
+
+    // Resolve startUUID if it matched a Syllable/Zeile container UUID
+    if (comment.startUUID && uuidToNoteMap.has(comment.startUUID)) {
+      const target = uuidToNoteMap.get(comment.startUUID)!;
+      comment.startUUID = target.firstNoteUUID;
+    }
+
+    // Resolve endUUID if it matched a Syllable/Zeile container UUID
+    if (comment.endUUID && uuidToNoteMap.has(comment.endUUID)) {
+      const target = uuidToNoteMap.get(comment.endUUID)!;
+      comment.endUUID = target.lastNoteUUID;
+    }
+  }
+
+  return root;
+}
+
+/**
  * True when a comment carries no editorial content: empty text, no legacy
  * lines, and an empty / Undecided tree. Used to drop accidentally-created
  * comments when the editor is dismissed without any input.
